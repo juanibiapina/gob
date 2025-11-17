@@ -13,7 +13,7 @@ A lightweight CLI tool for managing background processes. `gob` allows you to st
 
 Download the latest release for your platform from the [Releases page](https://github.com/juanibiapina/gob/releases).
 
-#### macOS / Linux
+**Available platforms**: Linux, macOS (both amd64 and arm64)
 
 ```bash
 # Download the appropriate binary for your platform
@@ -29,10 +29,6 @@ sudo mv gob /usr/local/bin/
 # Verify installation
 gob --version
 ```
-
-#### Windows
-
-Download the appropriate `.zip` file from the [Releases page](https://github.com/juanibiapina/gob/releases), extract it, and add the binary to your PATH.
 
 ### Build from Source
 
@@ -234,6 +230,7 @@ Tests are located in `test/*.bats` and verify end-to-end functionality.
 
 **Runtime**:
 - Unix-like operating system (Linux, macOS, BSD)
+- **Note**: Windows is not supported due to Unix-specific process management APIs
 
 **Build**:
 - Go 1.25.4+

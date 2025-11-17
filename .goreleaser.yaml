@@ -17,7 +17,6 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
@@ -84,11 +83,6 @@ release:
     # Extract and move to your PATH
     tar -xzf gob_{{.Version}}_darwin_amd64.tar.gz
     sudo mv gob /usr/local/bin/
-    ```
-
-    ### Windows
-    ```powershell
-    # Extract the zip file and add to your PATH
     ```
 
     **Full Changelog**: https://github.com/juanibiapina/gob/compare/{{.PreviousTag}}...{{.Tag}}
