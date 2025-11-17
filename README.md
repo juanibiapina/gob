@@ -226,6 +226,13 @@ make test
 
 Tests are located in `test/*.bats` and verify end-to-end functionality.
 
+### Contributing
+
+When making changes to the project:
+- Update `CHANGELOG.md` under `[Unreleased]` section for user-facing changes
+- Follow [Keep a Changelog](https://keepachangelog.com/) format
+- Categorize changes as: Added, Changed, Deprecated, Removed, Fixed, Security
+
 ## Requirements
 
 **Runtime**:
