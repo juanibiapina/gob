@@ -43,7 +43,7 @@ load 'test_helper'
   pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop the job manually
-  kill "$pid"
+  "$JOB_CLI" stop "$job_id"
   sleep 0.5
 
   # Try to stop again - should succeed (idempotent)
@@ -167,7 +167,7 @@ load 'test_helper'
   pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop the job manually
-  kill "$pid"
+  "$JOB_CLI" stop "$job_id"
   sleep 0.5
 
   # Try to force stop again - should succeed (idempotent)

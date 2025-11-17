@@ -126,8 +126,8 @@ load 'test_helper'
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
-  # Kill the process manually (not using stop command)
-  kill "$pid"
+  # Stop the process
+  "$JOB_CLI" stop "$job_id"
   sleep 0.5
 
   # Verify process is stopped

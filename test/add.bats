@@ -112,6 +112,6 @@ load 'test_helper'
 
   # Clean up second process
   metadata_file2=$(ls .local/share/job/*.json | tail -n 1)
-  PID2=$(jq -r '.pid' "$metadata_file2")
-  kill "$PID2" 2>/dev/null || true
+  job_id2=$(basename "$metadata_file2" .json)
+  "$JOB_CLI" stop "$job_id2"
 }

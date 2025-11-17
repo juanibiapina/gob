@@ -18,7 +18,7 @@ load 'test_helper'
   pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop the job manually
-  kill "$pid"
+  "$JOB_CLI" stop "$job_id"
   sleep 0.5
 
   # Verify process is stopped
@@ -87,8 +87,8 @@ load 'test_helper'
   pid3=$(jq -r '.pid' "${metadata_files[0]}")
 
   # Stop first and third jobs
-  kill "$pid1"
-  kill "$pid3"
+  "$JOB_CLI" stop "$job_id1"
+  "$JOB_CLI" stop "$job_id3"
   sleep 0.5
 
   # Verify first and third are stopped, second is running
@@ -127,8 +127,8 @@ load 'test_helper'
 
   # Stop all jobs
   for metadata_file in "${metadata_files[@]}"; do
-    pid=$(jq -r '.pid' "$metadata_file")
-    kill "$pid"
+    job_id=$(basename "$metadata_file" .json)
+    "$JOB_CLI" stop "$job_id"
   done
   sleep 0.5
 
@@ -146,12 +146,12 @@ load 'test_helper'
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID and PID
+  # Get job ID
   metadata_file=$(ls .local/share/job/*.json | head -n 1)
-  pid=$(jq -r '.pid' "$metadata_file")
+  job_id=$(basename "$metadata_file" .json)
 
   # Stop the job
-  kill "$pid"
+  "$JOB_CLI" stop "$job_id"
   sleep 0.5
 
   # Run cleanup first time

@@ -22,10 +22,10 @@ load 'test_helper'
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get PID and kill the process
+  # Get job ID and stop the process
   metadata_file=$(ls .local/share/job/*.json | head -n 1)
-  pid=$(jq -r '.pid' "$metadata_file")
-  kill "$pid"
+  job_id=$(basename "$metadata_file" .json)
+  "$JOB_CLI" stop "$job_id"
   sleep 0.5
 
   # List jobs
