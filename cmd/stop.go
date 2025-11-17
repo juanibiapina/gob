@@ -13,8 +13,34 @@ var forceStop bool
 var stopCmd = &cobra.Command{
 	Use:   "stop <job_id>",
 	Short: "Stop a background job",
-	Long: `Stop a background job by sending SIGTERM (or SIGKILL with --force).
-The job ID can be obtained from the 'list' command.`,
+	Long: `Stop a background job by sending a signal to terminate it.
+
+By default, sends SIGTERM for graceful shutdown.
+Use --force to send SIGKILL for immediate termination.
+
+Use 'job list' to find job IDs.
+
+Examples:
+  # Gracefully stop a job
+  job stop 1732348944
+
+  # Forcefully kill a stubborn job
+  job stop 1732348944 --force
+
+Output:
+  Stopped job <job_id> (PID <pid>)
+
+Or with --force:
+  Force stopped job <job_id> (PID <pid>)
+
+Notes:
+  - Stopping an already-stopped job is not an error (idempotent)
+  - Use --force if the job doesn't respond to SIGTERM
+  - Job metadata is NOT removed (use 'job cleanup' or 'job remove')
+
+Exit codes:
+  0: Job stopped successfully (or already stopped)
+  1: Error (job not found, failed to send signal)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]

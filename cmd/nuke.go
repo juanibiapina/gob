@@ -13,7 +13,35 @@ import (
 var nukeCmd = &cobra.Command{
 	Use:   "nuke",
 	Short: "Stop all running jobs and remove all job metadata",
-	Long:  `Stop all running jobs and remove all job metadata. This is a destructive command that sends SIGTERM to all running jobs and removes all metadata files.`,
+	Long: `Stop all running jobs and remove all job metadata.
+
+⚠️  DESTRUCTIVE COMMAND - stops ALL jobs and removes ALL metadata.
+
+Workflow:
+  1. Sends SIGTERM to all running jobs
+  2. Removes all metadata files (both running and stopped)
+
+Example:
+  # Stop everything and start fresh
+  job nuke
+
+Output:
+  Stopped <n> running job(s)
+  Cleaned up <m> total job(s)
+
+Example output:
+  Stopped 2 running job(s)
+  Cleaned up 5 total job(s)
+
+Notes:
+  - Uses SIGTERM (graceful) not SIGKILL
+  - If jobs don't respond to SIGTERM, use 'job stop --force' individually first
+  - Useful for cleaning up test environments or complete resets
+  - Cannot be undone - all job metadata will be lost
+
+Exit codes:
+  0: Nuke completed successfully
+  1: Error (failed to read jobs, failed to stop some jobs)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get all jobs
 		jobs, err := storage.ListJobMetadata()

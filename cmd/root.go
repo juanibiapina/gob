@@ -14,9 +14,10 @@ var rootCmd = &cobra.Command{
 
 You can use this tool to add jobs in the background, monitor their status,
 and manage their lifecycle.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// When called without subcommands, show overview
+		return overviewCmd.RunE(cmd, args)
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

@@ -13,8 +13,28 @@ import (
 var removeCmd = &cobra.Command{
 	Use:   "remove <job_id>",
 	Short: "Remove metadata for a stopped job",
-	Long: `Remove metadata for a stopped job. This command removes the metadata file for a single job,
-but only if the job is already stopped. If the job is still running, use 'stop' first.`,
+	Long: `Remove metadata for a single stopped job.
+
+Only works on stopped jobs - returns an error if the job is still running.
+Use 'job stop' first if needed.
+
+For removing multiple stopped jobs at once, use 'job cleanup' instead.
+
+Example:
+  # Remove a specific stopped job
+  job remove 1732348944
+
+Output:
+  Removed job <job_id> (PID <pid>)
+
+Notes:
+  - Only works on stopped jobs (use 'job stop' first if needed)
+  - For batch removal of stopped jobs, use 'job cleanup'
+  - Unlike 'cleanup', removing a non-existent job returns an error
+
+Exit codes:
+  0: Job metadata removed successfully
+  1: Error (job not found, job still running, failed to remove)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]

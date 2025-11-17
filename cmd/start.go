@@ -12,9 +12,29 @@ import (
 var startCmd = &cobra.Command{
 	Use:   "start <job_id>",
 	Short: "Start a stopped job",
-	Long: `Start a stopped job using its saved command.
-The job ID can be obtained from the 'list' command.
-This will start the job with a new PID while keeping the same job ID.`,
+	Long: `Start a stopped job with a new PID.
+
+Retrieves the command from saved metadata and starts the process again.
+The job ID remains the same, but a new PID is assigned.
+
+Only works on stopped jobs - returns error if already running.
+
+Example:
+  # Start a stopped job
+  job start 1732348944
+
+Output:
+  Started job <job_id> with new PID <pid> running: <command>
+
+Notes:
+  - Only works on stopped jobs
+  - Preserves the job ID while updating the PID
+  - Useful for restarting jobs that have stopped or crashed
+  - The command is retrieved from saved metadata
+
+Exit codes:
+  0: Job started successfully
+  1: Error (job not found, job already running, failed to start)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]

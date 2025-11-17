@@ -13,8 +13,31 @@ var restartCmd = &cobra.Command{
 	Use:   "restart <job_id>",
 	Short: "Restart a job",
 	Long: `Restart a job by stopping it (if running) and starting it again.
-The job ID can be obtained from the 'list' command.
-This will restart the job with a new PID while keeping the same job ID.`,
+
+If the job is running, sends SIGTERM to stop it first.
+If the job is already stopped, behaves like 'job start'.
+
+The job ID remains the same, but a new PID is assigned.
+
+Examples:
+  # Restart a running job
+  job restart 1732348944
+
+  # Restart a stopped job (same as start)
+  job restart 1732348944
+
+Output:
+  Restarted job <job_id> with new PID <pid> running: <command>
+
+Notes:
+  - Works on both running and stopped jobs
+  - Uses SIGTERM for graceful shutdown (not SIGKILL)
+  - Preserves the job ID while updating the PID
+  - Useful for applying configuration changes or recovering from issues
+
+Exit codes:
+  0: Job restarted successfully
+  1: Error (job not found, failed to stop/start)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]

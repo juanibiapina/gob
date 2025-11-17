@@ -14,7 +14,26 @@ var addCmd = &cobra.Command{
 	Use:   "add <command> [args...]",
 	Short: "Add a command as a background job",
 	Long: `Add a command as a background job that continues running after the CLI exits.
-The job metadata (command, PID, timestamp) is stored in .local/share/job/ for later reference.`,
+
+The job is started as a detached process and assigned a unique job ID (Unix timestamp).
+Use this ID with other commands to manage the job.
+
+Examples:
+  # Start a long-running sleep
+  job add sleep 3600
+
+  # Start a server
+  job add python -m http.server 8080
+
+  # Start a background compilation
+  job add make build
+
+Output:
+  Started job <job_id> running: <command>
+
+Exit codes:
+  0: Job started successfully
+  1: Error (missing command, failed to start)`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// First argument is the command, rest are arguments

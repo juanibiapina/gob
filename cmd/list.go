@@ -12,7 +12,31 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all background jobs",
-	Long:  `List all background jobs with their PID, status (running/stopped), and command.`,
+	Long: `List all background jobs with their current status.
+
+Shows job ID, PID, status (running/stopped), and the original command.
+Jobs are sorted by start time (newest first).
+
+Output format:
+  <job_id>: [<pid>] <status>: <command>
+
+Where:
+  job_id: Unique identifier (Unix timestamp) - use this for other commands
+  pid:    Process ID
+  status: Either 'running' or 'stopped'
+  command: Original command that was executed
+
+Example output:
+  1732350000: [12345] running: sleep 3600
+  1732349000: [12344] stopped: python server.py
+  1732348000: [12343] running: make watch
+
+If no jobs exist:
+  No jobs found
+
+Exit codes:
+  0: Success
+  1: Error reading jobs`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get all jobs
 		jobs, err := storage.ListJobMetadata()

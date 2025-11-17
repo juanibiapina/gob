@@ -13,7 +13,33 @@ import (
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Remove metadata for stopped jobs",
-	Long:  `Remove metadata for stopped jobs. This command scans all job metadata files, checks if each process is still running, and removes metadata files for stopped processes only.`,
+	Long: `Remove metadata for all stopped jobs.
+
+Scans all job metadata files and removes entries for stopped processes.
+Leaves running jobs untouched.
+
+Example:
+  # Remove all stopped job metadata
+  job cleanup
+
+Output:
+  Cleaned up <n> stopped job(s)
+
+Examples:
+  Cleaned up 3 stopped job(s)
+
+  Or if nothing to clean:
+  Cleaned up 0 stopped job(s)
+
+Notes:
+  - Only removes metadata for processes that are no longer running
+  - Does NOT stop any running jobs
+  - Safe to run at any time
+  - For removing a single job, use 'job remove <job_id>'
+
+Exit codes:
+  0: Cleanup completed successfully
+  1: Error reading jobs`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get all jobs
 		jobs, err := storage.ListJobMetadata()

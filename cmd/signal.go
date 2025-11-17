@@ -51,9 +51,30 @@ var signalCmd = &cobra.Command{
 	Use:   "signal <job_id> <signal>",
 	Short: "Send a signal to a background job",
 	Long: `Send a specific signal to a background job.
-The job ID can be obtained from the 'list' command.
 
-Signals can be specified by name (HUP, SIGTERM, INT, etc.) or by number (1, 2, 15, etc.).
+More flexible than 'job stop' - useful for custom signals like HUP (reload)
+or USR1/USR2 (application-defined handlers).
+
+Signal format:
+  Accepts both names and numbers:
+  - Names: TERM, SIGTERM, HUP, SIGHUP, INT, SIGINT, KILL, SIGKILL, etc.
+  - Numbers: 1 (HUP), 2 (INT), 9 (KILL), 15 (TERM), etc.
+
+Examples:
+  # Reload configuration (common for servers)
+  job signal 1732348944 HUP
+
+  # Interrupt a job
+  job signal 1732348944 INT
+
+  # Send custom signal by number
+  job signal 1732348944 10
+
+  # Forcefully kill
+  job signal 1732348944 KILL
+
+Output:
+  Sent signal <signal> to job <job_id> (PID <pid>)
 
 Common signals:
   HUP (1)   - Hangup (often used for reload)
@@ -61,7 +82,15 @@ Common signals:
   TERM (15) - Terminate (graceful shutdown)
   KILL (9)  - Kill (forceful, cannot be caught)
   USR1 (10) - User-defined signal 1
-  USR2 (12) - User-defined signal 2`,
+  USR2 (12) - User-defined signal 2
+
+Notes:
+  - Sending a signal to a stopped job is not an error (idempotent)
+  - Use 'job list' to find job IDs
+
+Exit codes:
+  0: Signal sent successfully (or job already stopped)
+  1: Error (job not found, invalid signal, failed to send)`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]
