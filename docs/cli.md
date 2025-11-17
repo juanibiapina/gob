@@ -170,6 +170,46 @@ job stop 1732348944 --force
 
 ---
 
+### remove
+
+Remove metadata for a single stopped job.
+
+**Syntax:**
+```bash
+job remove <job_id>
+```
+
+**Arguments:**
+- `job_id`: ID of the job to remove (required)
+
+**Behavior:**
+- Reads job metadata to verify the job exists
+- Checks if the process is stopped
+- Removes the metadata file only if the job is stopped
+- Returns an error if the job is still running
+
+**Output:**
+```
+Removed job <job_id> (PID <pid>)
+```
+
+**Examples:**
+```bash
+# Remove a specific stopped job
+job remove 1732348944
+```
+
+**Exit Codes:**
+- `0`: Job metadata removed successfully
+- `1`: Error (job not found, job still running, failed to remove)
+
+**Notes:**
+- Only works on stopped jobs (use `job stop` first if needed)
+- For removing multiple stopped jobs at once, use `cleanup` instead
+- Unlike `cleanup`, this is not idempotent - removing a non-existent job returns an error
+
+---
+
 ### cleanup
 
 Remove metadata for stopped jobs.
@@ -340,7 +380,10 @@ job list
 # Stop specific job
 job stop 1732348944
 
-# Clean up metadata
+# Remove just that job's metadata
+job remove 1732348944
+
+# Or clean up all stopped jobs at once
 job cleanup
 ```
 
