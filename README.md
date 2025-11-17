@@ -51,7 +51,7 @@ gob cleanup
 
 ### Core Commands
 
-#### `gobstart <command> [args...]`
+#### `gob start <command> [args...]`
 
 Start a command as a background job. The job runs detached and persists even after the CLI exits.
 
@@ -68,7 +68,7 @@ gob start ffmpeg -i input.mp4 output.avi
 
 **Output**: Job ID (Unix timestamp)
 
-#### `goblist`
+#### `gob list`
 
 Display all jobs with their status (running/stopped), PID, and command.
 
@@ -83,7 +83,7 @@ ID          STATUS   PID    COMMAND
 1234567891  stopped  -      python server.py
 ```
 
-#### `gobstop <job_id> [--force]`
+#### `gob stop <job_id> [--force]`
 
 Stop a running job. Uses SIGTERM by default; use `--force` for SIGKILL.
 
@@ -95,7 +95,7 @@ gob stop 1234567890
 gob stop 1234567890 --force
 ```
 
-#### `gobrestart <job_id>`
+#### `gob restart <job_id>`
 
 Stop and then start a job with the same command.
 
@@ -105,7 +105,7 @@ gob restart 1234567890
 
 ### Job Cleanup
 
-#### `gobremove <job_id>`
+#### `gob remove <job_id>`
 
 Remove metadata for a single stopped job. Job must be stopped first.
 
@@ -113,7 +113,7 @@ Remove metadata for a single stopped job. Job must be stopped first.
 gob remove 1234567890
 ```
 
-#### `gobcleanup`
+#### `gob cleanup`
 
 Remove metadata for all stopped jobs.
 
@@ -121,7 +121,7 @@ Remove metadata for all stopped jobs.
 gob cleanup
 ```
 
-#### `gobnuke`
+#### `gob nuke`
 
 Stop all running jobs and remove all metadata. Use with caution.
 
@@ -131,7 +131,7 @@ gob nuke
 
 ### Output Management
 
-#### `gobstdout <job_id> [--follow]`
+#### `gob stdout <job_id> [--follow]`
 
 Display stdout output for a job.
 
@@ -143,7 +143,7 @@ gob stdout 1234567890
 gob stdout 1234567890 --follow
 ```
 
-#### `gobstderr <job_id> [--follow]`
+#### `gob stderr <job_id> [--follow]`
 
 Display stderr output for a job.
 
@@ -157,7 +157,7 @@ gob stderr 1234567890 --follow
 
 ### Advanced
 
-#### `gobsignal <job_id> <signal>`
+#### `gob signal <job_id> <signal>`
 
 Send a custom signal to a job.
 
@@ -171,7 +171,7 @@ gob signal 1234567890 USR1
 
 **Supported signals**: TERM, KILL, HUP, INT, QUIT, USR1, USR2, and more
 
-#### `goboverview`
+#### `gob overview`
 
 Display usage patterns and common workflows. Also shown when running `job` without arguments.
 
