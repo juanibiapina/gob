@@ -6,6 +6,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is set via ldflags during build
+var version = "dev"
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gob",
@@ -30,6 +33,9 @@ func Execute() {
 }
 
 func init() {
+	// Set version for --version flag
+	rootCmd.Version = version
+
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.

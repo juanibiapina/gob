@@ -9,6 +9,31 @@ A lightweight CLI tool for managing background processes. `gob` allows you to st
 
 ## Installation
 
+### Pre-built Binaries
+
+Download the latest release for your platform from the [Releases page](https://github.com/juanibiapina/gob/releases).
+
+#### macOS / Linux
+
+```bash
+# Download the appropriate binary for your platform
+# For example, macOS Apple Silicon (arm64):
+curl -LO https://github.com/juanibiapina/gob/releases/latest/download/gob_VERSION_darwin_arm64.tar.gz
+
+# Extract the archive
+tar -xzf gob_VERSION_darwin_arm64.tar.gz
+
+# Move to your PATH
+sudo mv gob /usr/local/bin/
+
+# Verify installation
+gob --version
+```
+
+#### Windows
+
+Download the appropriate `.zip` file from the [Releases page](https://github.com/juanibiapina/gob/releases), extract it, and add the binary to your PATH.
+
 ### Build from Source
 
 Requirements:
@@ -17,7 +42,7 @@ Requirements:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/gob.git
+git clone https://github.com/juanibiapina/gob.git
 cd gob
 
 # Build the binary
@@ -173,7 +198,7 @@ gob signal 1234567890 USR1
 
 #### `gob overview`
 
-Display usage patterns and common workflows. Also shown when running `job` without arguments.
+Display usage patterns and common workflows. Also shown when running `gob` without arguments.
 
 ```bash
 gob overview

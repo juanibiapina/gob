@@ -1,0 +1,94 @@
+# GoReleaser configuration for gob
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+
+builds:
+  - id: gob
+    main: .
+    binary: gob
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Inject version into the binary
+    ldflags:
+      - -s -w
+      - -X github.com/juanibiapina/gob/cmd.version={{.Version}}
+
+archives:
+  - id: gob
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE*
+      - docs/**/*
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^style:'
+      - 'typo'
+  groups:
+    - title: Features
+      regexp: '^feat:'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix:'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: juanibiapina
+    name: gob
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## gob {{.Version}}
+
+    Download the appropriate binary for your platform below.
+
+  footer: |
+    ## Installation
+
+    ### macOS / Linux
+    ```bash
+    # Download the appropriate binary for your platform
+    # Extract and move to your PATH
+    tar -xzf gob_{{.Version}}_darwin_amd64.tar.gz
+    sudo mv gob /usr/local/bin/
+    ```
+
+    ### Windows
+    ```powershell
+    # Extract the zip file and add to your PATH
+    ```
+
+    **Full Changelog**: https://github.com/juanibiapina/gob/compare/{{.PreviousTag}}...{{.Tag}}
