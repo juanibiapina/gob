@@ -32,7 +32,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Give process time to write output
@@ -50,7 +50,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Give process time to write output
@@ -67,7 +67,7 @@ load 'test_helper'
   run "$JOB_CLI" add echo "To stdout"
   assert_success
 
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   sleep 1
 
@@ -87,12 +87,12 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Verify log files exist
-  assert [ -f ".local/share/job/${job_id}.stdout.log" ]
-  assert [ -f ".local/share/job/${job_id}.stderr.log" ]
+  assert [ -f ".local/share/gob/${job_id}.stdout.log" ]
+  assert [ -f ".local/share/gob/${job_id}.stderr.log" ]
 }
 
 @test "metadata contains log file paths" {
@@ -100,7 +100,7 @@ load 'test_helper'
   assert_success
 
   # Get the metadata file
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
 
   # Verify stdout_file field is present and contains .stdout.log
   stdout_file=$(jq -r '.stdout_file' "$metadata_file")
@@ -121,7 +121,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output
@@ -141,7 +141,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for job to finish
@@ -168,7 +168,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Check stdout (should be empty but succeed)

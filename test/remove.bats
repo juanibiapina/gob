@@ -13,7 +13,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Try to remove running job - should fail
@@ -30,7 +30,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -62,7 +62,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Stop the job
@@ -87,7 +87,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 400
 
   # Get metadata files sorted by time (newest first)
-  metadata_files=($(ls -t .local/share/job/*.json))
+  metadata_files=($(ls -t .local/share/gob/*.json))
 
   # Get first job (older one)
   job_id1=$(basename "${metadata_files[1]}" .json)
@@ -122,7 +122,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 

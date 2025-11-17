@@ -6,7 +6,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -62,16 +62,16 @@ Signal format:
 
 Examples:
   # Reload configuration (common for servers)
-  job signal 1732348944 HUP
+  gob signal1732348944 HUP
 
   # Interrupt a job
-  job signal 1732348944 INT
+  gob signal1732348944 INT
 
   # Send custom signal by number
-  job signal 1732348944 10
+  gob signal1732348944 10
 
   # Forcefully kill
-  job signal 1732348944 KILL
+  gob signal1732348944 KILL
 
 Output:
   Sent signal <signal> to job <job_id> (PID <pid>)

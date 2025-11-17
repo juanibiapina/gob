@@ -4,4 +4,4 @@ test: build
 
 .PHONY: build
 build:
-	@go build -o dist/job
+	@go build -o dist/gob

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -20,13 +20,13 @@ Use this ID with other commands to manage the job.
 
 Examples:
   # Start a long-running sleep
-  job add sleep 3600
+  gob addsleep 3600
 
   # Start a server
-  job add python -m http.server 8080
+  gob addpython -m http.server 8080
 
   # Start a background compilation
-  job add make build
+  gob addmake build
 
 Output:
   Started job <job_id> running: <command>

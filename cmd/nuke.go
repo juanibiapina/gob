@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,7 @@ Workflow:
 
 Example:
   # Stop everything and start fresh
-  job nuke
+  gob nuke
 
 Output:
   Stopped <n> running job(s)

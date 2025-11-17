@@ -23,7 +23,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and stop the process
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   "$JOB_CLI" stop "$job_id"
   sleep 0.5
@@ -60,7 +60,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 400
 
   # Kill the first job
-  metadata_files=($(ls -t .local/share/job/*.json))
+  metadata_files=($(ls -t .local/share/gob/*.json))
   pid=$(jq -r '.pid' "${metadata_files[1]}")
   kill "$pid"
   sleep 0.5
@@ -113,7 +113,7 @@ load 'test_helper'
 
   # Verify format: <job_id>: [<pid>] <status>: <command>
   # Extract job ID from metadata file
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 

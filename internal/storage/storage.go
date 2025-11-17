@@ -31,7 +31,7 @@ func GetJobDir() (string, error) {
 		return "", fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	jobDir := filepath.Join(cwd, ".local", "share", "job")
+	jobDir := filepath.Join(cwd, ".local", "share", "gob")
 	return jobDir, nil
 }
 

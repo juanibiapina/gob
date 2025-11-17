@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ The output is read from the job's stderr log file.
 
 Example:
   # View stderr for a job
-  job stderr 1732348944
+  gob stderr1732348944
 
 Output:
   [Contents of stderr log file]

@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -22,10 +22,10 @@ Use 'job list' to find job IDs.
 
 Examples:
   # Gracefully stop a job
-  job stop 1732348944
+  gob stop1732348944
 
   # Forcefully kill a stubborn job
-  job stop 1732348944 --force
+  gob stop1732348944 --force
 
 Output:
   Stopped job <job_id> (PID <pid>)

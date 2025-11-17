@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ Leaves running jobs untouched.
 
 Example:
   # Remove all stopped job metadata
-  job cleanup
+  gob cleanup
 
 Output:
   Cleaned up <n> stopped job(s)

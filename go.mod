@@ -1,4 +1,4 @@
-module github.com/juanibiapina/job
+module github.com/juanibiapina/gob
 
 go 1.25.4
 

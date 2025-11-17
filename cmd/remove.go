@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -22,7 +22,7 @@ For removing multiple stopped jobs at once, use 'job cleanup' instead.
 
 Example:
   # Remove a specific stopped job
-  job remove 1732348944
+  gob remove1732348944
 
 Output:
   Removed job <job_id> (PID <pid>)

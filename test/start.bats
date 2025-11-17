@@ -13,7 +13,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   original_pid=$(jq -r '.pid' "$metadata_file")
 
@@ -45,7 +45,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Try to start already running job
@@ -65,7 +65,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Stop and start the job
@@ -86,7 +86,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and original PID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   original_pid=$(jq -r '.pid' "$metadata_file")
 
@@ -113,7 +113,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Stop and start the job
@@ -133,7 +133,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Stop the job

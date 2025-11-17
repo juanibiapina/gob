@@ -1,27 +1,27 @@
-# Job CLI Documentation
+# Gob CLI Documentation
 
 ## Overview
 
-`job` is a command-line tool for managing background jobs. It allows you to start long-running commands as detached background processes, monitor their status, send signals, and clean up finished jobs.
+`gob` is a command-line tool for managing background jobs. It allows you to start long-running commands as detached background processes, monitor their status, send signals, and clean up finished jobs.
 
 ## Installation
 
 ```bash
 make build
-# Binary will be available at ./job
+# Binary will be available at ./gob
 ```
 
 ## Usage
 
 ```
-job [command] [flags]
+gob [command] [flags]
 ```
 
 ## Data Storage
 
-Job metadata is stored in `.local/share/job/` relative to the current working directory where commands are executed.
+Job metadata is stored in `.local/share/gob/` relative to the current working directory where commands are executed.
 
-- **Metadata files**: `.local/share/job/<job_id>.json`
+- **Metadata files**: `.local/share/gob/<job_id>.json`
 - **Job ID format**: Unix timestamp (e.g., `1732348944`)
 
 Each metadata file contains:
@@ -39,7 +39,7 @@ Add a command as a background job.
 
 **Syntax:**
 ```bash
-job add <command> [args...]
+gob add<command> [args...]
 ```
 
 **Arguments:**
@@ -61,13 +61,13 @@ Started job <job_id> running: <command>
 **Examples:**
 ```bash
 # Start a long-running sleep
-job add sleep 3600
+gob addsleep 3600
 
 # Start a server
-job add python -m http.server 8080
+gob addpython -m http.server 8080
 
 # Start a background compilation
-job add make build
+gob addmake build
 ```
 
 **Exit Codes:**
@@ -82,11 +82,11 @@ List all background jobs with their current status.
 
 **Syntax:**
 ```bash
-job list
+gob list
 ```
 
 **Behavior:**
-- Reads all job metadata from `.local/share/job/`
+- Reads all job metadata from `.local/share/gob/`
 - Checks if each process is still running
 - Displays jobs sorted by start time (newest first)
 
@@ -125,7 +125,7 @@ Stop a background job by sending SIGTERM (or SIGKILL with --force).
 
 **Syntax:**
 ```bash
-job stop <job_id> [flags]
+gob stop<job_id> [flags]
 ```
 
 **Arguments:**
@@ -153,10 +153,10 @@ Force stopped job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Gracefully stop a job
-job stop 1732348944
+gob stop1732348944
 
 # Forcefully kill a stubborn job
-job stop 1732348944 --force
+gob stop1732348944 --force
 ```
 
 **Exit Codes:**
@@ -176,7 +176,7 @@ Start a stopped job with a new PID.
 
 **Syntax:**
 ```bash
-job start <job_id>
+gob start<job_id>
 ```
 
 **Arguments:**
@@ -197,7 +197,7 @@ Started job <job_id> with new PID <pid> running: <command>
 **Examples:**
 ```bash
 # Start a stopped job
-job start 1732348944
+gob start1732348944
 ```
 
 **Exit Codes:**
@@ -218,7 +218,7 @@ Restart a job by stopping it (if running) and starting it again.
 
 **Syntax:**
 ```bash
-job restart <job_id>
+gob restart<job_id>
 ```
 
 **Arguments:**
@@ -239,10 +239,10 @@ Restarted job <job_id> with new PID <pid> running: <command>
 **Examples:**
 ```bash
 # Restart a running job
-job restart 1732348944
+gob restart1732348944
 
 # Restart a stopped job (same as start)
-job restart 1732348944
+gob restart1732348944
 ```
 
 **Exit Codes:**
@@ -264,7 +264,7 @@ Remove metadata for a single stopped job.
 
 **Syntax:**
 ```bash
-job remove <job_id>
+gob remove<job_id>
 ```
 
 **Arguments:**
@@ -284,7 +284,7 @@ Removed job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Remove a specific stopped job
-job remove 1732348944
+gob remove1732348944
 ```
 
 **Exit Codes:**
@@ -304,7 +304,7 @@ Remove metadata for stopped jobs.
 
 **Syntax:**
 ```bash
-job cleanup
+gob cleanup
 ```
 
 **Behavior:**
@@ -331,7 +331,7 @@ Cleaned up 0 stopped job(s)
 **Examples:**
 ```bash
 # Remove all stopped job metadata
-job cleanup
+gob cleanup
 ```
 
 **Exit Codes:**
@@ -351,7 +351,7 @@ Stop all running jobs and remove all job metadata.
 
 **Syntax:**
 ```bash
-job nuke
+gob nuke
 ```
 
 **Behavior:**
@@ -375,7 +375,7 @@ Cleaned up 5 total job(s)
 **Examples:**
 ```bash
 # Stop everything and start fresh
-job nuke
+gob nuke
 ```
 
 **Exit Codes:**
@@ -385,7 +385,7 @@ job nuke
 **Notes:**
 - ⚠️ **Destructive command** - stops ALL jobs and removes ALL metadata
 - Uses SIGTERM (graceful) not SIGKILL
-- If jobs don't respond to SIGTERM, use `job stop --force` individually first
+- If jobs don't respond to SIGTERM, use `gob stop--force` individually first
 - Useful for cleaning up test environments or complete resets
 
 ---
@@ -396,7 +396,7 @@ Send a specific signal to a background job.
 
 **Syntax:**
 ```bash
-job signal <job_id> <signal>
+gob signal<job_id> <signal>
 ```
 
 **Arguments:**
@@ -421,16 +421,16 @@ Sent signal <signal> to job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Reload configuration (common for servers)
-job signal 1732348944 HUP
+gob signal1732348944 HUP
 
 # Interrupt a job
-job signal 1732348944 INT
+gob signal1732348944 INT
 
 # Send custom signal by number
-job signal 1732348944 10
+gob signal1732348944 10
 
 # Forcefully kill
-job signal 1732348944 KILL
+gob signal1732348944 KILL
 ```
 
 **Exit Codes:**
@@ -451,61 +451,61 @@ job signal 1732348944 KILL
 
 ```bash
 # Start multiple jobs
-job add sleep 300
-job add python server.py
-job add npm run watch
+gob addsleep 300
+gob addpython server.py
+gob addnpm run watch
 
 # Check what's running
-job list
+gob list
 ```
 
 ### Graceful Shutdown
 
 ```bash
 # List jobs to find the ID
-job list
+gob list
 
 # Stop specific job
-job stop 1732348944
+gob stop1732348944
 
 # Remove just that job's metadata
-job remove 1732348944
+gob remove1732348944
 
 # Or clean up all stopped jobs at once
-job cleanup
+gob cleanup
 ```
 
 ### Force Kill Stubborn Process
 
 ```bash
 # Try graceful stop first
-job stop 1732348944
+gob stop1732348944
 
 # If it doesn't stop, force kill
-job stop 1732348944 --force
+gob stop1732348944 --force
 
 # Clean up
-job cleanup
+gob cleanup
 ```
 
 ### Complete Reset
 
 ```bash
 # Nuclear option - stop and clean everything
-job nuke
+gob nuke
 ```
 
 ### Signal Handling
 
 ```bash
 # Reload server configuration
-job signal 1732348944 HUP
+gob signal1732348944 HUP
 
 # Graceful shutdown with custom signal
-job signal 1732348944 TERM
+gob signal1732348944 TERM
 
 # Trigger custom handler
-job signal 1732348944 USR1
+gob signal1732348944 USR1
 ```
 
 ## Exit Codes

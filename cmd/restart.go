@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -21,10 +21,10 @@ The job ID remains the same, but a new PID is assigned.
 
 Examples:
   # Restart a running job
-  job restart 1732348944
+  gob restart1732348944
 
   # Restart a stopped job (same as start)
-  job restart 1732348944
+  gob restart1732348944
 
 Output:
   Restarted job <job_id> with new PID <pid> running: <command>

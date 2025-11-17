@@ -6,7 +6,7 @@ setup() {
   # Use BATS provided temporary directory
   cd "$BATS_TEST_TMPDIR"
 
-  JOB_CLI="$BATS_TEST_DIRNAME/../dist/job"
+  JOB_CLI="$BATS_TEST_DIRNAME/../dist/gob"
 }
 
 teardown() {

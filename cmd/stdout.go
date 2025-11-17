@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ The output is read from the job's stdout log file.
 
 Example:
   # View stdout for a job
-  job stdout 1732348944
+  gob stdout1732348944
 
 Output:
   [Contents of stdout log file]

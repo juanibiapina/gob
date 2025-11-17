@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/juanibiapina/job/internal/process"
-	"github.com/juanibiapina/job/internal/storage"
+	"github.com/juanibiapina/gob/internal/process"
+	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ Only works on stopped jobs - returns error if already running.
 
 Example:
   # Start a stopped job
-  job start 1732348944
+  gob start1732348944
 
 Output:
   Started job <job_id> with new PID <pid> running: <command>

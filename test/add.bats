@@ -14,7 +14,7 @@ load 'test_helper'
   assert_output --regexp "Started job [0-9]+ running: sleep 300"
 
   # Extract PID from metadata file
-  metadata_file=$(ls .local/share/job/*.json 2>/dev/null | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json 2>/dev/null | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file")
 
   # Verify process is running
@@ -26,7 +26,7 @@ load 'test_helper'
   output=$("$JOB_CLI" add sleep 300)
 
   # Extract PID from metadata file
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file")
 
   # Wait a moment to ensure CLI has exited
@@ -36,15 +36,15 @@ load 'test_helper'
   assert kill -0 "$TEST_PID"
 }
 
-@test "metadata file is created in .local/share/job" {
+@test "metadata file is created in .local/share/gob" {
   run "$JOB_CLI" add sleep 300
   assert_success
 
   # Check that metadata directory exists
-  assert [ -d ".local/share/job" ]
+  assert [ -d ".local/share/gob" ]
 
   # Check that a JSON file was created
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   assert [ -f "$metadata_file" ]
 
   # Clean up
@@ -56,7 +56,7 @@ load 'test_helper'
   assert_success
 
   # Get the metadata file
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
 
   # Verify PID is present and valid
   TEST_PID=$(jq -r '.pid' "$metadata_file")
@@ -81,7 +81,7 @@ load 'test_helper'
   assert_output --regexp "Started job [0-9]+ running: sleep 300"
 
   # Extract PID and verify process is running
-  metadata_file=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file")
   assert kill -0 "$TEST_PID"
 }
@@ -96,7 +96,7 @@ load 'test_helper'
   # Start first job
   run "$JOB_CLI" add sleep 300
   assert_success
-  metadata_file1=$(ls .local/share/job/*.json | head -n 1)
+  metadata_file1=$(ls .local/share/gob/*.json | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file1")
 
   # Wait a moment to ensure different timestamps
@@ -107,11 +107,11 @@ load 'test_helper'
   assert_success
 
   # Verify two separate files exist
-  file_count=$(ls .local/share/job/*.json | wc -l)
+  file_count=$(ls .local/share/gob/*.json | wc -l)
   assert [ "$file_count" -eq 2 ]
 
   # Clean up second process
-  metadata_file2=$(ls .local/share/job/*.json | tail -n 1)
+  metadata_file2=$(ls .local/share/gob/*.json | tail -n 1)
   job_id2=$(basename "$metadata_file2" .json)
   "$JOB_CLI" stop "$job_id2"
 }
