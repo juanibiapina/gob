@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -14,6 +16,12 @@ type JobMetadata struct {
 	PID       int      `json:"pid"`
 	StartedAt int64    `json:"started_at"`
 	WorkDir   string   `json:"work_dir"`
+}
+
+// JobInfo combines job ID with its metadata
+type JobInfo struct {
+	ID       string
+	Metadata *JobMetadata
 }
 
 // GetJobDir returns the path to the .local/share/job directory in the current working directory
@@ -88,4 +96,53 @@ func LoadJobMetadata(filename string) (*JobMetadata, error) {
 	}
 
 	return &metadata, nil
+}
+
+// ListJobMetadata reads all job metadata files and returns them sorted by start time (newest first)
+func ListJobMetadata() ([]JobInfo, error) {
+	jobDir, err := GetJobDir()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if job directory exists
+	if _, err := os.Stat(jobDir); os.IsNotExist(err) {
+		return []JobInfo{}, nil
+	}
+
+	// Read all files in the job directory
+	entries, err := os.ReadDir(jobDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read job directory: %w", err)
+	}
+
+	var jobs []JobInfo
+
+	// Parse each JSON file
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+
+		metadata, err := LoadJobMetadata(entry.Name())
+		if err != nil {
+			// Skip files that can't be parsed
+			continue
+		}
+
+		// Extract job ID (filename without .json extension)
+		jobID := strings.TrimSuffix(entry.Name(), ".json")
+
+		jobs = append(jobs, JobInfo{
+			ID:       jobID,
+			Metadata: metadata,
+		})
+	}
+
+	// Sort by start time, newest first
+	sort.Slice(jobs, func(i, j int) bool {
+		return jobs[i].Metadata.StartedAt > jobs[j].Metadata.StartedAt
+	})
+
+	return jobs, nil
 }
