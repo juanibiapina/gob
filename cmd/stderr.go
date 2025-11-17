@@ -3,10 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/juanibiapina/job/internal/storage"
 	"github.com/spf13/cobra"
 )
+
+var followStderr bool
 
 var stderrCmd = &cobra.Command{
 	Use:   "stderr <job_id>",
@@ -51,6 +54,14 @@ Exit codes:
 			return fmt.Errorf("stderr log file not found: %s", metadata.StderrFile)
 		}
 
+		// If follow flag is set, use tail -f to follow the log file
+		if followStderr {
+			tailCmd := exec.Command("tail", "-f", metadata.StderrFile)
+			tailCmd.Stdout = os.Stdout
+			tailCmd.Stderr = os.Stderr
+			return tailCmd.Run()
+		}
+
 		// Read and display the stderr file
 		content, err := os.ReadFile(metadata.StderrFile)
 		if err != nil {
@@ -66,4 +77,5 @@ Exit codes:
 
 func init() {
 	rootCmd.AddCommand(stderrCmd)
+	stderrCmd.Flags().BoolVarP(&followStderr, "follow", "f", false, "Follow log output in real-time (like tail -f)")
 }
