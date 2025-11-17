@@ -16,7 +16,7 @@ load 'test_helper'
 
 @test "signal command sends TERM signal by name" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -41,7 +41,7 @@ load 'test_helper'
 
 @test "signal command sends signal by name with SIG prefix" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -63,7 +63,7 @@ load 'test_helper'
 
 @test "signal command sends signal by number" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -85,7 +85,7 @@ load 'test_helper'
 
 @test "signal command sends INT signal" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -107,7 +107,7 @@ load 'test_helper'
 
 @test "signal command sends KILL signal" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -129,7 +129,7 @@ load 'test_helper'
 
 @test "signal command is idempotent on stopped job" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -154,7 +154,7 @@ load 'test_helper'
 
 @test "signal command with invalid signal shows error" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -168,7 +168,7 @@ load 'test_helper'
 
 @test "signal command accepts lowercase signal names" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -190,7 +190,7 @@ load 'test_helper'
 
 @test "signal command sends HUP signal" {
   # Add a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)

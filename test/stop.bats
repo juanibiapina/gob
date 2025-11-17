@@ -10,7 +10,7 @@ load 'test_helper'
 
 @test "stop command stops a running job" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -35,7 +35,7 @@ load 'test_helper'
 
 @test "stop command handles already stopped job" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -60,7 +60,7 @@ load 'test_helper'
 
 @test "stop command with --force flag" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -85,7 +85,7 @@ load 'test_helper'
 
 @test "stop command with -f flag (short form)" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -110,7 +110,7 @@ load 'test_helper'
 
 @test "stopped job shows as stopped in list" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -128,11 +128,11 @@ load 'test_helper'
 
 @test "stop command stops specific job among multiple jobs" {
   # Start first job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
   sleep 1
 
   # Start second job
-  "$JOB_CLI" add sleep 400
+  "$JOB_CLI" start sleep 400
 
   # Get metadata files sorted by time (newest first)
   metadata_files=($(ls -t .local/share/gob/*.json))
@@ -159,7 +159,7 @@ load 'test_helper'
 
 @test "force stop handles already stopped job" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)

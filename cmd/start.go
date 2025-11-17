@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/process"
 	"github.com/juanibiapina/gob/internal/storage"
@@ -10,52 +11,40 @@ import (
 )
 
 var startCmd = &cobra.Command{
-	Use:   "start <job_id>",
-	Short: "Start a stopped job",
-	Long: `Start a stopped job with a new PID.
+	Use:   "start <command> [args...]",
+	Short: "Start a command as a background job",
+	Long: `Start a command as a background job that continues running after the CLI exits.
 
-Retrieves the command from saved metadata and starts the process again.
-The job ID remains the same, but a new PID is assigned.
+The job is started as a detached process and assigned a unique job ID (Unix timestamp).
+Use this ID with other commands to manage the job.
 
-Only works on stopped jobs - returns error if already running.
+Examples:
+  # Start a long-running sleep
+  gob start sleep 3600
 
-Example:
-  # Start a stopped job
-  gob start1732348944
+  # Start a server
+  gob start python -m http.server 8080
+
+  # Start a background compilation
+  gob start make build
 
 Output:
-  Started job <job_id> with new PID <pid> running: <command>
-
-Notes:
-  - Only works on stopped jobs
-  - Preserves the job ID while updating the PID
-  - Useful for restarting jobs that have stopped or crashed
-  - The command is retrieved from saved metadata
+  Started job <job_id> running: <command>
 
 Exit codes:
   0: Job started successfully
-  1: Error (job not found, job already running, failed to start)`,
-	Args: cobra.ExactArgs(1),
+  1: Error (missing command, failed to start)`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		jobID := args[0]
-
-		// Load job metadata
-		metadata, err := storage.LoadJobMetadata(jobID + ".json")
-		if err != nil {
-			return fmt.Errorf("job not found: %s", jobID)
-		}
-
-		// Check if process is already running
-		if process.IsProcessRunning(metadata.PID) {
-			return fmt.Errorf("job %s is already running (PID %d)", jobID, metadata.PID)
-		}
-
-		// Start the process with the saved command
-		command := metadata.Command[0]
+		// First argument is the command, rest are arguments
+		command := args[0]
 		commandArgs := []string{}
-		if len(metadata.Command) > 1 {
-			commandArgs = metadata.Command[1:]
+		if len(args) > 1 {
+			commandArgs = args[1:]
 		}
+
+		// Generate job ID (Unix timestamp)
+		jobID := time.Now().Unix()
 
 		// Ensure job directory exists and get its path
 		storageDir, err := storage.EnsureJobDir()
@@ -63,25 +52,30 @@ Exit codes:
 			return fmt.Errorf("failed to create job directory: %w", err)
 		}
 
-		pid, stdoutPath, stderrPath, err := process.StartDetached(command, commandArgs, metadata.ID, storageDir)
+		// Start the detached process
+		pid, stdoutPath, stderrPath, err := process.StartDetached(command, commandArgs, jobID, storageDir)
 		if err != nil {
 			return fmt.Errorf("failed to start job: %w", err)
 		}
 
-		// Update the PID and log file paths in metadata
-		metadata.PID = pid
-		metadata.StdoutFile = stdoutPath
-		metadata.StderrFile = stderrPath
+		// Create job metadata
+		metadata := &storage.JobMetadata{
+			ID:         jobID,
+			Command:    args,
+			PID:        pid,
+			StdoutFile: stdoutPath,
+			StderrFile: stderrPath,
+		}
 
-		// Save updated metadata
+		// Save metadata
 		_, err = storage.SaveJobMetadata(metadata)
 		if err != nil {
-			return fmt.Errorf("failed to update job metadata: %w", err)
+			return fmt.Errorf("failed to save job metadata: %w", err)
 		}
 
 		// Print confirmation message
-		commandStr := strings.Join(metadata.Command, " ")
-		fmt.Printf("Started job %s with new PID %d running: %s\n", jobID, pid, commandStr)
+		commandStr := strings.Join(args, " ")
+		fmt.Printf("Started job %d running: %s\n", jobID, commandStr)
 
 		return nil
 	},

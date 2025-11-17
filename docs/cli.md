@@ -33,13 +33,13 @@ Each metadata file contains:
 
 ## Commands
 
-### add
+### start
 
-Add a command as a background job.
+Start a command as a background job.
 
 **Syntax:**
 ```bash
-gob add<command> [args...]
+gob start <command> [args...]
 ```
 
 **Arguments:**
@@ -61,13 +61,13 @@ Started job <job_id> running: <command>
 **Examples:**
 ```bash
 # Start a long-running sleep
-gob addsleep 3600
+gob start sleep 3600
 
 # Start a server
-gob addpython -m http.server 8080
+gob start python -m http.server 8080
 
 # Start a background compilation
-gob addmake build
+gob start make build
 ```
 
 **Exit Codes:**
@@ -153,10 +153,10 @@ Force stopped job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Gracefully stop a job
-gob stop1732348944
+gob stop 1732348944
 
 # Forcefully kill a stubborn job
-gob stop1732348944 --force
+gob stop 1732348944 --force
 ```
 
 **Exit Codes:**
@@ -170,55 +170,13 @@ gob stop1732348944 --force
 
 ---
 
-### start
-
-Start a stopped job with a new PID.
-
-**Syntax:**
-```bash
-gob start<job_id>
-```
-
-**Arguments:**
-- `job_id`: ID of the job to start (required)
-
-**Behavior:**
-- Reads job metadata to get the saved command
-- Checks if the job is already running
-- Returns an error if the job is currently running
-- Starts the process with the saved command
-- Updates the PID in metadata while preserving the job ID
-
-**Output:**
-```
-Started job <job_id> with new PID <pid> running: <command>
-```
-
-**Examples:**
-```bash
-# Start a stopped job
-gob start1732348944
-```
-
-**Exit Codes:**
-- `0`: Job started successfully
-- `1`: Error (job not found, job already running, failed to start process)
-
-**Notes:**
-- Only works on stopped jobs - returns error if already running
-- Preserves the job ID while updating the PID
-- Useful for restarting jobs that have stopped or crashed
-- The command is retrieved from saved metadata
-
----
-
 ### restart
 
 Restart a job by stopping it (if running) and starting it again.
 
 **Syntax:**
 ```bash
-gob restart<job_id>
+gob restart <job_id>
 ```
 
 **Arguments:**
@@ -239,10 +197,10 @@ Restarted job <job_id> with new PID <pid> running: <command>
 **Examples:**
 ```bash
 # Restart a running job
-gob restart1732348944
+gob restart 1732348944
 
-# Restart a stopped job (same as start)
-gob restart1732348944
+# Restart a stopped job
+gob restart 1732348944
 ```
 
 **Exit Codes:**
@@ -264,7 +222,7 @@ Remove metadata for a single stopped job.
 
 **Syntax:**
 ```bash
-gob remove<job_id>
+gob remove <job_id>
 ```
 
 **Arguments:**
@@ -284,7 +242,7 @@ Removed job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Remove a specific stopped job
-gob remove1732348944
+gob remove 1732348944
 ```
 
 **Exit Codes:**
@@ -385,7 +343,7 @@ gob nuke
 **Notes:**
 - ⚠️ **Destructive command** - stops ALL jobs and removes ALL metadata
 - Uses SIGTERM (graceful) not SIGKILL
-- If jobs don't respond to SIGTERM, use `gob stop--force` individually first
+- If jobs don't respond to SIGTERM, use `gob stop --force` individually first
 - Useful for cleaning up test environments or complete resets
 
 ---
@@ -396,7 +354,7 @@ Send a specific signal to a background job.
 
 **Syntax:**
 ```bash
-gob signal<job_id> <signal>
+gob signal <job_id> <signal>
 ```
 
 **Arguments:**
@@ -421,16 +379,16 @@ Sent signal <signal> to job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Reload configuration (common for servers)
-gob signal1732348944 HUP
+gob signal 1732348944 HUP
 
 # Interrupt a job
-gob signal1732348944 INT
+gob signal 1732348944 INT
 
 # Send custom signal by number
-gob signal1732348944 10
+gob signal 1732348944 10
 
 # Forcefully kill
-gob signal1732348944 KILL
+gob signal 1732348944 KILL
 ```
 
 **Exit Codes:**
@@ -451,9 +409,9 @@ gob signal1732348944 KILL
 
 ```bash
 # Start multiple jobs
-gob addsleep 300
-gob addpython server.py
-gob addnpm run watch
+gob start sleep 300
+gob start python server.py
+gob start npm run watch
 
 # Check what's running
 gob list
@@ -466,10 +424,10 @@ gob list
 gob list
 
 # Stop specific job
-gob stop1732348944
+gob stop 1732348944
 
 # Remove just that job's metadata
-gob remove1732348944
+gob remove 1732348944
 
 # Or clean up all stopped jobs at once
 gob cleanup
@@ -479,10 +437,10 @@ gob cleanup
 
 ```bash
 # Try graceful stop first
-gob stop1732348944
+gob stop 1732348944
 
 # If it doesn't stop, force kill
-gob stop1732348944 --force
+gob stop 1732348944 --force
 
 # Clean up
 gob cleanup
@@ -499,13 +457,13 @@ gob nuke
 
 ```bash
 # Reload server configuration
-gob signal1732348944 HUP
+gob signal 1732348944 HUP
 
 # Graceful shutdown with custom signal
-gob signal1732348944 TERM
+gob signal 1732348944 TERM
 
 # Trigger custom handler
-gob signal1732348944 USR1
+gob signal 1732348944 USR1
 ```
 
 ## Exit Codes

@@ -10,7 +10,7 @@ load 'test_helper'
 
 @test "list command shows running job" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # List jobs
   run "$JOB_CLI" list
@@ -20,7 +20,7 @@ load 'test_helper'
 
 @test "list command shows stopped job" {
   # Start a job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # Get job ID and stop the process
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -36,11 +36,11 @@ load 'test_helper'
 
 @test "list command shows multiple jobs" {
   # Start first job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
   sleep 1
 
   # Start second job
-  "$JOB_CLI" add sleep 400
+  "$JOB_CLI" start sleep 400
 
   # List jobs
   run "$JOB_CLI" list
@@ -53,11 +53,11 @@ load 'test_helper'
 
 @test "list command shows mixed running and stopped jobs" {
   # Start first job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
   sleep 1
 
   # Start second job
-  "$JOB_CLI" add sleep 400
+  "$JOB_CLI" start sleep 400
 
   # Kill the first job
   metadata_files=($(ls -t .local/share/gob/*.json))
@@ -76,15 +76,15 @@ load 'test_helper'
 
 @test "list command shows newest jobs first" {
   # Start first job
-  "$JOB_CLI" add sleep 100
+  "$JOB_CLI" start sleep 100
   sleep 1
 
   # Start second job
-  "$JOB_CLI" add sleep 200
+  "$JOB_CLI" start sleep 200
   sleep 1
 
   # Start third job
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" start sleep 300
 
   # List jobs
   run "$JOB_CLI" list
@@ -105,7 +105,7 @@ load 'test_helper'
 
 @test "list command output format includes job ID, PID, status, and command" {
   # Start a job
-  "$JOB_CLI" add echo "test"
+  "$JOB_CLI" start echo "test"
 
   # List jobs
   run "$JOB_CLI" list

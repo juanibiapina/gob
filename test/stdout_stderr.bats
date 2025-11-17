@@ -28,7 +28,7 @@ load 'test_helper'
 
 @test "stdout captures output from job" {
   # Start a job that writes to stdout (using echo directly)
-  run "$JOB_CLI" add echo "Hello stdout"
+  run "$JOB_CLI" start echo "Hello stdout"
   assert_success
 
   # Extract job ID
@@ -46,7 +46,7 @@ load 'test_helper'
 
 @test "stderr captures error output from job" {
   # Use a command that naturally writes to stderr (cat with invalid file)
-  run "$JOB_CLI" add cat /nonexistent/file/path
+  run "$JOB_CLI" start cat /nonexistent/file/path
   assert_success
 
   # Extract job ID
@@ -64,7 +64,7 @@ load 'test_helper'
 
 @test "stdout and stderr are separate streams" {
   # Start job that writes to stdout
-  run "$JOB_CLI" add echo "To stdout"
+  run "$JOB_CLI" start echo "To stdout"
   assert_success
 
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
@@ -83,7 +83,7 @@ load 'test_helper'
 }
 
 @test "log files are created in job directory" {
-  run "$JOB_CLI" add sleep 300
+  run "$JOB_CLI" start sleep 300
   assert_success
 
   # Extract job ID
@@ -96,7 +96,7 @@ load 'test_helper'
 }
 
 @test "metadata contains log file paths" {
-  run "$JOB_CLI" add sleep 300
+  run "$JOB_CLI" start sleep 300
   assert_success
 
   # Get the metadata file
@@ -117,7 +117,7 @@ load 'test_helper'
 
 @test "log files accumulate output over time" {
   # Start a job that writes multiple lines using printf
-  run "$JOB_CLI" add printf "Line 1\nLine 2\nLine 3\n"
+  run "$JOB_CLI" start printf "Line 1\nLine 2\nLine 3\n"
   assert_success
 
   # Extract job ID
@@ -137,7 +137,7 @@ load 'test_helper'
 
 @test "restarted job appends to existing log files" {
   # Start a job that writes output
-  run "$JOB_CLI" add echo "First run"
+  run "$JOB_CLI" start echo "First run"
   assert_success
 
   # Extract job ID
@@ -148,7 +148,7 @@ load 'test_helper'
   sleep 1
 
   # Restart the job
-  run "$JOB_CLI" start "$job_id"
+  run "$JOB_CLI" restart "$job_id"
   assert_success
 
   # Wait for second run to finish
@@ -164,7 +164,7 @@ load 'test_helper'
 
 @test "stdout command handles empty output" {
   # Start a job that produces no stdout
-  run "$JOB_CLI" add sleep 1
+  run "$JOB_CLI" start sleep 1
   assert_success
 
   # Extract job ID

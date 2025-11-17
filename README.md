@@ -32,7 +32,7 @@ sudo cp dist/gob /usr/local/bin/
 
 ```bash
 # Start a background job
-gob add sleep 300
+gob start sleep 300
 
 # List all jobs
 gob list
@@ -51,19 +51,19 @@ gob cleanup
 
 ### Core Commands
 
-#### `gobadd <command> [args...]`
+#### `gobstart <command> [args...]`
 
 Start a command as a background job. The job runs detached and persists even after the CLI exits.
 
 ```bash
 # Start a long-running server
-gob addpython -m http.server 8000
+gob start python -m http.server 8000
 
 # Run a background process
-gob add./script.sh --verbose
+gob start ./script.sh --verbose
 
 # Execute with arguments
-gob addffmpeg -i input.mp4 output.avi
+gob start ffmpeg -i input.mp4 output.avi
 ```
 
 **Output**: Job ID (Unix timestamp)
@@ -89,26 +89,18 @@ Stop a running job. Uses SIGTERM by default; use `--force` for SIGKILL.
 
 ```bash
 # Graceful shutdown
-gob stop1234567890
+gob stop 1234567890
 
 # Force kill
-gob stop1234567890 --force
-```
-
-#### `gobstart <job_id>`
-
-Restart a stopped job with the same command.
-
-```bash
-gob start1234567890
+gob stop 1234567890 --force
 ```
 
 #### `gobrestart <job_id>`
 
-Stop and then start a job (combines stop + start).
+Stop and then start a job with the same command.
 
 ```bash
-gob restart1234567890
+gob restart 1234567890
 ```
 
 ### Job Cleanup
@@ -118,7 +110,7 @@ gob restart1234567890
 Remove metadata for a single stopped job. Job must be stopped first.
 
 ```bash
-gob remove1234567890
+gob remove 1234567890
 ```
 
 #### `gobcleanup`
@@ -145,10 +137,10 @@ Display stdout output for a job.
 
 ```bash
 # View stdout
-gob stdout1234567890
+gob stdout 1234567890
 
 # Tail stdout in real-time
-gob stdout1234567890 --follow
+gob stdout 1234567890 --follow
 ```
 
 #### `gobstderr <job_id> [--follow]`
@@ -157,10 +149,10 @@ Display stderr output for a job.
 
 ```bash
 # View stderr
-gob stderr1234567890
+gob stderr 1234567890
 
 # Tail stderr in real-time
-gob stderr1234567890 --follow
+gob stderr 1234567890 --follow
 ```
 
 ### Advanced
@@ -171,10 +163,10 @@ Send a custom signal to a job.
 
 ```bash
 # Send SIGHUP (reload configuration)
-gob signal1234567890 HUP
+gob signal 1234567890 HUP
 
 # Send SIGUSR1
-gob signal1234567890 USR1
+gob signal 1234567890 USR1
 ```
 
 **Supported signals**: TERM, KILL, HUP, INT, QUIT, USR1, USR2, and more
