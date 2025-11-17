@@ -12,7 +12,7 @@ var rootCmd = &cobra.Command{
 	Short: "Start and manage background jobs",
 	Long: `A CLI application to start and manage background jobs.
 
-You can use this tool to run jobs in the background, monitor their status,
+You can use this tool to add jobs in the background, monitor their status,
 and manage their lifecycle.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
@@ -37,5 +37,5 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

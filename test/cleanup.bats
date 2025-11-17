@@ -10,7 +10,7 @@ load 'test_helper'
 
 @test "cleanup command removes only stopped jobs" {
   # Start a job
-  "$JOB_CLI" run sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/job/*.json | head -n 1)
@@ -39,7 +39,7 @@ load 'test_helper'
 
 @test "cleanup command preserves running jobs" {
   # Start a job
-  "$JOB_CLI" run sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls .local/share/job/*.json | head -n 1)
@@ -63,15 +63,15 @@ load 'test_helper'
 
 @test "cleanup command with mixed running and stopped jobs" {
   # Start first job
-  "$JOB_CLI" run sleep 300
+  "$JOB_CLI" add sleep 300
   sleep 1
 
   # Start second job
-  "$JOB_CLI" run sleep 400
+  "$JOB_CLI" add sleep 400
   sleep 1
 
   # Start third job
-  "$JOB_CLI" run sleep 500
+  "$JOB_CLI" add sleep 500
 
   # Get metadata files sorted by time (newest first)
   metadata_files=($(ls -t .local/share/job/*.json))
@@ -116,11 +116,11 @@ load 'test_helper'
 
 @test "cleanup command cleans up multiple stopped jobs" {
   # Start three jobs
-  "$JOB_CLI" run sleep 300
+  "$JOB_CLI" add sleep 300
   sleep 1
-  "$JOB_CLI" run sleep 400
+  "$JOB_CLI" add sleep 400
   sleep 1
-  "$JOB_CLI" run sleep 500
+  "$JOB_CLI" add sleep 500
 
   # Get metadata files
   metadata_files=($(ls -t .local/share/job/*.json))
@@ -144,7 +144,7 @@ load 'test_helper'
 
 @test "cleanup command is safe to run multiple times" {
   # Start a job
-  "$JOB_CLI" run sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls .local/share/job/*.json | head -n 1)
@@ -167,7 +167,7 @@ load 'test_helper'
 
 @test "cleanup after using stop command" {
   # Start a job
-  "$JOB_CLI" run sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls .local/share/job/*.json | head -n 1)

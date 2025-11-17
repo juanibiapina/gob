@@ -2,14 +2,14 @@
 
 load 'test_helper'
 
-@test "run command requires at least one argument" {
-  run "$JOB_CLI" run
+@test "add command requires at least one argument" {
+  run "$JOB_CLI" add
   assert_failure
   assert_output --partial "requires at least 1 arg(s)"
 }
 
-@test "run command starts a background process" {
-  run "$JOB_CLI" run sleep 300
+@test "add command starts a background process" {
+  run "$JOB_CLI" add sleep 300
   assert_success
   assert_output --regexp "Started job [0-9]+ running: sleep 300"
 
@@ -23,7 +23,7 @@ load 'test_helper'
 
 @test "background process continues after CLI exits" {
   # Run the command
-  output=$("$JOB_CLI" run sleep 300)
+  output=$("$JOB_CLI" add sleep 300)
 
   # Extract PID from metadata file
   metadata_file=$(ls .local/share/job/*.json | head -n 1)
@@ -37,7 +37,7 @@ load 'test_helper'
 }
 
 @test "metadata file is created in .local/share/job" {
-  run "$JOB_CLI" run sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
 
   # Check that metadata directory exists
@@ -52,7 +52,7 @@ load 'test_helper'
 }
 
 @test "metadata contains correct command and PID" {
-  run "$JOB_CLI" run sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
 
   # Get the metadata file
@@ -75,8 +75,8 @@ load 'test_helper'
   assert [ "$id" -gt 0 ]
 }
 
-@test "run command with multiple arguments" {
-  run "$JOB_CLI" run sleep 300
+@test "add command with multiple arguments" {
+  run "$JOB_CLI" add sleep 300
   assert_success
   assert_output --regexp "Started job [0-9]+ running: sleep 300"
 
@@ -86,15 +86,15 @@ load 'test_helper'
   assert kill -0 "$TEST_PID"
 }
 
-@test "run command handles invalid command" {
-  run "$JOB_CLI" run nonexistent_command_xyz
+@test "add command handles invalid command" {
+  run "$JOB_CLI" add nonexistent_command_xyz
   assert_failure
   assert_output --partial "failed to start job"
 }
 
 @test "multiple jobs create separate metadata files" {
   # Start first job
-  run "$JOB_CLI" run sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
   metadata_file1=$(ls .local/share/job/*.json | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file1")
@@ -103,7 +103,7 @@ load 'test_helper'
   sleep 1
 
   # Start second job
-  run "$JOB_CLI" run sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
 
   # Verify two separate files exist

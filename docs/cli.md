@@ -33,13 +33,13 @@ Each metadata file contains:
 
 ## Commands
 
-### run
+### add
 
-Start a command as a background job.
+Add a command as a background job.
 
 **Syntax:**
 ```bash
-job run <command> [args...]
+job add <command> [args...]
 ```
 
 **Arguments:**
@@ -61,13 +61,13 @@ Started job <job_id> running: <command>
 **Examples:**
 ```bash
 # Start a long-running sleep
-job run sleep 3600
+job add sleep 3600
 
 # Start a server
-job run python -m http.server 8080
+job add python -m http.server 8080
 
 # Start a background compilation
-job run make build
+job add make build
 ```
 
 **Exit Codes:**
@@ -167,6 +167,94 @@ job stop 1732348944 --force
 - Stopping an already-stopped job is not an error (idempotent)
 - Use `--force` if the job doesn't respond to SIGTERM
 - Job metadata is NOT removed by this command (use `cleanup`)
+
+---
+
+### start
+
+Start a stopped job with a new PID.
+
+**Syntax:**
+```bash
+job start <job_id>
+```
+
+**Arguments:**
+- `job_id`: ID of the job to start (required)
+
+**Behavior:**
+- Reads job metadata to get the saved command
+- Checks if the job is already running
+- Returns an error if the job is currently running
+- Starts the process with the saved command
+- Updates the PID in metadata while preserving the job ID
+
+**Output:**
+```
+Started job <job_id> with new PID <pid> running: <command>
+```
+
+**Examples:**
+```bash
+# Start a stopped job
+job start 1732348944
+```
+
+**Exit Codes:**
+- `0`: Job started successfully
+- `1`: Error (job not found, job already running, failed to start process)
+
+**Notes:**
+- Only works on stopped jobs - returns error if already running
+- Preserves the job ID while updating the PID
+- Useful for restarting jobs that have stopped or crashed
+- The command is retrieved from saved metadata
+
+---
+
+### restart
+
+Restart a job by stopping it (if running) and starting it again.
+
+**Syntax:**
+```bash
+job restart <job_id>
+```
+
+**Arguments:**
+- `job_id`: ID of the job to restart (required)
+
+**Behavior:**
+- Reads job metadata to get the PID and saved command
+- If the job is running, sends SIGTERM to stop it
+- If the job is already stopped, skips the stop step
+- Starts the process with the saved command
+- Updates the PID in metadata while preserving the job ID
+
+**Output:**
+```
+Restarted job <job_id> with new PID <pid> running: <command>
+```
+
+**Examples:**
+```bash
+# Restart a running job
+job restart 1732348944
+
+# Restart a stopped job (same as start)
+job restart 1732348944
+```
+
+**Exit Codes:**
+- `0`: Job restarted successfully
+- `1`: Error (job not found, failed to stop/start process)
+
+**Notes:**
+- Works on both running and stopped jobs
+- Uses SIGTERM for graceful shutdown (not SIGKILL)
+- Preserves the job ID while updating the PID
+- Useful for applying configuration changes or recovering from issues
+- If job is already stopped, behaves like `start`
 
 ---
 
@@ -363,9 +451,9 @@ job signal 1732348944 KILL
 
 ```bash
 # Start multiple jobs
-job run sleep 300
-job run python server.py
-job run npm run watch
+job add sleep 300
+job add python server.py
+job add npm run watch
 
 # Check what's running
 job list

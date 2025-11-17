@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var runCmd = &cobra.Command{
-	Use:   "run <command> [args...]",
-	Short: "Run a command as a background job",
-	Long: `Run a command as a background job that continues running after the CLI exits.
+var addCmd = &cobra.Command{
+	Use:   "add <command> [args...]",
+	Short: "Add a command as a background job",
+	Long: `Add a command as a background job that continues running after the CLI exits.
 The job metadata (command, PID, timestamp) is stored in .local/share/job/ for later reference.`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,5 +55,5 @@ The job metadata (command, PID, timestamp) is stored in .local/share/job/ for la
 }
 
 func init() {
-	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(addCmd)
 }
