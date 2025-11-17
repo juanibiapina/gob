@@ -53,3 +53,13 @@ func IsProcessRunning(pid int) bool {
 	err := syscall.Kill(pid, syscall.Signal(0))
 	return err == nil
 }
+
+// StopProcess sends SIGTERM to a process for graceful termination
+func StopProcess(pid int) error {
+	return syscall.Kill(pid, syscall.SIGTERM)
+}
+
+// KillProcess sends SIGKILL to forcefully terminate a process
+func KillProcess(pid int) error {
+	return syscall.Kill(pid, syscall.SIGKILL)
+}
