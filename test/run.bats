@@ -69,10 +69,10 @@ load 'test_helper'
   assert [ "$(jq -r '.command[0]' "$metadata_file")" = "sleep" ]
   assert [ "$(jq -r '.command[1]' "$metadata_file")" = "300" ]
 
-  # Verify started_at timestamp is present
-  started_at=$(jq -r '.started_at' "$metadata_file")
-  assert [ -n "$started_at" ]
-  assert [ "$started_at" -gt 0 ]
+  # Verify id (timestamp) is present
+  id=$(jq -r '.id' "$metadata_file")
+  assert [ -n "$id" ]
+  assert [ "$id" -gt 0 ]
 }
 
 @test "run command with multiple arguments" {

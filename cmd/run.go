@@ -24,6 +24,9 @@ The job metadata (command, PID, timestamp) is stored in .local/share/job/ for la
 			commandArgs = args[1:]
 		}
 
+		// Generate job ID (Unix timestamp)
+		jobID := time.Now().Unix()
+
 		// Start the detached process
 		pid, err := process.StartDetached(command, commandArgs)
 		if err != nil {
@@ -32,23 +35,20 @@ The job metadata (command, PID, timestamp) is stored in .local/share/job/ for la
 
 		// Create job metadata
 		metadata := &storage.JobMetadata{
-			Command:   args,
-			PID:       pid,
-			StartedAt: time.Now().Unix(),
+			ID:      jobID,
+			Command: args,
+			PID:     pid,
 		}
 
 		// Save metadata
-		filename, err := storage.SaveJobMetadata(metadata)
+		_, err = storage.SaveJobMetadata(metadata)
 		if err != nil {
 			return fmt.Errorf("failed to save job metadata: %w", err)
 		}
 
-		// Extract job ID from filename (timestamp without .json extension)
-		jobID := strings.TrimSuffix(filename, ".json")
-
 		// Print confirmation message
 		commandStr := strings.Join(args, " ")
-		fmt.Printf("Started job %s running: %s\n", jobID, commandStr)
+		fmt.Printf("Started job %d running: %s\n", jobID, commandStr)
 
 		return nil
 	},

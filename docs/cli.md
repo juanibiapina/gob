@@ -25,9 +25,11 @@ Job metadata is stored in `.local/share/job/` relative to the current working di
 - **Job ID format**: Unix timestamp (e.g., `1732348944`)
 
 Each metadata file contains:
+- `id`: Unix timestamp used as the unique job identifier
 - `command`: Array of command and arguments
 - `pid`: Process ID of the background job
-- `startedAt`: Unix timestamp when job started
+
+**Important:** All job commands operate on job IDs, not PIDs. The job ID is a stable identifier that persists even if the process stops. The PID is only used internally for process management.
 
 ## Commands
 
@@ -405,12 +407,22 @@ Error: command is required
 
 The `list` command uses signal 0 (`syscall.Kill(pid, 0)`) to check if a process exists without actually sending a signal.
 
-### Job ID Generation
+### Job ID vs PID
 
-Job IDs are Unix timestamps (`time.Now().Unix()`), which provides:
-- Unique identifiers (assuming one job per second)
-- Natural chronological ordering
-- Easy sorting (newer jobs have larger IDs)
+**Job ID:**
+- Permanent identifier for a job (Unix timestamp: `time.Now().Unix()`)
+- Used by all CLI commands (`stop`, `signal`, `restart`, etc.)
+- Stored in metadata and used as the filename (`<id>.json`)
+- Remains constant even if the job is stopped and restarted
+- Provides natural chronological ordering (newer jobs have larger IDs)
+
+**PID (Process ID):**
+- Operating system identifier for a running process
+- Used internally for process management and signal delivery
+- Changes if a job is restarted
+- Only valid while the process is running
+
+This separation allows jobs to be restarted with the same identity, making it easier to manage long-lived services.
 
 ### Idempotency
 

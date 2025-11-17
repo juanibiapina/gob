@@ -7,14 +7,13 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 // JobMetadata represents the metadata stored for each background job
 type JobMetadata struct {
-	Command   []string `json:"command"`
-	PID       int      `json:"pid"`
-	StartedAt int64    `json:"started_at"`
+	ID      int64    `json:"id"`
+	Command []string `json:"command"`
+	PID     int      `json:"pid"`
 }
 
 // JobInfo combines job ID with its metadata
@@ -48,10 +47,9 @@ func EnsureJobDir() (string, error) {
 	return jobDir, nil
 }
 
-// GenerateJobFilename creates a timestamp-based filename for a job
-func GenerateJobFilename() string {
-	timestamp := time.Now().Unix()
-	return fmt.Sprintf("%d.json", timestamp)
+// GenerateJobFilename creates a filename for a job based on its ID
+func GenerateJobFilename(id int64) string {
+	return fmt.Sprintf("%d.json", id)
 }
 
 // SaveJobMetadata writes job metadata to a JSON file
@@ -61,7 +59,7 @@ func SaveJobMetadata(metadata *JobMetadata) (string, error) {
 		return "", err
 	}
 
-	filename := GenerateJobFilename()
+	filename := GenerateJobFilename(metadata.ID)
 	filepath := filepath.Join(jobDir, filename)
 
 	data, err := json.MarshalIndent(metadata, "", "  ")
@@ -92,6 +90,13 @@ func LoadJobMetadata(filename string) (*JobMetadata, error) {
 	var metadata JobMetadata
 	if err := json.Unmarshal(data, &metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal job metadata: %w", err)
+	}
+
+	// If ID is not in the metadata (backward compatibility), extract from filename
+	if metadata.ID == 0 {
+		jobID := strings.TrimSuffix(filename, ".json")
+		// Parse the ID from filename (best effort)
+		fmt.Sscanf(jobID, "%d", &metadata.ID)
 	}
 
 	return &metadata, nil
@@ -138,9 +143,9 @@ func ListJobMetadata() ([]JobInfo, error) {
 		})
 	}
 
-	// Sort by start time, newest first
+	// Sort by ID (timestamp), newest first
 	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].Metadata.StartedAt > jobs[j].Metadata.StartedAt
+		return jobs[i].Metadata.ID > jobs[j].Metadata.ID
 	})
 
 	return jobs, nil
