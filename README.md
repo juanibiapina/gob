@@ -52,6 +52,9 @@ sudo cp dist/gob /usr/local/bin/
 ## Quick Start
 
 ```bash
+# Usage overview
+gob
+
 # Start a background job
 gob start sleep 300
 
