@@ -71,6 +71,22 @@ gob stop 1234567890
 gob cleanup
 ```
 
+## Using with Claude Code
+
+To make gob available to Claude Code or other AI coding assistants, add it to your global `~/.claude/CLAUDE.md`:
+
+```markdown
+# Available CLI Tools
+
+- `gob` - Background process manager
+
+# Usage Expectations
+
+- Use `gob` to start and monitor background processes like servers and other long running tasks (run `gob` for overview)
+```
+
+This allows Claude Code to automatically use gob for managing long-running processes during development.
+
 ## Usage
 
 ### Core Commands
