@@ -15,7 +15,6 @@ type JobMetadata struct {
 	Command   []string `json:"command"`
 	PID       int      `json:"pid"`
 	StartedAt int64    `json:"started_at"`
-	WorkDir   string   `json:"work_dir"`
 }
 
 // JobInfo combines job ID with its metadata

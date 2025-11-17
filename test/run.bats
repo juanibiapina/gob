@@ -73,10 +73,6 @@ load 'test_helper'
   started_at=$(jq -r '.started_at' "$metadata_file")
   assert [ -n "$started_at" ]
   assert [ "$started_at" -gt 0 ]
-
-  # Verify work_dir is present
-  work_dir=$(jq -r '.work_dir' "$metadata_file")
-  assert [ "$work_dir" = "$BATS_TEST_TMPDIR" ]
 }
 
 @test "run command with multiple arguments" {

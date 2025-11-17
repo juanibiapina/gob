@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -31,18 +30,11 @@ The job metadata (command, PID, timestamp) is stored in .local/share/job/ for la
 			return fmt.Errorf("failed to start job: %w", err)
 		}
 
-		// Get current working directory for metadata
-		workDir, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get working directory: %w", err)
-		}
-
 		// Create job metadata
 		metadata := &storage.JobMetadata{
 			Command:   args,
 			PID:       pid,
 			StartedAt: time.Now().Unix(),
-			WorkDir:   workDir,
 		}
 
 		// Save metadata
