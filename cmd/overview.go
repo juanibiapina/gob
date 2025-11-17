@@ -56,7 +56,6 @@ IMPORTANT NOTES
 - All commands use job IDs (Unix timestamps), not PIDs
 - Job IDs persist even when processes stop/restart
 - Use 'gob list' to find job IDs
-- Exit codes: 0 = success, 1 = error
 
 AVAILABLE COMMANDS
 
@@ -72,8 +71,7 @@ AVAILABLE COMMANDS
   stdout    Display stdout output for a job
   stderr    Display stderr output for a job
 
-Use 'gob [command] --help' for detailed information about each command.
-`)
+Use 'gob [command] --help' for detailed information about each command.`)
 		return nil
 	},
 }
