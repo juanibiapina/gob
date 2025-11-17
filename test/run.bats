@@ -1,21 +1,6 @@
 #!/usr/bin/env bats
 
-load 'test_helper/bats-support/load'
-load 'test_helper/bats-assert/load'
-
-setup() {
-  # Use BATS provided temporary directory
-  cd "$BATS_TEST_TMPDIR"
-
-  JOB_CLI="$BATS_TEST_DIRNAME/../dist/job"
-}
-
-teardown() {
-  # Kill any background processes we started
-  if [ -n "$TEST_PID" ] && kill -0 "$TEST_PID" 2>/dev/null; then
-    kill "$TEST_PID" 2>/dev/null || true
-  fi
-}
+load 'test_helper'
 
 @test "run command requires at least one argument" {
   run "$JOB_CLI" run

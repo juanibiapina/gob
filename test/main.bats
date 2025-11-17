@@ -1,12 +1,9 @@
 #!/usr/bin/env bats
 
-setup() {
-  load 'test_helper/bats-support/load'
-  load 'test_helper/bats-assert/load'
-}
+load 'test_helper'
 
 @test "displays help text when run without arguments" {
-  run go run .
+  run "$JOB_CLI"
   assert_output --partial 'A CLI application to start and manage background jobs.'
   assert_output --partial 'You can use this tool to run jobs in the background, monitor their status,'
   assert_output --partial 'and manage their lifecycle.'
