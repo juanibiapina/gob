@@ -46,17 +46,25 @@ Exit codes:
 		// Generate job ID (Unix timestamp)
 		jobID := time.Now().Unix()
 
+		// Ensure job directory exists and get its path
+		storageDir, err := storage.EnsureJobDir()
+		if err != nil {
+			return fmt.Errorf("failed to create job directory: %w", err)
+		}
+
 		// Start the detached process
-		pid, err := process.StartDetached(command, commandArgs)
+		pid, stdoutPath, stderrPath, err := process.StartDetached(command, commandArgs, jobID, storageDir)
 		if err != nil {
 			return fmt.Errorf("failed to start job: %w", err)
 		}
 
 		// Create job metadata
 		metadata := &storage.JobMetadata{
-			ID:      jobID,
-			Command: args,
-			PID:     pid,
+			ID:         jobID,
+			Command:    args,
+			PID:        pid,
+			StdoutFile: stdoutPath,
+			StderrFile: stderrPath,
 		}
 
 		// Save metadata

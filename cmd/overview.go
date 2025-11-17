@@ -69,6 +69,8 @@ AVAILABLE COMMANDS
   cleanup   Remove metadata for all stopped jobs
   nuke      Stop all jobs and remove all metadata
   signal    Send a specific signal to a job
+  stdout    Display stdout output for a job
+  stderr    Display stderr output for a job
 
 Use 'job [command] --help' for detailed information about each command.
 `)

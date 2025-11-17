@@ -10,7 +10,8 @@ import (
 // StartDetached starts a command as a detached background process
 // It uses Setpgid to create a new process group, ensuring the process
 // continues running after the parent CLI exits
-func StartDetached(command string, args []string) (int, error) {
+// Returns the PID, stdout log path, stderr log path, and any error
+func StartDetached(command string, args []string, jobID int64, storageDir string) (int, string, string, error) {
 	cmd := exec.Command(command, args...)
 
 	// Create a new process group to detach from parent
@@ -18,31 +19,57 @@ func StartDetached(command string, args []string) (int, error) {
 		Setpgid: true,
 	}
 
-	// Redirect stdout and stderr to /dev/null to prevent blocking
-	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	// Create log files for stdout and stderr
+	stdoutPath := fmt.Sprintf("%s/%d.stdout.log", storageDir, jobID)
+	stderrPath := fmt.Sprintf("%s/%d.stderr.log", storageDir, jobID)
+
+	stdoutFile, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		return 0, fmt.Errorf("failed to open /dev/null: %w", err)
+		return 0, "", "", fmt.Errorf("failed to open stdout log file: %w", err)
 	}
 
-	cmd.Stdout = devNull
-	cmd.Stderr = devNull
+	stderrFile, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		stdoutFile.Close()
+		return 0, "", "", fmt.Errorf("failed to open stderr log file: %w", err)
+	}
+
+	// Redirect stdin to /dev/null
+	devNull, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0)
+	if err != nil {
+		stdoutFile.Close()
+		stderrFile.Close()
+		return 0, "", "", fmt.Errorf("failed to open /dev/null: %w", err)
+	}
+
+	cmd.Stdout = stdoutFile
+	cmd.Stderr = stderrFile
 	cmd.Stdin = devNull
 
 	// Start the process (non-blocking)
 	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("failed to start process: %w", err)
+		stdoutFile.Close()
+		stderrFile.Close()
+		devNull.Close()
+		return 0, "", "", fmt.Errorf("failed to start process: %w", err)
 	}
 
 	// Get the PID
 	pid := cmd.Process.Pid
 
+	// Close the file descriptors in the parent process
+	// The child process keeps them open
+	stdoutFile.Close()
+	stderrFile.Close()
+	devNull.Close()
+
 	// Release the process so Go stops tracking it
 	// This allows the parent to exit without waiting for the child
 	if err := cmd.Process.Release(); err != nil {
-		return 0, fmt.Errorf("failed to release process: %w", err)
+		return 0, "", "", fmt.Errorf("failed to release process: %w", err)
 	}
 
-	return pid, nil
+	return pid, stdoutPath, stderrPath, nil
 }
 
 // IsProcessRunning checks if a process with the given PID is currently running

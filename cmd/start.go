@@ -57,13 +57,21 @@ Exit codes:
 			commandArgs = metadata.Command[1:]
 		}
 
-		pid, err := process.StartDetached(command, commandArgs)
+		// Ensure job directory exists and get its path
+		storageDir, err := storage.EnsureJobDir()
+		if err != nil {
+			return fmt.Errorf("failed to create job directory: %w", err)
+		}
+
+		pid, stdoutPath, stderrPath, err := process.StartDetached(command, commandArgs, metadata.ID, storageDir)
 		if err != nil {
 			return fmt.Errorf("failed to start job: %w", err)
 		}
 
-		// Update the PID in metadata
+		// Update the PID and log file paths in metadata
 		metadata.PID = pid
+		metadata.StdoutFile = stdoutPath
+		metadata.StderrFile = stderrPath
 
 		// Save updated metadata
 		_, err = storage.SaveJobMetadata(metadata)

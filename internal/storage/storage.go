@@ -11,9 +11,11 @@ import (
 
 // JobMetadata represents the metadata stored for each background job
 type JobMetadata struct {
-	ID      int64    `json:"id"`
-	Command []string `json:"command"`
-	PID     int      `json:"pid"`
+	ID         int64    `json:"id"`
+	Command    []string `json:"command"`
+	PID        int      `json:"pid"`
+	StdoutFile string   `json:"stdout_file,omitempty"`
+	StderrFile string   `json:"stderr_file,omitempty"`
 }
 
 // JobInfo combines job ID with its metadata
