@@ -228,33 +228,6 @@ gob signal 1234567890 USR1
 
 **Supported signals**: TERM, KILL, HUP, INT, QUIT, USR1, USR2, and more
 
-## Development
+## Contributing
 
-### Building
-
-```bash
-make build
-```
-
-Binary output: `dist/gob`
-
-### Testing
-
-Requirements:
-- BATS (included as git submodule)
-- `jq` (JSON processor)
-
-```bash
-# Initialize git submodules (first time only)
-git submodule update --init --recursive
-
-# Run tests (automatically builds first)
-make test
-```
-
-Tests are located in `test/*.bats` and verify end-to-end functionality.
-
-### Contributing
-
-When making changes to the project:
-- Update `CHANGELOG.md` under `[Unreleased]` section for user-facing changes
+Interested in contributing? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing instructions, and contribution guidelines.
