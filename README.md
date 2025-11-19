@@ -1,11 +1,22 @@
 # gob
 
-A lightweight CLI tool for managing background processes. `gob` allows you to start commands as detached background processes, monitor their status, lifecycle and output.
+> Background job management for HUMANs and AGENTs.
+
+`gob` (pronounced job) is a lightweight CLI tool for managing background processes, because both you and Claude Code both need to check the logs!
+
+When an AI coding AGENT like Claude Code starts background processes, the output is difficult to inspect.
+`gob` solves this by giving both you and the AGENT a shared interface to start, stop, monitor, and inspect background process.
+Start a dev server with Claude Code, check its logs yourself and vice-versa.
+The AGENT can monitor what you started.
+Everyone has the same view.
+
+No more "can you check if that's still running?" No more copy-pasting logs through chat. No more reading tmux outputs. Just direct access to your processes, for everyone.
 
 ## Features
 
 - **Detached Process Execution** - Run commands that persist independently of the CLI
 - **AI coding agent friendly** - Easy for Coding Agents to start and monitor background processes
+- **Jobs per directory** - Jobs are scoped per directory, making it easier to maintain per project jobs
 
 ## Installation
 
@@ -85,11 +96,17 @@ To make gob available to Claude Code or other AI coding assistants, add it to yo
 - Use `gob` to start and monitor background processes like servers and other long running tasks (run `gob` for overview)
 ```
 
-This allows Claude Code to automatically use gob for managing long-running processes during development.
-
 ## Usage
 
 ### Core Commands
+
+#### `gob overview`
+
+Display usage patterns and common workflows. Also shown when running `gob` without arguments.
+
+```bash
+gob overview
+```
 
 #### `gob start <command> [args...]`
 
@@ -211,14 +228,6 @@ gob signal 1234567890 USR1
 
 **Supported signals**: TERM, KILL, HUP, INT, QUIT, USR1, USR2, and more
 
-#### `gob overview`
-
-Display usage patterns and common workflows. Also shown when running `gob` without arguments.
-
-```bash
-gob overview
-```
-
 ## Development
 
 ### Building
@@ -249,18 +258,3 @@ Tests are located in `test/*.bats` and verify end-to-end functionality.
 
 When making changes to the project:
 - Update `CHANGELOG.md` under `[Unreleased]` section for user-facing changes
-- Follow [Keep a Changelog](https://keepachangelog.com/) format
-- Categorize changes as: Added, Changed, Deprecated, Removed, Fixed, Security
-
-## Requirements
-
-**Runtime**:
-- Unix-like operating system (Linux, macOS, BSD)
-- **Note**: Windows is not supported due to Unix-specific process management APIs
-
-**Build**:
-- Go 1.25.4+
-
-**Testing**:
-- BATS framework (included)
-- `jq` command-line tool
