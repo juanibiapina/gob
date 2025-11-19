@@ -2,7 +2,7 @@
 
 > Background job management for HUMANs and AGENTs.
 
-`gob` (pronounced job) is a lightweight CLI tool for managing background processes, because both you and Claude Code both need to check the logs!
+`gob` (pronounced job) is a lightweight CLI tool for managing background processes, because you and Claude Code both need to check the logs!
 
 When an AI coding AGENT like Claude Code starts background processes, the output is difficult to inspect.
 `gob` solves this by giving both you and the AGENT a shared interface to start, stop, monitor, and inspect background process.
