@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix process hanging by ensuring child processes are properly terminated
+
 ## [0.1.1] - 2025-11-20
 
 - Add support for installing with homebrew
