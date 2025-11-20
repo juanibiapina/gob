@@ -13,14 +13,15 @@ import (
 
 var nukeCmd = &cobra.Command{
 	Use:   "nuke",
-	Short: "Stop all running jobs and remove all job metadata",
-	Long: `Stop all running jobs and remove all job metadata.
+	Short: "Stop all running jobs and remove all job data",
+	Long: `Stop all running jobs and remove all job data including logs and metadata.
 
-⚠️  DESTRUCTIVE COMMAND - stops ALL jobs and removes ALL metadata.
+⚠️  DESTRUCTIVE COMMAND - stops ALL jobs and removes ALL data.
 
 Workflow:
   1. Sends SIGTERM to all running jobs
-  2. Removes all metadata files (both running and stopped)
+  2. Removes all log files (stdout and stderr)
+  3. Removes all metadata files (both running and stopped)
 
 Example:
   # Stop everything and start fresh
@@ -28,11 +29,13 @@ Example:
 
 Output:
   Stopped <n> running job(s)
-  Cleaned up <m> total job(s)
+  Deleted <m> log file(s)
+  Cleaned up <k> total job(s)
 
 Example output:
   Stopped 2 running job(s)
-  Cleaned up 5 total job(s)
+  Deleted 4 log file(s)
+  Cleaned up 2 total job(s)
 
 Notes:
   - Uses SIGTERM (graceful) not SIGKILL
@@ -56,8 +59,9 @@ Exit codes:
 			return fmt.Errorf("failed to get job directory: %w", err)
 		}
 
-		// Count stopped and cleaned jobs
+		// Count stopped, log files deleted, and cleaned jobs
 		stoppedCount := 0
+		logFilesDeleted := 0
 		cleanedCount := 0
 
 		// First pass: stop all running jobs with timeout
@@ -74,7 +78,28 @@ Exit codes:
 			}
 		}
 
-		// Second pass: remove all metadata files
+		// Second pass: delete log files
+		for _, job := range jobs {
+			// Delete stdout log file
+			stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", job.ID))
+			if err := os.Remove(stdoutPath); err != nil && !os.IsNotExist(err) {
+				// Log error but continue with other files
+				fmt.Fprintf(os.Stderr, "Warning: failed to remove stdout log %s: %v\n", stdoutPath, err)
+			} else if err == nil {
+				logFilesDeleted++
+			}
+
+			// Delete stderr log file
+			stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", job.ID))
+			if err := os.Remove(stderrPath); err != nil && !os.IsNotExist(err) {
+				// Log error but continue with other files
+				fmt.Fprintf(os.Stderr, "Warning: failed to remove stderr log %s: %v\n", stderrPath, err)
+			} else if err == nil {
+				logFilesDeleted++
+			}
+		}
+
+		// Third pass: remove all metadata files
 		for _, job := range jobs {
 			filename := job.ID + ".json"
 			filePath := filepath.Join(jobDir, filename)
@@ -88,6 +113,7 @@ Exit codes:
 
 		// Print summary
 		fmt.Printf("Stopped %d running job(s)\n", stoppedCount)
+		fmt.Printf("Deleted %d log file(s)\n", logFilesDeleted)
 		fmt.Printf("Cleaned up %d total job(s)\n", cleanedCount)
 
 		return nil

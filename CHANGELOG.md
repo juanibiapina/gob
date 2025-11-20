@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `nuke` command now removes log files in addition to metadata files
+- Remove redundant log file path fields from metadata (log files follow standard naming pattern)
+
 ## [0.2.0] - 2025-11-20
 
 ### Fixed

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/spf13/cobra"
@@ -38,32 +39,36 @@ Exit codes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]
 
-		// Load job metadata
-		metadata, err := storage.LoadJobMetadata(jobID + ".json")
+		// Load job metadata to verify it exists
+		_, err := storage.LoadJobMetadata(jobID + ".json")
 		if err != nil {
 			return fmt.Errorf("job not found: %s", jobID)
 		}
 
-		// Check if stdout file is configured
-		if metadata.StdoutFile == "" {
-			return fmt.Errorf("stdout log not available for job %s (job started before logging was enabled)", jobID)
+		// Get job directory
+		jobDir, err := storage.GetJobDir()
+		if err != nil {
+			return fmt.Errorf("failed to get job directory: %w", err)
 		}
 
+		// Calculate stdout file path using standard pattern
+		stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID))
+
 		// Check if stdout file exists
-		if _, err := os.Stat(metadata.StdoutFile); os.IsNotExist(err) {
-			return fmt.Errorf("stdout log file not found: %s", metadata.StdoutFile)
+		if _, err := os.Stat(stdoutPath); os.IsNotExist(err) {
+			return fmt.Errorf("stdout log file not found: %s", stdoutPath)
 		}
 
 		// If follow flag is set, use tail -f to follow the log file
 		if followStdout {
-			tailCmd := exec.Command("tail", "-f", metadata.StdoutFile)
+			tailCmd := exec.Command("tail", "-f", stdoutPath)
 			tailCmd.Stdout = os.Stdout
 			tailCmd.Stderr = os.Stderr
 			return tailCmd.Run()
 		}
 
 		// Read and display the stdout file
-		content, err := os.ReadFile(metadata.StdoutFile)
+		content, err := os.ReadFile(stdoutPath)
 		if err != nil {
 			return fmt.Errorf("failed to read stdout log: %w", err)
 		}

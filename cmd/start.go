@@ -53,18 +53,16 @@ Exit codes:
 		}
 
 		// Start the detached process
-		pid, stdoutPath, stderrPath, err := process.StartDetached(command, commandArgs, jobID, storageDir)
+		pid, err := process.StartDetached(command, commandArgs, jobID, storageDir)
 		if err != nil {
 			return fmt.Errorf("failed to start job: %w", err)
 		}
 
 		// Create job metadata
 		metadata := &storage.JobMetadata{
-			ID:         jobID,
-			Command:    args,
-			PID:        pid,
-			StdoutFile: stdoutPath,
-			StderrFile: stderrPath,
+			ID:      jobID,
+			Command: args,
+			PID:     pid,
 		}
 
 		// Save metadata

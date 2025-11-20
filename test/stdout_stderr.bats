@@ -95,26 +95,6 @@ load 'test_helper'
   assert [ -f ".local/share/gob/${job_id}.stderr.log" ]
 }
 
-@test "metadata contains log file paths" {
-  run "$JOB_CLI" start sleep 300
-  assert_success
-
-  # Get the metadata file
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
-
-  # Verify stdout_file field is present and contains .stdout.log
-  stdout_file=$(jq -r '.stdout_file' "$metadata_file")
-  assert [ -n "$stdout_file" ]
-  run echo "$stdout_file"
-  assert_output --partial ".stdout.log"
-
-  # Verify stderr_file field is present and contains .stderr.log
-  stderr_file=$(jq -r '.stderr_file' "$metadata_file")
-  assert [ -n "$stderr_file" ]
-  run echo "$stderr_file"
-  assert_output --partial ".stderr.log"
-}
-
 @test "log files accumulate output over time" {
   # Start a job that writes multiple lines using printf
   run "$JOB_CLI" start printf "Line 1\nLine 2\nLine 3\n"
