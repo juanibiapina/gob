@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-11-20
+
+- Add support for installing with homebrew
+
 ## [0.1.0] - 2025-11-17
 
 First stable release.
