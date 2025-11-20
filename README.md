@@ -20,6 +20,19 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ## Installation
 
+### Using Go Install
+
+If you have Go installed, you can install `gob` with a single command:
+
+```bash
+go install github.com/juanibiapina/gob@latest
+```
+
+Requirements:
+- Go 1.25.4 or later
+
+The binary will be installed to `$GOPATH/bin` (or `$GOBIN` if set). Make sure this directory is in your `PATH`.
+
 ### Pre-built Binaries
 
 Download the latest release for your platform from the [Releases page](https://github.com/juanibiapina/gob/releases).
@@ -43,22 +56,7 @@ gob --version
 
 ### Build from Source
 
-Requirements:
-- Go 1.25.4 or later
-- Make
-
-```bash
-# Clone the repository
-git clone https://github.com/juanibiapina/gob.git
-cd gob
-
-# Build the binary
-make build
-
-# The binary will be available at dist/gob
-# Optionally, move it to your PATH
-sudo cp dist/gob /usr/local/bin/
-```
+For build instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick Start
 
