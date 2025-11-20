@@ -20,6 +20,15 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ## Installation
 
+### Using Homebrew
+
+Install gob via Homebrew:
+
+```bash
+brew tap juanibiapina/taps
+brew install gob
+```
+
 ### Using Go Install
 
 If you have Go installed, you can install `gob` with a single command:
