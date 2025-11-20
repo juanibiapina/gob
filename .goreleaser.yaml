@@ -34,8 +34,7 @@ archives:
       {{- .Arch }}
     files:
       - README.md
-      - LICENSE*
-      - docs/**/*
+      - LICENSE.md
 
 checksum:
   name_template: 'checksums.txt'
