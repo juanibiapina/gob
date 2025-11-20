@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/process"
 	"github.com/juanibiapina/gob/internal/storage"
@@ -48,14 +49,13 @@ Exit codes:
 			return fmt.Errorf("job not found: %s", jobID)
 		}
 
-		// If process is running, stop it first
+		// If process is running, stop it first with timeout
 		if process.IsProcessRunning(metadata.PID) {
-			err := process.StopProcess(metadata.PID)
+			// Use 10 second graceful timeout, then 5 second force timeout
+			err := process.StopProcessWithTimeout(metadata.PID, 10*time.Second, 5*time.Second)
 			if err != nil {
 				return fmt.Errorf("failed to stop job %s: %w", jobID, err)
 			}
-			// Give the process a moment to terminate
-			// TODO: Consider adding a wait loop with timeout
 		}
 
 		// Start the process with the saved command

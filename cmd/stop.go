@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/process"
 	"github.com/juanibiapina/gob/internal/storage"
@@ -64,13 +65,31 @@ Exit codes:
 		// Stop the process
 		var stopErr error
 		if forceStop {
+			// Send SIGKILL immediately and wait for termination
 			stopErr = process.KillProcess(metadata.PID)
-		} else {
-			stopErr = process.StopProcess(metadata.PID)
-		}
+			if stopErr != nil {
+				return fmt.Errorf("failed to kill job %s: %w", jobID, stopErr)
+			}
 
-		if stopErr != nil {
-			return fmt.Errorf("failed to stop job %s: %w", jobID, stopErr)
+			// Poll for termination after SIGKILL
+			deadline := time.Now().Add(5 * time.Second)
+			for time.Now().Before(deadline) {
+				if !process.IsProcessRunning(metadata.PID) {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			// Verify process is actually dead
+			if process.IsProcessRunning(metadata.PID) {
+				return fmt.Errorf("process %d still running after SIGKILL", metadata.PID)
+			}
+		} else {
+			// Use graceful shutdown with timeout
+			stopErr = process.StopProcessWithTimeout(metadata.PID, 10*time.Second, 5*time.Second)
+			if stopErr != nil {
+				return fmt.Errorf("failed to stop job %s: %w", jobID, stopErr)
+			}
 		}
 
 		// Print confirmation

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 // StartDetached starts a command as a detached background process
@@ -81,12 +82,68 @@ func IsProcessRunning(pid int) bool {
 	return err == nil
 }
 
-// StopProcess sends SIGTERM to a process for graceful termination
+// StopProcess sends SIGTERM to a process group for graceful termination
+// Uses negative PID to target the entire process group, ensuring all child processes are terminated
 func StopProcess(pid int) error {
-	return syscall.Kill(pid, syscall.SIGTERM)
+	return syscall.Kill(-pid, syscall.SIGTERM)
 }
 
-// KillProcess sends SIGKILL to forcefully terminate a process
+// KillProcess sends SIGKILL to forcefully terminate a process group
+// Uses negative PID to target the entire process group, ensuring all child processes are terminated
 func KillProcess(pid int) error {
-	return syscall.Kill(pid, syscall.SIGKILL)
+	return syscall.Kill(-pid, syscall.SIGKILL)
+}
+
+// StopProcessWithTimeout attempts graceful termination with SIGTERM, then escalates to SIGKILL
+// It polls for process termination and ensures the process is actually dead before returning
+// Returns an error only if the process cannot be terminated even with SIGKILL
+func StopProcessWithTimeout(pid int, gracefulTimeout time.Duration, forceTimeout time.Duration) error {
+	// Check if process is already dead
+	if !IsProcessRunning(pid) {
+		return nil
+	}
+
+	// Send SIGTERM for graceful shutdown
+	if err := StopProcess(pid); err != nil {
+		// If the process doesn't exist, that's fine
+		if err == syscall.ESRCH {
+			return nil
+		}
+		// For other errors, continue to try SIGKILL
+	}
+
+	// Poll for graceful termination
+	pollInterval := 100 * time.Millisecond
+	deadline := time.Now().Add(gracefulTimeout)
+	for time.Now().Before(deadline) {
+		if !IsProcessRunning(pid) {
+			return nil
+		}
+		time.Sleep(pollInterval)
+	}
+
+	// Process didn't terminate gracefully, escalate to SIGKILL
+	if err := KillProcess(pid); err != nil {
+		// If the process doesn't exist, that's fine
+		if err == syscall.ESRCH {
+			return nil
+		}
+		return fmt.Errorf("failed to send SIGKILL: %w", err)
+	}
+
+	// Poll for forced termination
+	deadline = time.Now().Add(forceTimeout)
+	for time.Now().Before(deadline) {
+		if !IsProcessRunning(pid) {
+			return nil
+		}
+		time.Sleep(pollInterval)
+	}
+
+	// If still running after SIGKILL, something is very wrong
+	if IsProcessRunning(pid) {
+		return fmt.Errorf("process %d still running after SIGKILL", pid)
+	}
+
+	return nil
 }

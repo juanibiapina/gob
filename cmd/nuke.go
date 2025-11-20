@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/process"
 	"github.com/juanibiapina/gob/internal/storage"
@@ -59,12 +60,12 @@ Exit codes:
 		stoppedCount := 0
 		cleanedCount := 0
 
-		// First pass: stop all running jobs
+		// First pass: stop all running jobs with timeout
 		for _, job := range jobs {
 			// Check if process is still running
 			if process.IsProcessRunning(job.Metadata.PID) {
-				// Stop the process with SIGTERM
-				if err := process.StopProcess(job.Metadata.PID); err != nil {
+				// Stop the process with timeout (10s graceful, 5s force)
+				if err := process.StopProcessWithTimeout(job.Metadata.PID, 10*time.Second, 5*time.Second); err != nil {
 					// Log error but continue with other jobs
 					fmt.Fprintf(os.Stderr, "Warning: failed to stop job %s (PID %d): %v\n", job.ID, job.Metadata.PID, err)
 					continue

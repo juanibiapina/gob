@@ -108,9 +108,10 @@ Exit codes:
 			return fmt.Errorf("job not found: %s", jobID)
 		}
 
-		// Send the signal to the process
+		// Send the signal to the process group (negative PID targets entire group)
+		// This ensures child processes also receive the signal
 		// Note: This is idempotent - sending to a stopped job returns nil
-		err = syscall.Kill(metadata.PID, sig)
+		err = syscall.Kill(-metadata.PID, sig)
 		if err != nil {
 			// Ignore "no such process" error for idempotency
 			if err != syscall.ESRCH {
