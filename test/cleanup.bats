@@ -13,7 +13,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -26,7 +26,7 @@ load 'test_helper'
   assert_failure
 
   # Verify metadata file exists
-  assert [ -f ".local/share/gob/$job_id.json" ]
+  assert [ -f "$XDG_DATA_HOME/gob/$job_id.json" ]
 
   # Run cleanup
   run "$JOB_CLI" cleanup
@@ -34,7 +34,7 @@ load 'test_helper'
   assert_output "Cleaned up 1 stopped job(s)"
 
   # Verify metadata file was removed
-  assert [ ! -f ".local/share/gob/$job_id.json" ]
+  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id.json" ]
 }
 
 @test "cleanup command preserves running jobs" {
@@ -42,7 +42,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -55,7 +55,7 @@ load 'test_helper'
   assert_output "Cleaned up 0 stopped job(s)"
 
   # Verify metadata file still exists
-  assert [ -f ".local/share/gob/$job_id.json" ]
+  assert [ -f "$XDG_DATA_HOME/gob/$job_id.json" ]
 
   # Verify process is still running
   assert kill -0 "$pid"
@@ -72,7 +72,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 500
 
   # Get metadata files sorted by time (newest first)
-  metadata_files=($(ls -t .local/share/gob/*.json))
+  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
 
   # Get job IDs and PIDs
   job_id1=$(basename "${metadata_files[2]}" .json)
@@ -105,11 +105,11 @@ load 'test_helper'
   assert_output "Cleaned up 2 stopped job(s)"
 
   # Verify stopped jobs were removed
-  assert [ ! -f ".local/share/gob/$job_id1.json" ]
-  assert [ ! -f ".local/share/gob/$job_id3.json" ]
+  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id1.json" ]
+  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id3.json" ]
 
   # Verify running job still exists
-  assert [ -f ".local/share/gob/$job_id2.json" ]
+  assert [ -f "$XDG_DATA_HOME/gob/$job_id2.json" ]
   assert kill -0 "$pid2"
 }
 
@@ -120,7 +120,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 500
 
   # Get metadata files
-  metadata_files=($(ls -t .local/share/gob/*.json))
+  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
 
   # Stop all jobs
   for metadata_file in "${metadata_files[@]}"; do
@@ -136,7 +136,7 @@ load 'test_helper'
   assert_output "Cleaned up 3 stopped job(s)"
 
   # Verify all metadata files were removed
-  run ls .local/share/gob/*.json
+  run ls $XDG_DATA_HOME/gob/*.json
   assert_failure
 }
 
@@ -145,7 +145,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -169,7 +169,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -178,7 +178,7 @@ load 'test_helper'
   wait_for_process_death "$pid"
 
   # Verify metadata file still exists (stop doesn't remove it)
-  assert [ -f ".local/share/gob/$job_id.json" ]
+  assert [ -f "$XDG_DATA_HOME/gob/$job_id.json" ]
 
   # Run cleanup
   run "$JOB_CLI" cleanup
@@ -186,5 +186,5 @@ load 'test_helper'
   assert_output "Cleaned up 1 stopped job(s)"
 
   # Verify metadata file was removed
-  assert [ ! -f ".local/share/gob/$job_id.json" ]
+  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id.json" ]
 }

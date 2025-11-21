@@ -10,7 +10,7 @@ load 'test_helper'
   assert_success
 
   # Verify metadata files exist
-  metadata_count=$(ls .local/share/gob/*.json 2>/dev/null | wc -l)
+  metadata_count=$(ls $XDG_DATA_HOME/gob/*.json 2>/dev/null | wc -l)
   assert [ "$metadata_count" -eq 2 ]
 
   # Run nuke
@@ -19,7 +19,7 @@ load 'test_helper'
   assert_output --partial "Cleaned up 2 total job(s)"
 
   # Verify no metadata files remain
-  metadata_count=$(ls .local/share/gob/*.json 2>/dev/null | wc -l)
+  metadata_count=$(ls $XDG_DATA_HOME/gob/*.json 2>/dev/null | wc -l)
   assert [ "$metadata_count" -eq 0 ]
 }
 
@@ -29,15 +29,15 @@ load 'test_helper'
   assert_success
 
   # Get job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output to be written
-  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "test output"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "test output"
 
   # Verify log files exist
-  assert [ -f ".local/share/gob/${job_id}.stdout.log" ]
-  assert [ -f ".local/share/gob/${job_id}.stderr.log" ]
+  assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log" ]
+  assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log" ]
 
   # Run nuke
   run "$JOB_CLI" nuke
@@ -45,8 +45,8 @@ load 'test_helper'
   assert_output --partial "Deleted 2 log file(s)"
 
   # Verify log files are removed
-  assert [ ! -f ".local/share/gob/${job_id}.stdout.log" ]
-  assert [ ! -f ".local/share/gob/${job_id}.stderr.log" ]
+  assert [ ! -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log" ]
+  assert [ ! -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log" ]
 }
 
 @test "nuke command stops running jobs" {
@@ -55,7 +55,7 @@ load 'test_helper'
   assert_success
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -80,12 +80,12 @@ load 'test_helper'
   assert_success
 
   # Get job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Manually remove log files to simulate missing logs
-  rm -f ".local/share/gob/${job_id}.stdout.log"
-  rm -f ".local/share/gob/${job_id}.stderr.log"
+  rm -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log"
+  rm -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log"
 
   # Run nuke (should not fail even if log files are missing)
   run "$JOB_CLI" nuke

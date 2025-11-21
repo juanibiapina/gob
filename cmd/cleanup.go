@@ -10,17 +10,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var cleanupAll bool
+
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Remove metadata for stopped jobs",
 	Long: `Remove metadata for all stopped jobs.
 
+By default, only removes metadata for stopped jobs in the current directory.
+Use --all to cleanup stopped jobs from all directories.
+
 Scans all job metadata files and removes entries for stopped processes.
 Leaves running jobs untouched.
 
 Example:
-  # Remove all stopped job metadata
+  # Remove stopped job metadata from current directory
   gob cleanup
+
+  # Remove stopped job metadata from all directories
+  gob cleanup --all
 
 Output:
   Cleaned up <n> stopped job(s)
@@ -41,8 +49,16 @@ Exit codes:
   0: Cleanup completed successfully
   1: Error reading jobs`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Get all jobs
-		jobs, err := storage.ListJobMetadata()
+		var jobs []storage.JobInfo
+		var err error
+
+		// Get jobs based on --all flag
+		if cleanupAll {
+			jobs, err = storage.ListAllJobMetadata()
+		} else {
+			jobs, err = storage.ListJobMetadata()
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to list jobs: %w", err)
 		}
@@ -81,4 +97,6 @@ Exit codes:
 
 func init() {
 	rootCmd.AddCommand(cleanupCmd)
+	cleanupCmd.Flags().BoolVarP(&cleanupAll, "all", "a", false,
+		"Cleanup stopped jobs from all directories")
 }

@@ -7,11 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-11-21
+
+### Added
+
+- `--all` flag to `list`, `cleanup`, and `nuke` commands to operate across all directories
+- `--workdir` flag to `list` command to display working directory for each job
+
 ### Changed
 
+- **BREAKING**: Storage migrated to XDG-compliant directory (`~/Library/Application Support/gob` on macOS, `~/.local/share/gob` on Linux)
 - Job IDs now use nanosecond precision timestamps instead of second precision for better uniqueness
 - `nuke` command now removes log files in addition to metadata files
-- Remove redundant log file path fields from metadata (log files follow standard naming pattern)
+
+### Migration Notes
+
+- Existing jobs in project-local `.local/share/gob` directories will no longer be visible after upgrade
+- Old jobs continue running but won't appear in `gob list`
+- Users should manually clean up old `.local` directories in projects when ready
 
 ## [0.2.0] - 2025-11-20
 

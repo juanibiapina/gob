@@ -32,11 +32,11 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output to be written
-  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "Hello stdout"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Hello stdout"
 
   # Check stdout
   run "$JOB_CLI" stdout "$job_id"
@@ -50,11 +50,11 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for error output to be written
-  wait_for_log_content ".local/share/gob/${job_id}.stderr.log" "No such file or directory"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stderr.log" "No such file or directory"
 
   # Check stderr has error message
   run "$JOB_CLI" stderr "$job_id"
@@ -67,11 +67,11 @@ load 'test_helper'
   run "$JOB_CLI" start echo "To stdout"
   assert_success
 
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output to be written
-  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "To stdout"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "To stdout"
 
   # Check stdout contains message
   run "$JOB_CLI" stdout "$job_id"
@@ -89,12 +89,12 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Verify log files exist
-  assert [ -f ".local/share/gob/${job_id}.stdout.log" ]
-  assert [ -f ".local/share/gob/${job_id}.stderr.log" ]
+  assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log" ]
+  assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log" ]
 }
 
 @test "log files accumulate output over time" {
@@ -103,11 +103,11 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output to be written
-  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "Line 3"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Line 3"
 
   # Check stdout contains all lines
   run "$JOB_CLI" stdout "$job_id"
@@ -123,11 +123,11 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output to be written
-  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "First run"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "First run"
 
   # Restart the job
   run "$JOB_CLI" restart "$job_id"
@@ -151,7 +151,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Check stdout (should be empty but succeed)

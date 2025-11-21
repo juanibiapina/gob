@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/adrg/xdg"
 )
 
 // JobMetadata represents the metadata stored for each background job
@@ -14,6 +16,7 @@ type JobMetadata struct {
 	ID      int64    `json:"id"`
 	Command []string `json:"command"`
 	PID     int      `json:"pid"`
+	Workdir string   `json:"workdir"` // Working directory where job was started
 }
 
 // JobInfo combines job ID with its metadata
@@ -22,15 +25,19 @@ type JobInfo struct {
 	Metadata *JobMetadata
 }
 
-// GetJobDir returns the path to the .local/share/job directory in the current working directory
+// GetJobDir returns the path to the centralized gob data directory using XDG
 func GetJobDir() (string, error) {
+	jobDir := filepath.Join(xdg.DataHome, "gob")
+	return jobDir, nil
+}
+
+// GetCurrentWorkdir returns the current working directory
+func GetCurrentWorkdir() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current directory: %w", err)
 	}
-
-	jobDir := filepath.Join(cwd, ".local", "share", "gob")
-	return jobDir, nil
+	return cwd, nil
 }
 
 // EnsureJobDir creates the job directory if it doesn't exist
@@ -102,8 +109,26 @@ func LoadJobMetadata(filename string) (*JobMetadata, error) {
 	return &metadata, nil
 }
 
-// ListJobMetadata reads all job metadata files and returns them sorted by start time (newest first)
+// ListJobMetadata reads job metadata files for the current working directory
+// and returns them sorted by start time (newest first)
 func ListJobMetadata() ([]JobInfo, error) {
+	cwd, err := GetCurrentWorkdir()
+	if err != nil {
+		return nil, err
+	}
+	return listJobMetadataWithFilter(cwd)
+}
+
+// ListAllJobMetadata reads all job metadata files regardless of working directory
+// and returns them sorted by start time (newest first)
+func ListAllJobMetadata() ([]JobInfo, error) {
+	return listJobMetadataWithFilter("")
+}
+
+// listJobMetadataWithFilter is the internal implementation
+// If workdirFilter is empty, returns all jobs
+// If workdirFilter is set, returns only jobs matching that workdir
+func listJobMetadataWithFilter(workdirFilter string) ([]JobInfo, error) {
 	jobDir, err := GetJobDir()
 	if err != nil {
 		return nil, err
@@ -131,6 +156,11 @@ func ListJobMetadata() ([]JobInfo, error) {
 		metadata, err := LoadJobMetadata(entry.Name())
 		if err != nil {
 			// Skip files that can't be parsed
+			continue
+		}
+
+		// Apply workdir filter if specified
+		if workdirFilter != "" && metadata.Workdir != workdirFilter {
 			continue
 		}
 

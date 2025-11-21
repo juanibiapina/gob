@@ -19,7 +19,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -44,7 +44,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -66,7 +66,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -88,7 +88,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -110,7 +110,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -132,7 +132,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -157,7 +157,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
   # Try to send invalid signal
@@ -171,7 +171,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
@@ -193,7 +193,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 

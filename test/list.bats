@@ -23,7 +23,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 300
 
   # Get job ID and stop the process
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
   "$JOB_CLI" stop "$job_id"
@@ -59,7 +59,7 @@ load 'test_helper'
   "$JOB_CLI" start sleep 400
 
   # Kill the first job
-  metadata_files=($(ls -t .local/share/gob/*.json))
+  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
   pid=$(jq -r '.pid' "${metadata_files[1]}")
   kill "$pid"
   wait_for_process_death "$pid"
@@ -110,10 +110,39 @@ load 'test_helper'
 
   # Verify format: <job_id>: [<pid>] <status>: <command>
   # Extract job ID from metadata file
-  metadata_file=$(ls .local/share/gob/*.json | head -n 1)
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
   pid=$(jq -r '.pid' "$metadata_file")
 
   # Check that output contains the expected format
   assert_output --regexp "^${job_id}: \[${pid}\] (running|stopped): echo test$"
+}
+
+@test "list command with --all flag shows all jobs" {
+  # This test verifies --all flag works (currently shows same as default since all jobs are in same workdir)
+  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" start sleep 300
+
+  run "$JOB_CLI" list --all
+  assert_success
+  # Should show 2 jobs
+  assert_output --regexp "sleep 300.*sleep 300"
+}
+
+@test "list command with --workdir flag shows working directory" {
+  "$JOB_CLI" start sleep 300
+
+  run "$JOB_CLI" list --workdir
+  assert_success
+  # Should contain the working directory path in parentheses
+  assert_output --regexp "\(.*\)"
+}
+
+@test "list command with --all implies --workdir" {
+  "$JOB_CLI" start sleep 300
+
+  run "$JOB_CLI" list --all
+  assert_success
+  # Should contain the working directory path in parentheses
+  assert_output --regexp "\(.*\)"
 }

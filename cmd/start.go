@@ -46,6 +46,12 @@ Exit codes:
 		// Generate job ID (Unix timestamp in nanoseconds)
 		jobID := time.Now().UnixNano()
 
+		// Get current working directory
+		cwd, err := storage.GetCurrentWorkdir()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+
 		// Ensure job directory exists and get its path
 		storageDir, err := storage.EnsureJobDir()
 		if err != nil {
@@ -63,6 +69,7 @@ Exit codes:
 			ID:      jobID,
 			Command: args,
 			PID:     pid,
+			Workdir: cwd,
 		}
 
 		// Save metadata

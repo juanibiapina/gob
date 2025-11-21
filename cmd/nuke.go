@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var nukeAll bool
+
 var nukeCmd = &cobra.Command{
 	Use:   "nuke",
 	Short: "Stop all running jobs and remove all job data",
@@ -18,14 +20,20 @@ var nukeCmd = &cobra.Command{
 
 ⚠️  DESTRUCTIVE COMMAND - stops ALL jobs and removes ALL data.
 
+By default, only affects jobs in the current directory.
+Use --all to nuke jobs from all directories.
+
 Workflow:
   1. Sends SIGTERM to all running jobs
   2. Removes all log files (stdout and stderr)
   3. Removes all metadata files (both running and stopped)
 
 Example:
-  # Stop everything and start fresh
+  # Stop everything in current directory and start fresh
   gob nuke
+
+  # Stop everything from all directories
+  gob nuke --all
 
 Output:
   Stopped <n> running job(s)
@@ -47,8 +55,16 @@ Exit codes:
   0: Nuke completed successfully
   1: Error (failed to read jobs, failed to stop some jobs)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Get all jobs
-		jobs, err := storage.ListJobMetadata()
+		var jobs []storage.JobInfo
+		var err error
+
+		// Get jobs based on --all flag
+		if nukeAll {
+			jobs, err = storage.ListAllJobMetadata()
+		} else {
+			jobs, err = storage.ListJobMetadata()
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to list jobs: %w", err)
 		}
@@ -122,4 +138,6 @@ Exit codes:
 
 func init() {
 	rootCmd.AddCommand(nukeCmd)
+	nukeCmd.Flags().BoolVarP(&nukeAll, "all", "a", false,
+		"Nuke jobs from all directories")
 }
