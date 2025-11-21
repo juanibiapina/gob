@@ -50,7 +50,7 @@ load 'test_helper'
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$original_pid"
 
   # Verify process is stopped
   run kill -0 "$original_pid"
@@ -141,10 +141,11 @@ load 'test_helper'
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
+  pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Restart the job
   "$JOB_CLI" restart "$job_id"

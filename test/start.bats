@@ -99,10 +99,7 @@ load 'test_helper'
   metadata_file1=$(ls .local/share/gob/*.json | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file1")
 
-  # Wait a moment to ensure different timestamps
-  sleep 1
-
-  # Start second job
+  # Start second job (nanosecond timestamps ensure uniqueness)
   run "$JOB_CLI" start sleep 300
   assert_success
 

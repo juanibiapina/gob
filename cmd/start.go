@@ -15,7 +15,7 @@ var startCmd = &cobra.Command{
 	Short: "Start a command as a background job",
 	Long: `Start a command as a background job that continues running after the CLI exits.
 
-The job is started as a detached process and assigned a unique job ID (Unix timestamp).
+The job is started as a detached process and assigned a unique job ID (Unix timestamp in nanoseconds).
 Use this ID with other commands to manage the job.
 
 Examples:
@@ -43,8 +43,8 @@ Exit codes:
 			commandArgs = args[1:]
 		}
 
-		// Generate job ID (Unix timestamp)
-		jobID := time.Now().Unix()
+		// Generate job ID (Unix timestamp in nanoseconds)
+		jobID := time.Now().UnixNano()
 
 		// Ensure job directory exists and get its path
 		storageDir, err := storage.EnsureJobDir()

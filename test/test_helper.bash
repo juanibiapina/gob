@@ -1,6 +1,7 @@
 # Load bats testing libraries
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
+load 'wait_helpers'
 
 setup() {
   # Use BATS provided temporary directory

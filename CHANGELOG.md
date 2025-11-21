@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Job IDs now use nanosecond precision timestamps instead of second precision for better uniqueness
 - `nuke` command now removes log files in addition to metadata files
 - Remove redundant log file path fields from metadata (log files follow standard naming pattern)
 

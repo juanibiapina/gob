@@ -25,8 +25,9 @@ load 'test_helper'
   # Get job ID and stop the process
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
+  pid=$(jq -r '.pid' "$metadata_file")
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # List jobs
   run "$JOB_CLI" list
@@ -37,7 +38,6 @@ load 'test_helper'
 @test "list command shows multiple jobs" {
   # Start first job
   "$JOB_CLI" start sleep 300
-  sleep 1
 
   # Start second job
   "$JOB_CLI" start sleep 400
@@ -54,7 +54,6 @@ load 'test_helper'
 @test "list command shows mixed running and stopped jobs" {
   # Start first job
   "$JOB_CLI" start sleep 300
-  sleep 1
 
   # Start second job
   "$JOB_CLI" start sleep 400
@@ -63,7 +62,7 @@ load 'test_helper'
   metadata_files=($(ls -t .local/share/gob/*.json))
   pid=$(jq -r '.pid' "${metadata_files[1]}")
   kill "$pid"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # List jobs
   run "$JOB_CLI" list
@@ -77,11 +76,9 @@ load 'test_helper'
 @test "list command shows newest jobs first" {
   # Start first job
   "$JOB_CLI" start sleep 100
-  sleep 1
 
   # Start second job
   "$JOB_CLI" start sleep 200
-  sleep 1
 
   # Start third job
   "$JOB_CLI" start sleep 300

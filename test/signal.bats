@@ -32,7 +32,7 @@ load 'test_helper'
   assert_output "Sent signal TERM to job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped
   run kill -0 "$pid"
@@ -54,7 +54,7 @@ load 'test_helper'
   assert_output "Sent signal SIGTERM to job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped
   run kill -0 "$pid"
@@ -76,7 +76,7 @@ load 'test_helper'
   assert_output "Sent signal 15 to job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped
   run kill -0 "$pid"
@@ -98,7 +98,7 @@ load 'test_helper'
   assert_output "Sent signal INT to job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped
   run kill -0 "$pid"
@@ -120,7 +120,7 @@ load 'test_helper'
   assert_output "Sent signal KILL to job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped
   run kill -0 "$pid"
@@ -138,7 +138,7 @@ load 'test_helper'
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Send signal to stopped job - should succeed
   run "$JOB_CLI" signal "$job_id" TERM
@@ -181,7 +181,7 @@ load 'test_helper'
   assert_output "Sent signal term to job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped
   run kill -0 "$pid"
@@ -203,7 +203,7 @@ load 'test_helper'
   assert_output "Sent signal HUP to job $job_id (PID $pid)"
 
   # HUP terminates processes that don't handle it
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process stopped (sleep doesn't handle SIGHUP)
   run kill -0 "$pid"

@@ -36,7 +36,7 @@ load 'test_helper'
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process is stopped
   run kill -0 "$pid"
@@ -64,10 +64,11 @@ load 'test_helper'
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
+  pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Remove the job
   "$JOB_CLI" remove "$job_id"
@@ -81,7 +82,6 @@ load 'test_helper'
 @test "remove command removes specific job among multiple jobs" {
   # Start first job
   "$JOB_CLI" start sleep 300
-  sleep 1
 
   # Start second job
   "$JOB_CLI" start sleep 400
@@ -98,8 +98,9 @@ load 'test_helper'
   metadata_file2="${metadata_files[0]}"
 
   # Stop the first job
+  pid1=$(jq -r '.pid' "$metadata_file1")
   "$JOB_CLI" stop "$job_id1"
-  sleep 0.5
+  wait_for_process_death "$pid1"
 
   # Remove only the first job
   "$JOB_CLI" remove "$job_id1"
@@ -128,7 +129,7 @@ load 'test_helper'
 
   # Stop the process
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process is stopped
   run kill -0 "$pid"

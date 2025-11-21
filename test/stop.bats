@@ -26,7 +26,7 @@ load 'test_helper'
   assert_output "Stopped job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process is no longer running
   run kill -0 "$pid"
@@ -44,7 +44,7 @@ load 'test_helper'
 
   # Stop the job manually
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Try to stop again - should succeed (idempotent)
   run "$JOB_CLI" stop "$job_id"
@@ -76,7 +76,7 @@ load 'test_helper'
   assert_output "Force stopped job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process is no longer running
   run kill -0 "$pid"
@@ -101,7 +101,7 @@ load 'test_helper'
   assert_output "Force stopped job $job_id (PID $pid)"
 
   # Wait for process to terminate
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process is no longer running
   run kill -0 "$pid"
@@ -118,7 +118,10 @@ load 'test_helper'
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+
+  # Get PID to wait for termination
+  pid=$(jq -r '.pid' "$metadata_file")
+  wait_for_process_death "$pid"
 
   # List jobs
   run "$JOB_CLI" list
@@ -129,7 +132,6 @@ load 'test_helper'
 @test "stop command stops specific job among multiple jobs" {
   # Start first job
   "$JOB_CLI" start sleep 300
-  sleep 1
 
   # Start second job
   "$JOB_CLI" start sleep 400
@@ -147,7 +149,7 @@ load 'test_helper'
 
   # Stop only the first job
   "$JOB_CLI" stop "$job_id1"
-  sleep 0.5
+  wait_for_process_death "$pid1"
 
   # First job should be stopped
   run kill -0 "$pid1"
@@ -168,7 +170,7 @@ load 'test_helper'
 
   # Stop the job manually
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Try to force stop again - should succeed (idempotent)
   run "$JOB_CLI" stop --force "$job_id"

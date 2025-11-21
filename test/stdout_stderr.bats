@@ -35,8 +35,8 @@ load 'test_helper'
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
-  # Give process time to write output
-  sleep 1
+  # Wait for output to be written
+  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "Hello stdout"
 
   # Check stdout
   run "$JOB_CLI" stdout "$job_id"
@@ -53,8 +53,8 @@ load 'test_helper'
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
-  # Give process time to write output
-  sleep 1
+  # Wait for error output to be written
+  wait_for_log_content ".local/share/gob/${job_id}.stderr.log" "No such file or directory"
 
   # Check stderr has error message
   run "$JOB_CLI" stderr "$job_id"
@@ -69,7 +69,9 @@ load 'test_helper'
 
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
-  sleep 1
+
+  # Wait for output to be written
+  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "To stdout"
 
   # Check stdout contains message
   run "$JOB_CLI" stdout "$job_id"
@@ -104,8 +106,8 @@ load 'test_helper'
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
-  # Wait for output
-  sleep 1
+  # Wait for output to be written
+  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "Line 3"
 
   # Check stdout contains all lines
   run "$JOB_CLI" stdout "$job_id"
@@ -124,15 +126,16 @@ load 'test_helper'
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
-  # Wait for job to finish
-  sleep 1
+  # Wait for output to be written
+  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "First run"
 
   # Restart the job
   run "$JOB_CLI" restart "$job_id"
   assert_success
 
-  # Wait for second run to finish
-  sleep 1
+  # Get new PID and wait for process to finish
+  new_pid=$(jq -r '.pid' "$metadata_file")
+  wait_for_process_death "$new_pid" || sleep 0.2
 
   # Check that log file exists and has content
   # Since we're using append mode, restarting should add to the log

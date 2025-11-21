@@ -3,10 +3,9 @@
 load 'test_helper'
 
 @test "nuke command removes all metadata files" {
-  # Start multiple jobs (with delay to ensure different job IDs)
+  # Start multiple jobs (nanosecond timestamps ensure unique job IDs)
   run "$JOB_CLI" start sleep 300
   assert_success
-  sleep 1
   run "$JOB_CLI" start sleep 300
   assert_success
 
@@ -33,8 +32,8 @@ load 'test_helper'
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
 
-  # Wait for output
-  sleep 1
+  # Wait for output to be written
+  wait_for_log_content ".local/share/gob/${job_id}.stdout.log" "test output"
 
   # Verify log files exist
   assert [ -f ".local/share/gob/${job_id}.stdout.log" ]
@@ -70,7 +69,7 @@ load 'test_helper'
   assert_output --partial "Stopped 1 running job(s)"
 
   # Verify process is no longer running
-  sleep 1
+  wait_for_process_death "$pid"
   run ps -p "$pid"
   assert_failure
 }

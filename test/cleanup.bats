@@ -19,7 +19,7 @@ load 'test_helper'
 
   # Stop the job manually
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify process is stopped
   run kill -0 "$pid"
@@ -64,11 +64,9 @@ load 'test_helper'
 @test "cleanup command with mixed running and stopped jobs" {
   # Start first job
   "$JOB_CLI" start sleep 300
-  sleep 1
 
   # Start second job
   "$JOB_CLI" start sleep 400
-  sleep 1
 
   # Start third job
   "$JOB_CLI" start sleep 500
@@ -89,7 +87,8 @@ load 'test_helper'
   # Stop first and third jobs
   "$JOB_CLI" stop "$job_id1"
   "$JOB_CLI" stop "$job_id3"
-  sleep 0.5
+  wait_for_process_death "$pid1"
+  wait_for_process_death "$pid3"
 
   # Verify first and third are stopped, second is running
   run kill -0 "$pid1"
@@ -117,9 +116,7 @@ load 'test_helper'
 @test "cleanup command cleans up multiple stopped jobs" {
   # Start three jobs
   "$JOB_CLI" start sleep 300
-  sleep 1
   "$JOB_CLI" start sleep 400
-  sleep 1
   "$JOB_CLI" start sleep 500
 
   # Get metadata files
@@ -128,9 +125,10 @@ load 'test_helper'
   # Stop all jobs
   for metadata_file in "${metadata_files[@]}"; do
     job_id=$(basename "$metadata_file" .json)
+    pid=$(jq -r '.pid' "$metadata_file")
     "$JOB_CLI" stop "$job_id"
+    wait_for_process_death "$pid"
   done
-  sleep 0.5
 
   # Run cleanup
   run "$JOB_CLI" cleanup
@@ -149,10 +147,11 @@ load 'test_helper'
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
+  pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Run cleanup first time
   run "$JOB_CLI" cleanup
@@ -172,10 +171,11 @@ load 'test_helper'
   # Get job ID
   metadata_file=$(ls .local/share/gob/*.json | head -n 1)
   job_id=$(basename "$metadata_file" .json)
+  pid=$(jq -r '.pid' "$metadata_file")
 
   # Stop using stop command
   "$JOB_CLI" stop "$job_id"
-  sleep 0.5
+  wait_for_process_death "$pid"
 
   # Verify metadata file still exists (stop doesn't remove it)
   assert [ -f ".local/share/gob/$job_id.json" ]
