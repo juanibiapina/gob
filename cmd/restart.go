@@ -11,8 +11,9 @@ import (
 )
 
 var restartCmd = &cobra.Command{
-	Use:   "restart <job_id>",
-	Short: "Restart a job",
+	Use:               "restart <job_id>",
+	Short:             "Restart a job",
+	ValidArgsFunction: completeJobIDs,
 	Long: `Restart a job by stopping it (if running) and starting it again.
 
 If the job is running, sends SIGTERM to stop it first.

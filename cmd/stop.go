@@ -12,8 +12,9 @@ import (
 var forceStop bool
 
 var stopCmd = &cobra.Command{
-	Use:   "stop <job_id>",
-	Short: "Stop a background job",
+	Use:               "stop <job_id>",
+	Short:             "Stop a background job",
+	ValidArgsFunction: completeJobIDs,
 	Long: `Stop a background job by sending a signal to terminate it.
 
 By default, sends SIGTERM for graceful shutdown.

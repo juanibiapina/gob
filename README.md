@@ -67,6 +67,43 @@ gob --version
 
 For build instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Shell Completion
+
+`gob` supports shell completion for Bash, Zsh, Fish, and PowerShell. Completions include dynamic job ID suggestions with command descriptions.
+
+### Bash
+
+```bash
+# Add to ~/.bashrc
+source <(gob completion bash)
+```
+
+### Zsh
+
+```bash
+# Add to ~/.zshrc
+source <(gob completion zsh)
+```
+
+If you get "command not found: compdef", add this before the source line:
+```bash
+autoload -Uz compinit && compinit
+```
+
+### Fish
+
+```bash
+# Add to ~/.config/fish/config.fish
+gob completion fish | source
+```
+
+### PowerShell
+
+```powershell
+# Add to your PowerShell profile
+gob completion powershell | Out-String | Invoke-Expression
+```
+
 ## Quick Start
 
 ```bash

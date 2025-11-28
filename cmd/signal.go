@@ -48,8 +48,9 @@ func parseSignal(signalStr string) (syscall.Signal, error) {
 }
 
 var signalCmd = &cobra.Command{
-	Use:   "signal <job_id> <signal>",
-	Short: "Send a signal to a background job",
+	Use:               "signal <job_id> <signal>",
+	Short:             "Send a signal to a background job",
+	ValidArgsFunction: completeJobIDs,
 	Long: `Send a specific signal to a background job.
 
 More flexible than 'job stop' - useful for custom signals like HUP (reload)

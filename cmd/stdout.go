@@ -13,8 +13,9 @@ import (
 var followStdout bool
 
 var stdoutCmd = &cobra.Command{
-	Use:   "stdout <job_id>",
-	Short: "Display stdout output for a job",
+	Use:               "stdout <job_id>",
+	Short:             "Display stdout output for a job",
+	ValidArgsFunction: completeJobIDs,
 	Long: `Display the entire stdout output for a background job.
 
 Shows all output that the job has written to stdout since it started.

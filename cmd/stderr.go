@@ -13,8 +13,9 @@ import (
 var followStderr bool
 
 var stderrCmd = &cobra.Command{
-	Use:   "stderr <job_id>",
-	Short: "Display stderr output for a job",
+	Use:               "stderr <job_id>",
+	Short:             "Display stderr output for a job",
+	ValidArgsFunction: completeJobIDs,
 	Long: `Display the entire stderr output for a background job.
 
 Shows all output that the job has written to stderr since it started.

@@ -11,8 +11,9 @@ import (
 )
 
 var removeCmd = &cobra.Command{
-	Use:   "remove <job_id>",
-	Short: "Remove metadata for a stopped job",
+	Use:               "remove <job_id>",
+	Short:             "Remove metadata for a stopped job",
+	ValidArgsFunction: completeJobIDs,
 	Long: `Remove metadata for a single stopped job.
 
 Only works on stopped jobs - returns an error if the job is still running.
