@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/tail"
 	"github.com/spf13/cobra"
 )
 
@@ -60,12 +60,9 @@ Exit codes:
 			return fmt.Errorf("stdout log file not found: %s", stdoutPath)
 		}
 
-		// If follow flag is set, use tail -f to follow the log file
+		// If follow flag is set, follow the log file in real-time
 		if followStdout {
-			tailCmd := exec.Command("tail", "-f", stdoutPath)
-			tailCmd.Stdout = os.Stdout
-			tailCmd.Stderr = os.Stderr
-			return tailCmd.Run()
+			return tail.Follow(stdoutPath, os.Stdout)
 		}
 
 		// Read and display the stdout file
@@ -83,5 +80,5 @@ Exit codes:
 
 func init() {
 	rootCmd.AddCommand(stdoutCmd)
-	stdoutCmd.Flags().BoolVarP(&followStdout, "follow", "f", false, "Follow log output in real-time (like tail -f)")
+	stdoutCmd.Flags().BoolVarP(&followStdout, "follow", "f", false, "Follow log output in real-time")
 }

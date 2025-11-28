@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Simplified overview output to a concise reference card
+- Replace external `tail` command with pure Go implementation for `--follow` flag
 
 ## [0.4.0] - 2025-11-28
 
