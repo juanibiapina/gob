@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `logs` command to follow combined stdout and stderr output in real-time with stderr prefixed as `[err]`
+
 ### Changed
 
 - Simplified overview output to a concise reference card

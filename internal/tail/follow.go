@@ -1,8 +1,10 @@
 package tail
 
 import (
+	"bytes"
 	"io"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -43,6 +45,103 @@ func Follow(filePath string, w io.Writer) error {
 		}
 
 		// If we got EOF or no data, wait a bit before polling again
+		if n == 0 || err == io.EOF {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
+// FileSource represents a file to follow with an optional prefix for each line
+type FileSource struct {
+	Path   string
+	Prefix string
+}
+
+// FollowMultiple continuously reads from multiple files and writes to the given writer.
+// Lines from files with a prefix set will have that prefix prepended.
+// This function blocks until an error occurs.
+func FollowMultiple(sources []FileSource, w io.Writer) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(sources))
+	var mu sync.Mutex
+
+	for _, src := range sources {
+		wg.Add(1)
+		go func(source FileSource) {
+			defer wg.Done()
+			err := followWithPrefix(source.Path, source.Prefix, w, &mu)
+			if err != nil {
+				errCh <- err
+			}
+		}(src)
+	}
+
+	// Wait for any goroutine to return an error
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	// Return the first error
+	for err := range errCh {
+		return err
+	}
+
+	return nil
+}
+
+// followWithPrefix follows a file and prefixes each line with the given prefix
+func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mutex) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	offset := int64(0)
+	buf := make([]byte, 4096)
+	var lineBuf bytes.Buffer
+
+	for {
+		_, err := file.Seek(offset, io.SeekStart)
+		if err != nil {
+			return err
+		}
+
+		n, err := file.Read(buf)
+		if n > 0 {
+			offset += int64(n)
+
+			// Process the buffer to add prefixes to complete lines
+			data := buf[:n]
+			for len(data) > 0 {
+				idx := bytes.IndexByte(data, '\n')
+				if idx >= 0 {
+					// Found a newline - write the complete line with prefix
+					lineBuf.Write(data[:idx+1])
+					line := lineBuf.Bytes()
+					lineBuf.Reset()
+
+					mu.Lock()
+					if prefix != "" {
+						w.Write([]byte(prefix))
+					}
+					w.Write(line)
+					mu.Unlock()
+
+					data = data[idx+1:]
+				} else {
+					// No newline - buffer the data for the next read
+					lineBuf.Write(data)
+					break
+				}
+			}
+		}
+
+		if err != nil && err != io.EOF {
+			return err
+		}
+
 		if n == 0 || err == io.EOF {
 			time.Sleep(100 * time.Millisecond)
 		}
