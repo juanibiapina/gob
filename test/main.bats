@@ -5,8 +5,7 @@ load 'test_helper'
 @test "displays overview when run without arguments" {
   run "$JOB_CLI"
   assert_output --partial 'gob - Background Job Manager'
-  assert_output --partial 'BASIC WORKFLOW'
-  assert_output --partial 'Add a job (starts in background):'
-  assert_output --partial 'AVAILABLE COMMANDS'
-  assert_output --partial 'add'
+  assert_output --partial 'WORKFLOW'
+  assert_output --partial 'gob start <command>'
+  assert_output --partial 'gob list'
 }
