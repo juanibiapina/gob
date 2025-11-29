@@ -23,8 +23,13 @@ var logsCmd = &cobra.Command{
 Without arguments, follows all jobs started in the current directory.
 With a job ID, follows only that specific job.
 
-Each line is prefixed with the job ID. Stderr lines have the prefix colored
-orange to distinguish them from stdout.
+OUTPUT FORMAT:
+  Each line is prefixed with a tag in square brackets:
+  - [<job_id>] white prefix for stdout lines
+  - [<job_id>] orange prefix for stderr lines
+  - [monitor] cyan prefix for system events (process started/stopped)
+
+  For raw output without prefixes, use the stdout and stderr commands instead.
 
 Example:
   # Follow all jobs in current directory
@@ -34,12 +39,12 @@ Example:
   gob logs V3x0QqI
 
 Output:
-  [V3x0QqI] stdout line 1
-  [V3x0QqI] error message (orange prefix)
-  [V3x0QqI] stdout line 2
+  [monitor] process started: V3x0QqI (./my-server)
+  [V3x0QqI] Server listening on port 8080
+  [V3x0QqI] Error: connection refused (orange prefix)
+  [monitor] process stopped: V3x0QqI
 
 Notes:
-  - Only works for jobs that have log files (jobs started with logging enabled)
   - Streams output in real-time as it's written
   - Automatically picks up new jobs that start in the directory
   - Press Ctrl+C to stop following

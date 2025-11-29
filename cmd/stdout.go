@@ -16,22 +16,23 @@ var stdoutCmd = &cobra.Command{
 	Use:               "stdout <job_id>",
 	Short:             "Display stdout output for a job",
 	ValidArgsFunction: completeJobIDs,
-	Long: `Display the entire stdout output for a background job.
+	Long: `Display the raw stdout output for a background job.
 
 Shows all output that the job has written to stdout since it started.
-The output is read from the job's stdout log file.
+The output is displayed exactly as written, without any prefixes or formatting.
+Use the logs command instead for prefixed output with multiple streams.
 
 Example:
   # View stdout for a job
   gob stdout V3x0QqI
 
-Output:
-  [Contents of stdout log file]
+  # Follow stdout in real-time
+  gob stdout -f V3x0QqI
 
 Notes:
-  - Only works for jobs that have log files (jobs started with logging enabled)
+  - Output is raw with no prefixes (unlike the logs command)
   - Shows the complete output from the beginning
-  - Old jobs started before logging was enabled will show an error
+  - Use -f/--follow to stream output in real-time
 
 Exit codes:
   0: Output displayed successfully
