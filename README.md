@@ -163,20 +163,11 @@ Launch a full-screen terminal interface for managing jobs:
 gob tui
 ```
 
+![TUI Screenshot](assets/tui.png)
+
 ### Layout
 
 The TUI has three panels:
-
-```
-╭─ 1 Jobs ──────────────╮╭─ 2 stdout ───────────────────╮
-│  ● V3x0QqI sleep 300  ││ Server running on port 8000  │
-│  ○ V3x0abc echo hello ││ ...                          │
-│                       ││                              │
-│                       │╰──────────────────────────────╯
-│                       │╭─ 3 stderr ───────────────────╮
-│                       ││ (no errors)                  │
-╰───────────────────────╯╰──────────────────────────────╯
-```
 
 - **Panel 1 (Jobs)**: List of all jobs with status (● running, ○ stopped)
 - **Panel 2 (stdout)**: Standard output of selected job (80% height)
