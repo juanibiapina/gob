@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `logs` command to follow combined stdout and stderr output in real-time with job ID prefix (orange for stderr)
+- Dynamic job detection in `logs` command - automatically picks up new jobs that start while running
 
 ### Changed
 

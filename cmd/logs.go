@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/juanibiapina/gob/internal/tail"
@@ -37,6 +38,7 @@ Output:
 Notes:
   - Only works for jobs that have log files (jobs started with logging enabled)
   - Streams output in real-time as it's written
+  - Automatically picks up new jobs that start in the directory
   - Press Ctrl+C to stop following
 
 Exit codes:
@@ -49,33 +51,11 @@ Exit codes:
 			return fmt.Errorf("failed to get job directory: %w", err)
 		}
 
-		var jobIDs []string
+		follower := tail.NewFollower(os.Stdout)
+		knownJobs := make(map[string]bool)
 
-		if len(args) == 0 {
-			// No arguments: follow all jobs in current directory
-			jobs, err := storage.ListJobMetadata()
-			if err != nil {
-				return fmt.Errorf("failed to list jobs: %w", err)
-			}
-			if len(jobs) == 0 {
-				return fmt.Errorf("no jobs found in current directory")
-			}
-			for _, job := range jobs {
-				jobIDs = append(jobIDs, job.ID)
-			}
-		} else {
-			// Specific job ID provided
-			jobID := args[0]
-			_, err := storage.LoadJobMetadata(jobID + ".json")
-			if err != nil {
-				return fmt.Errorf("job not found: %s", jobID)
-			}
-			jobIDs = []string{jobID}
-		}
-
-		// Build sources for all jobs
-		var sources []tail.FileSource
-		for _, jobID := range jobIDs {
+		// addJobSources adds stdout and stderr sources for a job
+		addJobSources := func(jobID string) error {
 			stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID))
 			stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID))
 
@@ -91,13 +71,78 @@ Exit codes:
 			orangePrefix := fmt.Sprintf("\033[38;5;208m[%s]\033[0m ", jobID)
 			stdoutPrefix := fmt.Sprintf("[%s] ", jobID)
 
-			sources = append(sources,
-				tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix},
-				tail.FileSource{Path: stderrPath, Prefix: orangePrefix},
-			)
+			follower.AddSource(tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix})
+			follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: orangePrefix})
+			return nil
 		}
 
-		return tail.FollowMultiple(sources, os.Stdout)
+		if len(args) == 0 {
+			// No arguments: follow all jobs in current directory and watch for new ones
+			jobs, err := storage.ListJobMetadata()
+			if err != nil {
+				return fmt.Errorf("failed to list jobs: %w", err)
+			}
+
+			// Add initial jobs
+			for _, job := range jobs {
+				if err := addJobSources(job.ID); err != nil {
+					return err
+				}
+				knownJobs[job.ID] = true
+			}
+
+			// Start goroutine to watch for new jobs
+			go func() {
+				for {
+					time.Sleep(500 * time.Millisecond)
+					jobs, err := storage.ListJobMetadata()
+					if err != nil {
+						continue
+					}
+					for _, job := range jobs {
+						if !knownJobs[job.ID] {
+							knownJobs[job.ID] = true
+							addJobSources(job.ID)
+						}
+					}
+				}
+			}()
+
+			// If no initial jobs, wait for first job to appear
+			if len(jobs) == 0 {
+				fmt.Fprintln(os.Stderr, "Waiting for jobs...")
+				for {
+					time.Sleep(500 * time.Millisecond)
+					jobs, err := storage.ListJobMetadata()
+					if err != nil {
+						continue
+					}
+					if len(jobs) > 0 {
+						for _, job := range jobs {
+							if !knownJobs[job.ID] {
+								knownJobs[job.ID] = true
+								if err := addJobSources(job.ID); err != nil {
+									return err
+								}
+							}
+						}
+						break
+					}
+				}
+			}
+		} else {
+			// Specific job ID provided - no dynamic watching
+			jobID := args[0]
+			_, err := storage.LoadJobMetadata(jobID + ".json")
+			if err != nil {
+				return fmt.Errorf("job not found: %s", jobID)
+			}
+			if err := addJobSources(jobID); err != nil {
+				return err
+			}
+		}
+
+		return follower.Wait()
 	},
 }
 

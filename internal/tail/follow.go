@@ -57,37 +57,62 @@ type FileSource struct {
 	Prefix string
 }
 
+// Follower manages following multiple files with support for dynamic source addition
+type Follower struct {
+	w       io.Writer
+	mu      sync.Mutex
+	sources map[string]bool // tracks which paths are already being followed
+	errCh   chan error
+	wg      sync.WaitGroup
+}
+
+// NewFollower creates a new Follower that writes to the given writer
+func NewFollower(w io.Writer) *Follower {
+	return &Follower{
+		w:       w,
+		sources: make(map[string]bool),
+		errCh:   make(chan error, 100),
+	}
+}
+
+// AddSource adds a new file source to follow. If the source is already being
+// followed, this is a no-op.
+func (f *Follower) AddSource(source FileSource) {
+	f.mu.Lock()
+	if f.sources[source.Path] {
+		f.mu.Unlock()
+		return
+	}
+	f.sources[source.Path] = true
+	f.mu.Unlock()
+
+	f.wg.Add(1)
+	go func() {
+		defer f.wg.Done()
+		err := followWithPrefix(source.Path, source.Prefix, f.w, &f.mu)
+		if err != nil {
+			f.errCh <- err
+		}
+	}()
+}
+
+// Wait blocks until an error occurs from any source
+func (f *Follower) Wait() error {
+	for err := range f.errCh {
+		return err
+	}
+	return nil
+}
+
 // FollowMultiple continuously reads from multiple files and writes to the given writer.
 // Lines from files with a prefix set will have that prefix prepended.
 // This function blocks until an error occurs.
 func FollowMultiple(sources []FileSource, w io.Writer) error {
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(sources))
-	var mu sync.Mutex
-
+	f := NewFollower(w)
 	for _, src := range sources {
-		wg.Add(1)
-		go func(source FileSource) {
-			defer wg.Done()
-			err := followWithPrefix(source.Path, source.Prefix, w, &mu)
-			if err != nil {
-				errCh <- err
-			}
-		}(src)
+		f.AddSource(src)
 	}
-
-	// Wait for any goroutine to return an error
-	go func() {
-		wg.Wait()
-		close(errCh)
-	}()
-
-	// Return the first error
-	for err := range errCh {
-		return err
-	}
-
-	return nil
+	return f.Wait()
 }
 
 // followWithPrefix follows a file and prefixes each line with the given prefix
