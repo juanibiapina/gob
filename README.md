@@ -167,7 +167,7 @@ gob start ./script.sh --verbose
 gob start ffmpeg -i input.mp4 output.avi
 ```
 
-**Output**: Job ID (Unix timestamp)
+**Output**: Job ID (e.g., `V3x0QqI`)
 
 #### `gob list`
 

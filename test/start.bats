@@ -11,7 +11,7 @@ load 'test_helper'
 @test "start command starts a background process" {
   run "$JOB_CLI" start sleep 300
   assert_success
-  assert_output --regexp "Started job [0-9]+ running: sleep 300"
+  assert_output --regexp "Started job [A-Za-z0-9]+ running: sleep 300"
 
   # Extract PID from metadata file
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json 2>/dev/null | head -n 1)
@@ -69,16 +69,16 @@ load 'test_helper'
   assert [ "$(jq -r '.command[0]' "$metadata_file")" = "sleep" ]
   assert [ "$(jq -r '.command[1]' "$metadata_file")" = "300" ]
 
-  # Verify id (timestamp) is present
+  # Verify id is present (base62 encoded timestamp)
   id=$(jq -r '.id' "$metadata_file")
   assert [ -n "$id" ]
-  assert [ "$id" -gt 0 ]
+  assert [ ${#id} -ge 7 ]
 }
 
 @test "start command with multiple arguments" {
   run "$JOB_CLI" start sleep 300
   assert_success
-  assert_output --regexp "Started job [0-9]+ running: sleep 300"
+  assert_output --regexp "Started job [A-Za-z0-9]+ running: sleep 300"
 
   # Extract PID and verify process is running
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -99,7 +99,7 @@ load 'test_helper'
   metadata_file1=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
   TEST_PID=$(jq -r '.pid' "$metadata_file1")
 
-  # Start second job (nanosecond timestamps ensure uniqueness)
+  # Start second job
   run "$JOB_CLI" start sleep 300
   assert_success
 

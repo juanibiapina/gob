@@ -23,7 +23,7 @@ The output is read from the job's stdout log file.
 
 Example:
   # View stdout for a job
-  gob stdout1732348944
+  gob stdout V3x0QqI
 
 Output:
   [Contents of stdout log file]

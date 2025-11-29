@@ -22,10 +22,10 @@ gob [command] [flags]
 Job metadata is stored in `.local/share/gob/` relative to the current working directory where commands are executed.
 
 - **Metadata files**: `.local/share/gob/<job_id>.json`
-- **Job ID format**: Unix timestamp (e.g., `1732348944`)
+- **Job ID format**: Base62-encoded timestamp (e.g., `V3x0QqI`)
 
 Each metadata file contains:
-- `id`: Unix timestamp used as the unique job identifier
+- `id`: Unique job identifier (base62-encoded timestamp)
 - `command`: Array of command and arguments
 - `pid`: Process ID of the background job
 
@@ -50,7 +50,7 @@ gob start <command> [args...]
 - Starts the command as a detached background process
 - Creates a new process group (prevents SIGHUP propagation)
 - Redirects stdout, stderr, and stdin to `/dev/null`
-- Saves job metadata with unique job ID (Unix timestamp)
+- Saves job metadata with unique job ID
 - Returns immediately after starting the job
 
 **Output:**
@@ -96,16 +96,16 @@ gob list
 ```
 
 Where:
-- `job_id`: Unique job identifier (Unix timestamp)
+- `job_id`: Unique job identifier
 - `pid`: Process ID
 - `status`: Either `running` or `stopped`
 - `command`: Original command that was executed
 
 **Example Output:**
 ```
-1732350000: [12345] running: sleep 3600
-1732349000: [12344] stopped: python server.py
-1732348000: [12343] running: make watch
+V3x0QqI: [12345] running: sleep 3600
+V3x0PrH: [12344] stopped: python server.py
+V3x0NsG: [12343] running: make watch
 ```
 
 **Empty State:**
@@ -153,10 +153,10 @@ Force stopped job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Gracefully stop a job
-gob stop 1732348944
+gob stop V3x0QqI
 
 # Forcefully kill a stubborn job
-gob stop 1732348944 --force
+gob stop V3x0QqI --force
 ```
 
 **Exit Codes:**
@@ -197,10 +197,10 @@ Restarted job <job_id> with new PID <pid> running: <command>
 **Examples:**
 ```bash
 # Restart a running job
-gob restart 1732348944
+gob restart V3x0QqI
 
 # Restart a stopped job
-gob restart 1732348944
+gob restart V3x0QqI
 ```
 
 **Exit Codes:**
@@ -242,7 +242,7 @@ Removed job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Remove a specific stopped job
-gob remove 1732348944
+gob remove V3x0QqI
 ```
 
 **Exit Codes:**
@@ -379,16 +379,16 @@ Sent signal <signal> to job <job_id> (PID <pid>)
 **Examples:**
 ```bash
 # Reload configuration (common for servers)
-gob signal 1732348944 HUP
+gob signal V3x0QqI HUP
 
 # Interrupt a job
-gob signal 1732348944 INT
+gob signal V3x0QqI INT
 
 # Send custom signal by number
-gob signal 1732348944 10
+gob signal V3x0QqI 10
 
 # Forcefully kill
-gob signal 1732348944 KILL
+gob signal V3x0QqI KILL
 ```
 
 **Exit Codes:**
@@ -424,10 +424,10 @@ gob list
 gob list
 
 # Stop specific job
-gob stop 1732348944
+gob stop V3x0QqI
 
 # Remove just that job's metadata
-gob remove 1732348944
+gob remove V3x0QqI
 
 # Or clean up all stopped jobs at once
 gob cleanup
@@ -437,10 +437,10 @@ gob cleanup
 
 ```bash
 # Try graceful stop first
-gob stop 1732348944
+gob stop V3x0QqI
 
 # If it doesn't stop, force kill
-gob stop 1732348944 --force
+gob stop V3x0QqI --force
 
 # Clean up
 gob cleanup
@@ -457,13 +457,13 @@ gob nuke
 
 ```bash
 # Reload server configuration
-gob signal 1732348944 HUP
+gob signal V3x0QqI HUP
 
 # Graceful shutdown with custom signal
-gob signal 1732348944 TERM
+gob signal V3x0QqI TERM
 
 # Trigger custom handler
-gob signal 1732348944 USR1
+gob signal V3x0QqI USR1
 ```
 
 ## Exit Codes
@@ -478,7 +478,7 @@ All commands follow standard Unix exit code conventions:
 Errors are written to stderr with descriptive messages:
 
 ```bash
-Error: job not found: 1732348944
+Error: job not found: V3x0QqI
 Error: failed to stop job: permission denied
 Error: invalid signal: INVALID
 Error: command is required
@@ -499,7 +499,7 @@ The `list` command uses signal 0 (`syscall.Kill(pid, 0)`) to check if a process 
 ### Job ID vs PID
 
 **Job ID:**
-- Permanent identifier for a job (Unix timestamp: `time.Now().Unix()`)
+- Permanent identifier for a job (base62-encoded millisecond timestamp)
 - Used by all CLI commands (`stop`, `signal`, `restart`, etc.)
 - Stored in metadata and used as the filename (`<id>.json`)
 - Remains constant even if the job is stopped and restarted

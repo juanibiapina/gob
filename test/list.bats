@@ -15,7 +15,7 @@ load 'test_helper'
   # List jobs
   run "$JOB_CLI" list
   assert_success
-  assert_output --regexp "[0-9]+: \[[0-9]+\] running: sleep 300"
+  assert_output --regexp "[A-Za-z0-9]+: \[[0-9]+\] running: sleep 300"
 }
 
 @test "list command shows stopped job" {
@@ -32,7 +32,7 @@ load 'test_helper'
   # List jobs
   run "$JOB_CLI" list
   assert_success
-  assert_output --regexp "[0-9]+: \[[0-9]+\] stopped: sleep 300"
+  assert_output --regexp "[A-Za-z0-9]+: \[[0-9]+\] stopped: sleep 300"
 }
 
 @test "list command shows multiple jobs" {

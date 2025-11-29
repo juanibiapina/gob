@@ -29,7 +29,7 @@ OTHER
   gob remove <job_id>            Remove single job metadata
   gob nuke                       Stop all + remove all
 
-Job IDs are Unix timestamps shown by 'gob list'.
+Job IDs are shown by 'gob list'.
 Use 'gob <command> --help' for details.`)
 		return nil
 	},

@@ -3,7 +3,7 @@
 load 'test_helper'
 
 @test "nuke command removes all metadata files" {
-  # Start multiple jobs (nanosecond timestamps ensure unique job IDs)
+  # Start multiple jobs
   run "$JOB_CLI" start sleep 300
   assert_success
   run "$JOB_CLI" start sleep 300

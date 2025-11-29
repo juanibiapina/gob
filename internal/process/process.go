@@ -12,7 +12,7 @@ import (
 // It uses Setpgid to create a new process group, ensuring the process
 // continues running after the parent CLI exits
 // Returns the PID and any error
-func StartDetached(command string, args []string, jobID int64, storageDir string) (int, error) {
+func StartDetached(command string, args []string, jobID string, storageDir string) (int, error) {
 	cmd := exec.Command(command, args...)
 
 	// Create a new process group to detach from parent
@@ -21,8 +21,8 @@ func StartDetached(command string, args []string, jobID int64, storageDir string
 	}
 
 	// Create log files for stdout and stderr
-	stdoutPath := fmt.Sprintf("%s/%d.stdout.log", storageDir, jobID)
-	stderrPath := fmt.Sprintf("%s/%d.stderr.log", storageDir, jobID)
+	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", storageDir, jobID)
+	stderrPath := fmt.Sprintf("%s/%s.stderr.log", storageDir, jobID)
 
 	stdoutFile, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {

@@ -23,7 +23,7 @@ The output is read from the job's stderr log file.
 
 Example:
   # View stderr for a job
-  gob stderr1732348944
+  gob stderr V3x0QqI
 
 Output:
   [Contents of stderr log file]

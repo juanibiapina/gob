@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/juanibiapina/gob/internal/process"
 	"github.com/juanibiapina/gob/internal/storage"
@@ -15,7 +14,7 @@ var startCmd = &cobra.Command{
 	Short: "Start a command as a background job",
 	Long: `Start a command as a background job that continues running after the CLI exits.
 
-The job is started as a detached process and assigned a unique job ID (Unix timestamp in nanoseconds).
+The job is started as a detached process and assigned a unique job ID.
 Use this ID with other commands to manage the job.
 
 Examples:
@@ -43,8 +42,8 @@ Exit codes:
 			commandArgs = args[1:]
 		}
 
-		// Generate job ID (Unix timestamp in nanoseconds)
-		jobID := time.Now().UnixNano()
+		// Generate job ID
+		jobID := storage.GenerateJobID()
 
 		// Get current working directory
 		cwd, err := storage.GetCurrentWorkdir()
@@ -80,7 +79,7 @@ Exit codes:
 
 		// Print confirmation message
 		commandStr := strings.Join(args, " ")
-		fmt.Printf("Started job %d running: %s\n", jobID, commandStr)
+		fmt.Printf("Started job %s running: %s\n", jobID, commandStr)
 
 		return nil
 	},

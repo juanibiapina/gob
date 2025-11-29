@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/adrg/xdg"
 )
 
 // JobMetadata represents the metadata stored for each background job
 type JobMetadata struct {
-	ID      int64    `json:"id"`
+	ID      string   `json:"id"`
 	Command []string `json:"command"`
 	PID     int      `json:"pid"`
 	Workdir string   `json:"workdir"` // Working directory where job was started
@@ -55,8 +56,22 @@ func EnsureJobDir() (string, error) {
 }
 
 // GenerateJobFilename creates a filename for a job based on its ID
-func GenerateJobFilename(id int64) string {
-	return fmt.Sprintf("%d.json", id)
+func GenerateJobFilename(id string) string {
+	return fmt.Sprintf("%s.json", id)
+}
+
+const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// GenerateJobID creates a unique job ID using base62-encoded millisecond timestamp
+// This produces a 7-character sortable ID (e.g., "VkPZ0Yw")
+func GenerateJobID() string {
+	n := time.Now().UnixMilli()
+	var result []byte
+	for n > 0 {
+		result = append([]byte{base62Chars[n%62]}, result...)
+		n /= 62
+	}
+	return string(result)
 }
 
 // SaveJobMetadata writes job metadata to a JSON file
@@ -100,10 +115,8 @@ func LoadJobMetadata(filename string) (*JobMetadata, error) {
 	}
 
 	// If ID is not in the metadata (backward compatibility), extract from filename
-	if metadata.ID == 0 {
-		jobID := strings.TrimSuffix(filename, ".json")
-		// Parse the ID from filename (best effort)
-		fmt.Sscanf(jobID, "%d", &metadata.ID)
+	if metadata.ID == "" {
+		metadata.ID = strings.TrimSuffix(filename, ".json")
 	}
 
 	return &metadata, nil
@@ -173,9 +186,10 @@ func listJobMetadataWithFilter(workdirFilter string) ([]JobInfo, error) {
 		})
 	}
 
-	// Sort by ID (timestamp), newest first
+	// Sort by ID (base62 timestamp), newest first
+	// Base62 IDs are lexicographically sortable
 	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].Metadata.ID > jobs[j].Metadata.ID
+		return jobs[i].ID > jobs[j].ID
 	})
 
 	return jobs, nil

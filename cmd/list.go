@@ -33,18 +33,18 @@ With --workdir:
   <job_id>: [<pid>] <status> (<workdir>): <command>
 
 Where:
-  job_id: Unique identifier (Unix timestamp) - use this for other commands
+  job_id: Unique identifier - use this for other commands
   pid:    Process ID
   status: Either 'running' or 'stopped'
   workdir: Directory where job was started (only with --workdir or --all)
   command: Original command that was executed
 
 Example output:
-  1732350000: [12345] running: sleep 3600
-  1732349000: [12344] stopped: python server.py
+  V3x0QqI: [12345] running: sleep 3600
+  V3x0PrH: [12344] stopped: python server.py
 
 Example with --workdir:
-  1732350000: [12345] running (/home/user/project): sleep 3600
+  V3x0QqI: [12345] running (/home/user/project): sleep 3600
 
 If no jobs exist:
   No jobs found

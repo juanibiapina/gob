@@ -27,7 +27,7 @@ Example:
   gob logs
 
   # Follow a specific job
-  gob logs 1732348944
+  gob logs V3x0QqI
 
 Output:
   stdout line 1
