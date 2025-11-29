@@ -126,18 +126,32 @@ gob stop 1234567890
 gob cleanup
 ```
 
-## Using with Claude Code
+## Using with AI Coding Agents
 
-To make gob available to Claude Code or other AI coding assistants, add it to your global `~/.claude/CLAUDE.md`:
+To make `gob` available to AI coding agents, add the following instructions to your agent's configuration file (`CLAUDE.md`, `AGENTS.md`, etc).
 
 ```markdown
-# Available CLI Tools
+## Background Jobs with `gob`
 
-- `gob` - Background process manager
+Use `gob` to manage background processes (dev servers, watchers, etc.):
 
-# Usage Expectations
+**Starting jobs:**
+- `gob start <command> [args...]` - Start a background job (returns a job ID)
 
-- Use `gob` to start and monitor background processes like servers and other long running tasks (run `gob` for overview)
+**Monitoring:**
+- `gob list` - List jobs with IDs and status
+- `gob stdout <job_id>` - View stdout output
+- `gob stderr <job_id>` - View stderr output
+
+**Managing:**
+- `gob stop <job_id>` - Stop a job (use `--force` for SIGKILL)
+- `gob restart <job_id>` - Restart a job
+- `gob signal <job_id> <signal>` - Send a signal to a job
+
+**Cleanup:**
+- `gob cleanup` - Remove metadata for stopped jobs
+- `gob remove <job_id>` - Remove single job metadata
+- `gob nuke` - Stop all jobs and remove all data
 ```
 
 ## Usage
