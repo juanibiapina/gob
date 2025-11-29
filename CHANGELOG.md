@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplified overview output to a concise reference card
 - Replace external `tail` command with pure Go implementation for `--follow` flag
 
+### Fixed
+
+- Fix typos in help text examples (missing space between command and job ID)
+
 ## [0.4.0] - 2025-11-28
 
 ### Added

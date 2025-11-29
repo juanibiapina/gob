@@ -63,16 +63,16 @@ Signal format:
 
 Examples:
   # Reload configuration (common for servers)
-  gob signal1732348944 HUP
+  gob signal 1732348944 HUP
 
   # Interrupt a job
-  gob signal1732348944 INT
+  gob signal 1732348944 INT
 
   # Send custom signal by number
-  gob signal1732348944 10
+  gob signal 1732348944 10
 
   # Forcefully kill
-  gob signal1732348944 KILL
+  gob signal 1732348944 KILL
 
 Output:
   Sent signal <signal> to job <job_id> (PID <pid>)

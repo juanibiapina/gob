@@ -24,10 +24,10 @@ Use 'job list' to find job IDs.
 
 Examples:
   # Gracefully stop a job
-  gob stop1732348944
+  gob stop 1732348944
 
   # Forcefully kill a stubborn job
-  gob stop1732348944 --force
+  gob stop 1732348944 --force
 
 Output:
   Stopped job <job_id> (PID <pid>)

@@ -23,10 +23,10 @@ The job ID remains the same, but a new PID is assigned.
 
 Examples:
   # Restart a running job
-  gob restart1732348944
+  gob restart 1732348944
 
   # Restart a stopped job (same as start)
-  gob restart1732348944
+  gob restart 1732348944
 
 Output:
   Restarted job <job_id> with new PID <pid> running: <command>

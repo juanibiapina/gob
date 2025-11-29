@@ -23,7 +23,7 @@ For removing multiple stopped jobs at once, use 'job cleanup' instead.
 
 Example:
   # Remove a specific stopped job
-  gob remove1732348944
+  gob remove 1732348944
 
 Output:
   Removed job <job_id> (PID <pid>)
