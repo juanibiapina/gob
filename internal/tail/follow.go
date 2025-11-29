@@ -2,6 +2,7 @@ package tail
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -64,6 +65,20 @@ type Follower struct {
 	sources map[string]bool // tracks which paths are already being followed
 	errCh   chan error
 	wg      sync.WaitGroup
+}
+
+// SystemLogTag is the prefix used for system log messages (same length as job IDs)
+const SystemLogTag = "monitor"
+
+// SystemLog writes a system log message with the monitor prefix
+// The message is colored cyan to distinguish it from job output
+func (f *Follower) SystemLog(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	// Cyan color for system messages
+	prefix := fmt.Sprintf("\033[36m[%s]\033[0m ", SystemLogTag)
+	f.mu.Lock()
+	f.w.Write([]byte(prefix + msg + "\n"))
+	f.mu.Unlock()
 }
 
 // NewFollower creates a new Follower that writes to the given writer

@@ -5,7 +5,7 @@ load 'test_helper'
 @test "logs command with no jobs waits for jobs to appear" {
   run timeout 1 "$JOB_CLI" logs
   assert_failure
-  assert_output --partial "Waiting for jobs..."
+  assert_output --partial "waiting for jobs..."
 }
 
 @test "logs command fails for non-existent job" {

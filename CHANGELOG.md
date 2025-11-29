@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `logs` command to follow combined stdout and stderr output in real-time with job ID prefix (orange for stderr)
 - Dynamic job detection in `logs` command - automatically picks up new jobs that start while running
+- System logging in `logs` command with `[monitor]` prefix (cyan) for process lifecycle events:
+  - "process started" when new jobs are detected dynamically
+  - "process stopped" when a tracked process terminates
+  - "all processes stopped" when no more processes are running
+  - "waiting for jobs..." when no jobs exist yet
 
 ### Changed
 
