@@ -14,6 +14,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ## Features
 
+- **Interactive TUI** - Full-screen terminal interface for managing jobs
 - **Detached Process Execution** - Run commands that persist independently of the CLI
 - **AI coding agent friendly** - Easy for Coding Agents to start and monitor background processes
 - **Jobs per directory** - Jobs are scoped per directory, making it easier to maintain per project jobs
@@ -154,7 +155,61 @@ Use `gob` to manage background processes (dev servers, watchers, etc.):
 - `gob nuke` - Stop all jobs and remove all data
 ```
 
-## Usage
+## Interactive TUI
+
+Launch a full-screen terminal interface for managing jobs:
+
+```bash
+gob tui
+```
+
+### Layout
+
+The TUI has three panels:
+
+```
+╭─ 1 Jobs ──────────────╮╭─ 2 stdout ───────────────────╮
+│  ● V3x0QqI sleep 300  ││ Server running on port 8000  │
+│  ○ V3x0abc echo hello ││ ...                          │
+│                       ││                              │
+│                       │╰──────────────────────────────╯
+│                       │╭─ 3 stderr ───────────────────╮
+│                       ││ (no errors)                  │
+╰───────────────────────╯╰──────────────────────────────╯
+```
+
+- **Panel 1 (Jobs)**: List of all jobs with status (● running, ○ stopped)
+- **Panel 2 (stdout)**: Standard output of selected job (80% height)
+- **Panel 3 (stderr)**: Standard error of selected job (20% height)
+
+### Key Bindings
+
+**Panel Navigation:**
+- `1` / `2` / `3` - Jump to specific panel
+- `Tab` - Cycle through panels
+
+**Jobs Panel (1):**
+- `↑` / `k` - Move selection up
+- `↓` / `j` - Move selection down
+- `s` - Stop selected job (SIGTERM)
+- `S` - Force kill selected job (SIGKILL)
+- `r` - Restart selected job
+- `d` - Delete stopped job
+- `n` - Start new job (opens input prompt)
+- `a` - Toggle show all directories
+
+**Log Panels (2/3):**
+- `↑` / `k` - Scroll up
+- `↓` / `j` - Scroll down
+- `g` - Go to top
+- `G` - Go to bottom
+- `f` - Toggle follow mode (auto-scroll)
+
+**Global:**
+- `?` - Show help
+- `q` - Quit
+
+## CLI Usage
 
 ### Core Commands
 

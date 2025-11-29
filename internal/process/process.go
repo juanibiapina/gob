@@ -8,16 +8,17 @@ import (
 	"time"
 )
 
-// StartDetached starts a command as a detached background process
-// It uses Setpgid to create a new process group, ensuring the process
-// continues running after the parent CLI exits
+// StartDetached starts a command as a fully detached background process
+// It uses Setsid to create a new session, ensuring the process is fully
+// daemonized and won't become a zombie when the parent exits or stays running
 // Returns the PID and any error
 func StartDetached(command string, args []string, jobID string, storageDir string) (int, error) {
 	cmd := exec.Command(command, args...)
 
-	// Create a new process group to detach from parent
+	// Create a new session to fully detach from parent
+	// This makes the process a session leader with no controlling terminal
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+		Setsid: true,
 	}
 
 	// Create log files for stdout and stderr
@@ -64,11 +65,9 @@ func StartDetached(command string, args []string, jobID string, storageDir strin
 	stderrFile.Close()
 	devNull.Close()
 
-	// Release the process so Go stops tracking it
-	// This allows the parent to exit without waiting for the child
-	if err := cmd.Process.Release(); err != nil {
-		return 0, fmt.Errorf("failed to release process: %w", err)
-	}
+	// Reap the process in a goroutine to prevent zombies
+	// This is necessary when the parent (CLI or TUI) stays running
+	go cmd.Wait()
 
 	return pid, nil
 }

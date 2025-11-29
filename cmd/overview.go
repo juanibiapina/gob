@@ -25,6 +25,9 @@ OUTPUT
   gob stdout <job_id>     View raw stdout
   gob stderr <job_id>     View raw stderr
 
+INTERACTIVE
+  gob tui                 Launch interactive TUI
+
 OTHER
   gob signal <job_id> <signal>   Send signal to job
   gob remove <job_id>            Remove single job metadata

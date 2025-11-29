@@ -403,6 +403,80 @@ gob signal V3x0QqI KILL
 
 ---
 
+### tui
+
+Launch an interactive terminal user interface for managing jobs.
+
+**Syntax:**
+```bash
+gob tui
+```
+
+**Layout:**
+```
+┌─ Jobs ─────────────┬─ Logs ──────────────────┐
+│ ● V3x0QqI [1234]   │ [V3x0QqI] output line 1 │
+│ ○ V3x0PrH [1235]   │ [V3x0QqI] output line 2 │
+└────────────────────┴─────────────────────────┘
+```
+
+The TUI uses a split-panel design:
+- **Left panel (Jobs)**: List of jobs with status indicators (● running, ○ stopped)
+- **Right panel (Logs)**: Live log output for selected job with [jobID] prefixes
+- **Header**: Shows directory and job count statistics
+- **Status bar**: Context-sensitive keybinding hints
+
+**Keybindings:**
+
+Navigation:
+- `tab`: Switch between Jobs and Logs panels
+- `↑` / `k`: Move cursor up (Jobs) or scroll up (Logs)
+- `↓` / `j`: Move cursor down (Jobs) or scroll down (Logs)
+- `g` / `G`: First/last job or top/bottom of logs
+
+Job Actions (in Jobs panel):
+- `s`: Stop job (SIGTERM)
+- `S`: Force kill job (SIGKILL)
+- `r`: Restart job
+- `d`: Delete stopped job
+- `n`: Start new job (opens dialog)
+
+Log Viewer (in Logs panel):
+- `PgUp` / `Ctrl+U`: Page up
+- `PgDn` / `Ctrl+D`: Page down
+- `f`: Toggle follow mode (auto-scroll to new content)
+
+Global:
+- `a`: Toggle between current directory and all directories
+- `?`: Show help overlay
+- `q`: Quit
+
+**Features:**
+- Real-time updates every 500ms
+- Auto-follow mode for live log streaming
+- [following] / [paused] indicator in log panel title
+- Modal dialogs for new job input and help
+- Color-coded status: green (●) for running, red (○) for stopped
+- Workdir display when showing all directories
+
+**Examples:**
+```bash
+# Launch the TUI
+gob tui
+```
+
+**Exit Codes:**
+- `0`: Clean exit (user pressed q)
+- `1`: Error (terminal initialization failed)
+
+**Notes:**
+- Requires a terminal that supports alternate screen mode
+- Best experience with 256-color terminal
+- Works well with tmux and other terminal multiplexers
+- Mouse scrolling supported in log panel
+
+---
+
 ## Common Workflows
 
 ### Start and Monitor Jobs
