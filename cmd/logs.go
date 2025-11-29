@@ -34,10 +34,10 @@ Example:
   gob logs
 
 Output:
-  [monitor] process started: V3x0QqI (./my-server)
+  [monitor] process started: ./my-server (pid:12345 id:V3x0QqI)
   [V3x0QqI] Server listening on port 8080
   [V3x0QqI] Error: connection refused (orange prefix)
-  [monitor] process stopped: V3x0QqI
+  [monitor] process stopped: ./my-server (pid:12345 id:V3x0QqI)
 
 Notes:
   - Streams output in real-time as it's written
@@ -57,10 +57,14 @@ Exit codes:
 		follower := tail.NewFollower(os.Stdout)
 		var mu sync.Mutex
 		knownJobs := make(map[string]bool)
-		runningJobs := make(map[string]int) // jobID -> PID
+		type runningJob struct {
+			pid     int
+			command string
+		}
+		runningJobs := make(map[string]runningJob) // jobID -> job info
 
 		// addJobSources adds stdout and stderr sources for a job (must be called with mu held)
-		addJobSources := func(jobID string, pid int) error {
+		addJobSources := func(jobID string, pid int, command string) error {
 			stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID))
 			stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID))
 
@@ -79,7 +83,7 @@ Exit codes:
 			follower.AddSource(tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix})
 			follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: orangePrefix})
 
-			runningJobs[jobID] = pid
+			runningJobs[jobID] = runningJob{pid: pid, command: command}
 			return nil
 		}
 
@@ -100,7 +104,7 @@ Exit codes:
 			// Add initial jobs (no "process started" log since they were already running)
 			mu.Lock()
 			for _, job := range jobs {
-				if err := addJobSources(job.ID, job.Metadata.PID); err != nil {
+				if err := addJobSources(job.ID, job.Metadata.PID, formatCommand(job.Metadata.Command)); err != nil {
 					mu.Unlock()
 					return err
 				}
@@ -116,14 +120,15 @@ Exit codes:
 					mu.Lock()
 					// Check for stopped jobs - collect IDs to delete first
 					var stoppedJobs []string
-					for jobID, pid := range runningJobs {
-						if !process.IsProcessRunning(pid) {
+					for jobID, job := range runningJobs {
+						if !process.IsProcessRunning(job.pid) {
 							stoppedJobs = append(stoppedJobs, jobID)
 						}
 					}
 					// Now delete and log
 					for _, jobID := range stoppedJobs {
-						follower.SystemLog("process stopped: %s", jobID)
+						job := runningJobs[jobID]
+						follower.SystemLog("process stopped: %s (pid:%d id:%s)", job.command, job.pid, jobID)
 						delete(runningJobs, jobID)
 					}
 					// Check if all jobs have stopped
@@ -141,8 +146,8 @@ Exit codes:
 					for _, job := range jobs {
 						if !knownJobs[job.ID] {
 							knownJobs[job.ID] = true
-							addJobSources(job.ID, job.Metadata.PID)
-							follower.SystemLog("process started: %s (%s)", job.ID, formatCommand(job.Metadata.Command))
+							addJobSources(job.ID, job.Metadata.PID, formatCommand(job.Metadata.Command))
+							follower.SystemLog("process started: %s (pid:%d id:%s)", formatCommand(job.Metadata.Command), job.Metadata.PID, job.ID)
 						}
 					}
 					mu.Unlock()
@@ -163,11 +168,11 @@ Exit codes:
 					for _, job := range jobs {
 						if !knownJobs[job.ID] {
 							knownJobs[job.ID] = true
-							if err := addJobSources(job.ID, job.Metadata.PID); err != nil {
+							if err := addJobSources(job.ID, job.Metadata.PID, formatCommand(job.Metadata.Command)); err != nil {
 								mu.Unlock()
 								return err
 							}
-							follower.SystemLog("process started: %s (%s)", job.ID, formatCommand(job.Metadata.Command))
+							follower.SystemLog("process started: %s (pid:%d id:%s)", formatCommand(job.Metadata.Command), job.Metadata.PID, job.ID)
 						}
 					}
 					mu.Unlock()

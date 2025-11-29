@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Monitor messages now show command first, with pid and job id in parentheses: `process started: ./my-server (pid:12345 id:V3x0QqI)`
+
 ## [0.5.0] - 2025-11-29
 
 ### Added
