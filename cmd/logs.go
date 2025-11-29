@@ -19,8 +19,8 @@ var logsCmd = &cobra.Command{
 Without arguments, follows all jobs started in the current directory.
 With a job ID, follows only that specific job.
 
-Streams both stdout and stderr as they are written. Stderr lines are prefixed
-with "[err] " to distinguish them from stdout.
+Each line is prefixed with the job ID. Stderr lines have the prefix colored
+orange to distinguish them from stdout.
 
 Example:
   # Follow all jobs in current directory
@@ -30,9 +30,9 @@ Example:
   gob logs V3x0QqI
 
 Output:
-  stdout line 1
-  [err] error message
-  stdout line 2
+  [V3x0QqI] stdout line 1
+  [V3x0QqI] error message (orange prefix)
+  [V3x0QqI] stdout line 2
 
 Notes:
   - Only works for jobs that have log files (jobs started with logging enabled)
@@ -87,9 +87,13 @@ Exit codes:
 				return fmt.Errorf("stderr log file not found: %s", stderrPath)
 			}
 
+			// Orange ANSI color for stderr prefix
+			orangePrefix := fmt.Sprintf("\033[38;5;208m[%s]\033[0m ", jobID)
+			stdoutPrefix := fmt.Sprintf("[%s] ", jobID)
+
 			sources = append(sources,
-				tail.FileSource{Path: stdoutPath, Prefix: ""},
-				tail.FileSource{Path: stderrPath, Prefix: "[err] "},
+				tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix},
+				tail.FileSource{Path: stderrPath, Prefix: orangePrefix},
 			)
 		}
 
