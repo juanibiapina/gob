@@ -20,6 +20,10 @@ The workflow automatically:
 - Creates a GitHub release with changelog
 - Uploads binaries and checksums as release assets
 
+After the workflow completes:
+1. Edit the release to add release notes describing the changes
+2. Create an announcement in the GitHub Discussions
+
 ## Version Format
 
 Follow [semantic versioning](https://semver.org/):
