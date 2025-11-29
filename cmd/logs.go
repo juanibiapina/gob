@@ -15,13 +15,11 @@ import (
 )
 
 var logsCmd = &cobra.Command{
-	Use:               "logs [job_id]",
-	Short:             "Follow both stdout and stderr for jobs",
-	ValidArgsFunction: completeJobIDs,
+	Use:   "logs",
+	Short: "Follow both stdout and stderr for jobs",
 	Long: `Follow both stdout and stderr output for background jobs in real-time.
 
-Without arguments, follows all jobs started in the current directory.
-With a job ID, follows only that specific job.
+Follows all jobs started in the current directory.
 
 OUTPUT FORMAT:
   Each line is prefixed with a tag in square brackets:
@@ -34,9 +32,6 @@ OUTPUT FORMAT:
 Example:
   # Follow all jobs in current directory
   gob logs
-
-  # Follow a specific job
-  gob logs V3x0QqI
 
 Output:
   [monitor] process started: V3x0QqI (./my-server)
@@ -51,8 +46,8 @@ Notes:
 
 Exit codes:
   0: Stopped by user (Ctrl+C)
-  1: Error (job not found, log files not available)`,
-	Args: cobra.MaximumNArgs(1),
+  1: Error (log files not available)`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobDir, err := storage.GetJobDir()
 		if err != nil {
@@ -96,9 +91,8 @@ Exit codes:
 			return strings.Join(command, " ")
 		}
 
-		if len(args) == 0 {
-			// No arguments: follow all jobs in current directory and watch for new ones
-			jobs, err := storage.ListJobMetadata()
+		// Follow all jobs in current directory and watch for new ones
+		jobs, err := storage.ListJobMetadata()
 			if err != nil {
 				return fmt.Errorf("failed to list jobs: %w", err)
 			}
@@ -155,68 +149,31 @@ Exit codes:
 				}
 			}()
 
-			// If no initial jobs, wait for first job to appear
-			if len(jobs) == 0 {
-				follower.SystemLog("waiting for jobs...")
-				for {
-					time.Sleep(500 * time.Millisecond)
-					jobs, err := storage.ListJobMetadata()
-					if err != nil {
-						continue
-					}
-					if len(jobs) > 0 {
-						mu.Lock()
-						for _, job := range jobs {
-							if !knownJobs[job.ID] {
-								knownJobs[job.ID] = true
-								if err := addJobSources(job.ID, job.Metadata.PID); err != nil {
-									mu.Unlock()
-									return err
-								}
-								follower.SystemLog("process started: %s (%s)", job.ID, formatCommand(job.Metadata.Command))
-							}
-						}
-						mu.Unlock()
-						break
-					}
+		// If no initial jobs, wait for first job to appear
+		if len(jobs) == 0 {
+			follower.SystemLog("waiting for jobs...")
+			for {
+				time.Sleep(500 * time.Millisecond)
+				jobs, err := storage.ListJobMetadata()
+				if err != nil {
+					continue
 				}
-			}
-		} else {
-			// Specific job ID provided - no dynamic watching
-			jobID := args[0]
-			metadata, err := storage.LoadJobMetadata(jobID + ".json")
-			if err != nil {
-				return fmt.Errorf("job not found: %s", jobID)
-			}
-			mu.Lock()
-			if err := addJobSources(jobID, metadata.PID); err != nil {
-				mu.Unlock()
-				return err
-			}
-			knownJobs[jobID] = true
-			mu.Unlock()
-
-			// Start goroutine to detect when job stops
-			go func() {
-				for {
-					time.Sleep(500 * time.Millisecond)
+				if len(jobs) > 0 {
 					mu.Lock()
-					var stoppedJobs []string
-					for jID, pid := range runningJobs {
-						if !process.IsProcessRunning(pid) {
-							stoppedJobs = append(stoppedJobs, jID)
+					for _, job := range jobs {
+						if !knownJobs[job.ID] {
+							knownJobs[job.ID] = true
+							if err := addJobSources(job.ID, job.Metadata.PID); err != nil {
+								mu.Unlock()
+								return err
+							}
+							follower.SystemLog("process started: %s (%s)", job.ID, formatCommand(job.Metadata.Command))
 						}
-					}
-					for _, jID := range stoppedJobs {
-						follower.SystemLog("process stopped: %s", jID)
-						delete(runningJobs, jID)
-					}
-					if len(stoppedJobs) > 0 && len(runningJobs) == 0 {
-						follower.SystemLog("all processes stopped")
 					}
 					mu.Unlock()
+					break
 				}
-			}()
+			}
 		}
 
 		return follower.Wait()

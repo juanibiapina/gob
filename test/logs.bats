@@ -8,30 +8,6 @@ load 'test_helper'
   assert_output --partial "waiting for jobs..."
 }
 
-@test "logs command fails for non-existent job" {
-  run "$JOB_CLI" logs 999999999
-  assert_failure
-  assert_output --partial "job not found"
-}
-
-@test "logs command follows output from existing job" {
-  # Start a job that writes to stdout
-  run "$JOB_CLI" start echo "Hello from logs"
-  assert_success
-
-  # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-
-  # Wait for output to be written
-  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Hello from logs"
-
-  # Run logs with timeout and verify output
-  run timeout 1 "$JOB_CLI" logs "$job_id"
-  assert_failure  # timeout exits with failure
-  assert_output --partial "[$job_id] Hello from logs"
-}
-
 @test "logs command picks up dynamically started jobs" {
   # Start logs in background (it will wait for jobs)
   "$JOB_CLI" logs > "$BATS_TEST_TMPDIR/logs_output.txt" 2>&1 &

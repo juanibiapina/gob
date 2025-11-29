@@ -21,7 +21,7 @@ WORKFLOW
   gob cleanup             Remove stopped job metadata
 
 OUTPUT
-  gob logs [job_id]       Follow stdout+stderr with prefixes
+  gob logs                Follow stdout+stderr with prefixes
   gob stdout <job_id>     View raw stdout
   gob stderr <job_id>     View raw stderr
 

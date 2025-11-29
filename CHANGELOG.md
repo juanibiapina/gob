@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING**: `logs` command no longer accepts a job ID argument - it now only follows all jobs in the current directory
 - **BREAKING**: Job IDs changed from 19-digit nanosecond timestamps to 7-character base62-encoded IDs (e.g., `V3x0QqI`)
 - Simplified overview output to a concise reference card
 - Replace external `tail` command with pure Go implementation for `--follow` flag
