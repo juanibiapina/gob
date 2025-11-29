@@ -24,7 +24,7 @@ After pushing the tag, the coding agent should:
 1. Wait for the GitHub Actions workflow to complete successfully
 2. Use `gh release view` to verify the release was created
 3. Use `gh release edit` to add release notes describing the changes
-4. Create an announcement in GitHub Discussions using `gh discussion create`
+4. Create an announcement in GitHub Discussions using `gh api graphql` (see repo discussions for format)
 
 ## Version Format
 
