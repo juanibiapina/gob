@@ -20,9 +20,11 @@ The workflow automatically:
 - Creates a GitHub release with changelog
 - Uploads binaries and checksums as release assets
 
-After the workflow completes:
-1. Edit the release to add release notes describing the changes
-2. Create an announcement in the GitHub Discussions
+After pushing the tag, the coding agent should:
+1. Wait for the GitHub Actions workflow to complete successfully
+2. Use `gh release view` to verify the release was created
+3. Use `gh release edit` to add release notes describing the changes
+4. Create an announcement in GitHub Discussions using `gh discussion create`
 
 ## Version Format
 
