@@ -84,6 +84,11 @@ Exit codes:
 				return fmt.Errorf("job %s is already running with the same command", jobID)
 			}
 
+			// Clear previous logs before restarting
+			if err := storage.ClearJobLogs(jobID); err != nil {
+				return fmt.Errorf("failed to clear previous logs: %w", err)
+			}
+
 			// Restart the stopped job
 			command := existingJob.Command[0]
 			commandArgs := []string{}

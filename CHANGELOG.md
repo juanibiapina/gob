@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `run` command now clears previous logs when reusing a stopped job, so you only see output from the current run
+
 ## [0.8.0] - 2025-11-30
 
 ### Changed

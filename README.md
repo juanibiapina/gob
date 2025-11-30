@@ -316,7 +316,7 @@ gob signal V3x0QqI USR1
 
 #### `gob run <command> [args...]`
 
-Run a command and follow its output until completion. Reuses existing stopped job with the same command instead of creating a new one.
+Run a command and follow its output until completion. Reuses existing stopped job with the same command instead of creating a new one. When reusing a job, previous logs are cleared so you only see output from the current run.
 
 ```bash
 # Simple commands

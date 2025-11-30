@@ -224,3 +224,26 @@ func commandsEqual(a, b []string) bool {
 	}
 	return true
 }
+
+// ClearJobLogs truncates the stdout and stderr log files for a job
+func ClearJobLogs(jobID string) error {
+	jobDir, err := GetJobDir()
+	if err != nil {
+		return err
+	}
+
+	stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID))
+	stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID))
+
+	// Truncate stdout log (create if doesn't exist)
+	if err := os.Truncate(stdoutPath, 0); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to clear stdout log: %w", err)
+	}
+
+	// Truncate stderr log (create if doesn't exist)
+	if err := os.Truncate(stderrPath, 0); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to clear stderr log: %w", err)
+	}
+
+	return nil
+}
