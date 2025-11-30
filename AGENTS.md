@@ -10,6 +10,7 @@ Use `gob` to run shell commands.
 - Running tests: `gob run make test`
 - Build commands: `gob run make build`
 - Linting/formatting: `gob run npm run lint`
+- Commands with flags work directly: `gob run pnpm --filter web typecheck`
 - Any command where you need to see the result before proceeding
 
 **When to use `add` (returns immediately):**
@@ -17,6 +18,8 @@ Use `gob` to run shell commands.
 - Watch modes: `gob add npm run watch`
 - Long-running services: `gob add -- python -m http.server`
 - Any command that runs indefinitely
+
+**Note:** `add` requires `--` before commands with flags (e.g., `gob add -- cmd --flag`). `run` does not need this.
 
 **Commands:**
 - `gob run <command>` - Run and wait for completion (reuses existing stopped job)
