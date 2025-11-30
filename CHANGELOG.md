@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-11-30
+
 ### Added
 
-- Full-screen TUI (`gob tui`) for interactive job management
 - `run` command to run a command and follow output until completion, with smart job reuse
 - `add` command to create and start new background jobs
 - `-f/--follow` flag for `add`, `start`, and `restart` commands to follow output until completion
@@ -25,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run` command reuses existing stopped job with same command+args
 - Updated overview with new command grouping
 - Improved README with AI agent instructions for when to use `run` vs `add`
+
+## [0.6.0] - 2025-11-29
+
+### Added
+
+- Full-screen TUI (`gob tui`) for interactive job management
 
 ## [0.5.1] - 2025-11-29
 
