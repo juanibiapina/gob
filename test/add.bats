@@ -112,3 +112,18 @@ load 'test_helper'
   job_id2=$(basename "$metadata_file2" .json)
   "$JOB_CLI" stop "$job_id2"
 }
+
+@test "add command passes flags to subcommand with -- separator" {
+  # Run ls with -a flag using -- separator
+  run "$JOB_CLI" add -- ls -a
+  assert_success
+  assert_output --partial "running: ls -a"
+}
+
+@test "add command with follow flag and -- separator" {
+  # Test that -f flag works for gob, and -- separates the subcommand
+  run "$JOB_CLI" add -f -- echo "follow-test"
+  assert_success
+  assert_output --partial "running: echo follow-test"
+  assert_output --partial "completed"
+}

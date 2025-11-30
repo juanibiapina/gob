@@ -23,6 +23,9 @@ Smart job reuse:
 The job runs in the background, so if you press Ctrl+C or kill the CLI,
 the job continues running normally.
 
+Use -- to separate gob flags from the command when the command has flags:
+  gob run -- python -m http.server 8080
+
 Examples:
   # Run a build and follow its output
   gob run make build
@@ -30,8 +33,8 @@ Examples:
   # Run tests (will reuse existing job if found)
   gob run make test
 
-  # Run a script and see its output
-  gob run ./my-script.sh
+  # Run a command with flags (use -- separator)
+  gob run -- ls -la
 
 Output:
   Shows the job's stdout and stderr in real-time until the job completes.

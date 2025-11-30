@@ -105,3 +105,10 @@ load 'test_helper'
   # Should have created a new job
   assert [ "$job_count_after" -gt "$job_count_before" ]
 }
+
+@test "run command passes flags to subcommand with -- separator" {
+  # Run ls with -a flag using -- separator
+  run "$JOB_CLI" run -- ls -a
+  assert_success
+  assert_output --partial "running: ls -a"
+}

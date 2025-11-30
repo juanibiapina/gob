@@ -15,7 +15,7 @@ Use `gob` to run shell commands.
 **When to use `add` (returns immediately):**
 - Dev servers: `gob add npm run dev`
 - Watch modes: `gob add npm run watch`
-- Long-running services: `gob add python -m http.server`
+- Long-running services: `gob add -- python -m http.server`
 - Any command that runs indefinitely
 
 **Commands:**

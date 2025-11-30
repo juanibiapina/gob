@@ -113,7 +113,7 @@ gob completion powershell | Out-String | Invoke-Expression
 gob
 
 # Add a background job
-gob add python -m http.server 8000
+gob add -- python -m http.server 8000
 
 # Run a command and wait for it to complete
 gob run make test
@@ -149,7 +149,7 @@ Use `gob` to manage background processes.
 **When to use `add` (returns immediately):**
 - Dev servers: `gob add npm run dev`
 - Watch modes: `gob add npm run watch`
-- Long-running services: `gob add python -m http.server`
+- Long-running services: `gob add -- python -m http.server`
 - Any command that runs indefinitely
 
 **Commands:**
@@ -219,7 +219,7 @@ Create and start a new background job. The job runs detached and persists even a
 
 ```bash
 # Add a long-running server
-gob add python -m http.server 8000
+gob add -- python -m http.server 8000
 
 # Add with follow flag to watch output
 gob add -f make build

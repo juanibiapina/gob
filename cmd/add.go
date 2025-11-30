@@ -19,18 +19,21 @@ var addCmd = &cobra.Command{
 The job is started as a detached process and assigned a unique job ID.
 Use this ID with other commands to manage the job.
 
+Use -- to separate gob flags from the command when the command has flags:
+  gob add -- python -m http.server 8080
+
 Examples:
   # Add a long-running sleep
   gob add sleep 3600
 
-  # Add a server
-  gob add python -m http.server 8080
+  # Add a server (use -- before commands with flags)
+  gob add -- python -m http.server 8080
 
   # Add a background compilation
   gob add make build
 
   # Add and follow output until completion
-  gob add -f make test
+  gob add -f -- make test
 
 Output:
   Added job <job_id> running: <command>
