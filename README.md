@@ -10,7 +10,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ![demo](assets/demo.gif)
 
-[View on asciinema](https://asciinema.org/a/QgOU9zV07Hx6k9Q5k4eVEZKUV)
+[View on asciinema](https://asciinema.org/a/OgSVPWybeSvXcQVyLQ0mie8P2)
 
 ## Features
 
