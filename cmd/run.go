@@ -115,10 +115,11 @@ Exit codes:
 			}
 
 			metadata := &storage.JobMetadata{
-				ID:      jobID,
-				Command: args,
-				PID:     pid,
-				Workdir: cwd,
+				ID:        jobID,
+				Command:   args,
+				PID:       pid,
+				Workdir:   cwd,
+				CreatedAt: time.Now(),
 			}
 
 			_, err = storage.SaveJobMetadata(metadata)

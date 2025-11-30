@@ -578,10 +578,11 @@ func (m Model) startJob(command string) tea.Cmd {
 
 		cwd, _ := storage.GetCurrentWorkdir()
 		metadata := &storage.JobMetadata{
-			ID:      newID,
-			Command: parts,
-			PID:     pid,
-			Workdir: cwd,
+			ID:        newID,
+			Command:   parts,
+			PID:       pid,
+			Workdir:   cwd,
+			CreatedAt: time.Now(),
 		}
 		storage.SaveJobMetadata(metadata)
 

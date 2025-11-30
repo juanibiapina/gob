@@ -14,10 +14,11 @@ import (
 
 // JobMetadata represents the metadata stored for each background job
 type JobMetadata struct {
-	ID      string   `json:"id"`
-	Command []string `json:"command"`
-	PID     int      `json:"pid"`
-	Workdir string   `json:"workdir"` // Working directory where job was started
+	ID        string    `json:"id"`
+	Command   []string  `json:"command"`
+	PID       int       `json:"pid"`
+	Workdir   string    `json:"workdir"` // Working directory where job was started
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // JobInfo combines job ID with its metadata
@@ -186,10 +187,9 @@ func listJobMetadataWithFilter(workdirFilter string) ([]JobInfo, error) {
 		})
 	}
 
-	// Sort by ID (base62 timestamp), newest first
-	// Base62 IDs are lexicographically sortable
+	// Sort by CreatedAt, newest first
 	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].ID > jobs[j].ID
+		return jobs[i].Metadata.CreatedAt.After(jobs[j].Metadata.CreatedAt)
 	})
 
 	return jobs, nil
