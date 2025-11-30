@@ -1,13 +1,10 @@
 # Agent Instructions
 
-## Build
+This file contains instructions for AI agents working on this codebase.
 
-- Build command: `make build`
-- Compiled binary: `dist/gob`
+## Running shell commands with `gob`
 
-## Background Jobs with `gob`
-
-Use `gob` to manage background processes.
+Use `gob` to run shell commands.
 
 **When to use `run` (blocks until complete):**
 - Running tests: `gob run make test`
