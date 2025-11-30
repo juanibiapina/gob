@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-11-30
+
 ### Changed
 
 - Job metadata now includes `created_at` timestamp for explicit sorting (decoupled from ID format)
