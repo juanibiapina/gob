@@ -1,16 +1,12 @@
 # gob
 
-> Background job management for HUMANs and AGENTs.
+> Background job management for humans and AI agents.
 
-`gob` (pronounced job) is a lightweight CLI tool for managing background processes, because you and Claude Code both need to check the logs!
+`gob` (pronounced job, of course) is a CLI for managing background processes with a shared interface for you and your AI coding agent.
 
-When an AI coding AGENT like Claude Code starts background processes, the output is difficult to inspect.
-`gob` solves this by giving both you and the AGENT a shared interface to start, stop, monitor, and inspect background process.
-Start a dev server with Claude Code, check its logs yourself and vice-versa.
-The AGENT can monitor what you started.
-Everyone has the same view.
+Start a dev server with Claude Code, check its logs yourself. Or vice-versa. The agent can monitor what you started. Everyone has the same view.
 
-No more "can you check if that's still running?" No more copy-pasting logs through chat. No more reading tmux outputs. Just direct access to your processes, for everyone.
+No more "can you check if that's still running?" No more copy-pasting logs through chat. Just direct access to your processes, for everyone.
 
 ## Features
 
