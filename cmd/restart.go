@@ -10,14 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var restartFollow bool
+
 var restartCmd = &cobra.Command{
 	Use:               "restart <job_id>",
-	Short:             "Restart a job",
+	Short:             "Restart a job (stop + start)",
 	ValidArgsFunction: completeJobIDs,
 	Long: `Restart a job by stopping it (if running) and starting it again.
 
 If the job is running, sends SIGTERM to stop it first.
-If the job is already stopped, behaves like 'job start'.
+If the job is already stopped, simply starts it.
 
 The job ID remains the same, but a new PID is assigned.
 
@@ -27,6 +29,9 @@ Examples:
 
   # Restart a stopped job (same as start)
   gob restart V3x0QqI
+
+  # Restart and follow output until completion
+  gob restart -f V3x0QqI
 
 Output:
   Restarted job <job_id> with new PID <pid> running: <command>
@@ -90,10 +95,24 @@ Exit codes:
 		commandStr := strings.Join(metadata.Command, " ")
 		fmt.Printf("Restarted job %s with new PID %d running: %s\n", jobID, pid, commandStr)
 
+		// If follow flag is set, follow the output
+		if restartFollow {
+			completed, err := followJob(jobID, pid, storageDir)
+			if err != nil {
+				return err
+			}
+			if completed {
+				fmt.Printf("\nJob %s completed\n", jobID)
+			} else {
+				fmt.Printf("\nJob %s continues running in background\n", jobID)
+			}
+		}
+
 		return nil
 	},
 }
 
 func init() {
+	restartCmd.Flags().BoolVarP(&restartFollow, "follow", "f", false, "Follow output until job completes")
 	rootCmd.AddCommand(restartCmd)
 }

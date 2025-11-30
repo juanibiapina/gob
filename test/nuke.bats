@@ -4,9 +4,9 @@ load 'test_helper'
 
 @test "nuke command removes all metadata files" {
   # Start multiple jobs
-  run "$JOB_CLI" start sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
-  run "$JOB_CLI" start sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
 
   # Verify metadata files exist
@@ -25,7 +25,7 @@ load 'test_helper'
 
 @test "nuke command removes all log files" {
   # Start a job that writes to stdout
-  run "$JOB_CLI" start echo "test output"
+  run "$JOB_CLI" add echo "test output"
   assert_success
 
   # Get job ID
@@ -51,7 +51,7 @@ load 'test_helper'
 
 @test "nuke command stops running jobs" {
   # Start a long-running job
-  run "$JOB_CLI" start sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
 
   # Get job ID and PID
@@ -76,7 +76,7 @@ load 'test_helper'
 
 @test "nuke command handles jobs with no log files gracefully" {
   # Start a job
-  run "$JOB_CLI" start sleep 300
+  run "$JOB_CLI" add sleep 300
   assert_success
 
   # Get job ID

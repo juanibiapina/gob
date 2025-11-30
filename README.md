@@ -18,6 +18,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 - **Detached Process Execution** - Run commands that persist independently of the CLI
 - **AI coding agent friendly** - Easy for Coding Agents to start and monitor background processes
 - **Jobs per directory** - Jobs are scoped per directory, making it easier to maintain per project jobs
+- **Smart job reuse** - `run` command reuses existing stopped jobs with same command
 
 ## Installation
 
@@ -111,17 +112,20 @@ gob completion powershell | Out-String | Invoke-Expression
 # Usage overview
 gob
 
-# Start a background job
-gob start sleep 300
+# Add a background job
+gob add python -m http.server 8000
+
+# Run a command and wait for it to complete
+gob run make test
 
 # List all jobs
 gob list
 
 # View stdout output
-gob stdout 1234567890
+gob stdout V3x0QqI
 
 # Stop a job
-gob stop 1234567890
+gob stop V3x0QqI
 
 # Clean up all stopped jobs
 gob cleanup
@@ -134,25 +138,30 @@ To make `gob` available to AI coding agents, add the following instructions to y
 ```markdown
 ## Background Jobs with `gob`
 
-Use `gob` to manage background processes (dev servers, watchers, etc.):
+Use `gob` to manage background processes.
 
-**Starting jobs:**
-- `gob start <command> [args...]` - Start a background job (returns a job ID)
+**When to use `run` (blocks until complete):**
+- Running tests: `gob run make test`
+- Build commands: `gob run make build`
+- Linting/formatting: `gob run npm run lint`
+- Any command where you need to see the result before proceeding
 
-**Monitoring:**
+**When to use `add` (returns immediately):**
+- Dev servers: `gob add npm run dev`
+- Watch modes: `gob add npm run watch`
+- Long-running services: `gob add python -m http.server`
+- Any command that runs indefinitely
+
+**Commands:**
+- `gob run <command>` - Run and wait for completion (reuses existing stopped job)
+- `gob add <command>` - Add a background job (always creates new)
 - `gob list` - List jobs with IDs and status
 - `gob stdout <job_id>` - View stdout output
 - `gob stderr <job_id>` - View stderr output
-
-**Managing:**
 - `gob stop <job_id>` - Stop a job (use `--force` for SIGKILL)
-- `gob restart <job_id>` - Restart a job
-- `gob signal <job_id> <signal>` - Send a signal to a job
-
-**Cleanup:**
+- `gob start <job_id>` - Start a stopped job
+- `gob restart <job_id>` - Restart a job (stop + start)
 - `gob cleanup` - Remove metadata for stopped jobs
-- `gob remove <job_id>` - Remove single job metadata
-- `gob nuke` - Stop all jobs and remove all data
 ```
 
 ## Interactive TUI
@@ -200,78 +209,31 @@ The TUI has three panels:
 - `?` - Show help
 - `q` - Quit
 
-## CLI Usage
+## CLI Reference
 
-### Core Commands
+### Job Management
 
-#### `gob overview`
+#### `gob add <command> [args...]`
 
-Display usage patterns and common workflows. Also shown when running `gob` without arguments.
-
-```bash
-gob overview
-```
-
-#### `gob start <command> [args...]`
-
-Start a command as a background job. The job runs detached and persists even after the CLI exits.
+Create and start a new background job. The job runs detached and persists even after the CLI exits.
 
 ```bash
-# Start a long-running server
-gob start python -m http.server 8000
+# Add a long-running server
+gob add python -m http.server 8000
 
-# Run a background process
-gob start ./script.sh --verbose
-
-# Execute with arguments
-gob start ffmpeg -i input.mp4 output.avi
+# Add with follow flag to watch output
+gob add -f make build
 ```
 
-**Output**: Job ID (e.g., `V3x0QqI`)
-
-#### `gob list`
-
-Display all jobs with their status (running/stopped), PID, and command.
-
-```bash
-gob list
-```
-
-**Output format**:
-```
-ID          STATUS   PID    COMMAND
-1234567890  running  12345  sleep 300
-1234567891  stopped  -      python server.py
-```
-
-#### `gob stop <job_id> [--force]`
-
-Stop a running job. Uses SIGTERM by default; use `--force` for SIGKILL.
-
-```bash
-# Graceful shutdown
-gob stop 1234567890
-
-# Force kill
-gob stop 1234567890 --force
-```
-
-#### `gob restart <job_id>`
-
-Stop and then start a job with the same command.
-
-```bash
-gob restart 1234567890
-```
-
-### Job Cleanup
+**Flags:**
+- `-f, --follow` - Follow output until job completes
 
 #### `gob remove <job_id>`
 
 Remove metadata for a single stopped job. Job must be stopped first.
 
 ```bash
-gob remove 1234567890
+gob remove V3x0QqI
 ```
 
 #### `gob cleanup`
@@ -290,33 +252,47 @@ Stop all running jobs and remove all metadata. Use with caution.
 gob nuke
 ```
 
-### Output Management
+### Process Control
 
-#### `gob stdout <job_id> [--follow]`
+#### `gob start <job_id>`
 
-Display stdout output for a job.
-
-```bash
-# View stdout
-gob stdout 1234567890
-
-# Tail stdout in real-time
-gob stdout 1234567890 --follow
-```
-
-#### `gob stderr <job_id> [--follow]`
-
-Display stderr output for a job.
+Start a stopped job. Fails if job is already running (use `restart` instead).
 
 ```bash
-# View stderr
-gob stderr 1234567890
+gob start V3x0QqI
 
-# Tail stderr in real-time
-gob stderr 1234567890 --follow
+# Start and follow output
+gob start -f V3x0QqI
 ```
 
-### Advanced
+**Flags:**
+- `-f, --follow` - Follow output until job completes
+
+#### `gob stop <job_id>`
+
+Stop a running job. Uses SIGTERM by default; use `--force` for SIGKILL.
+
+```bash
+# Graceful shutdown
+gob stop V3x0QqI
+
+# Force kill
+gob stop V3x0QqI --force
+```
+
+#### `gob restart <job_id>`
+
+Stop (if running) and start a job. Works on both running and stopped jobs.
+
+```bash
+gob restart V3x0QqI
+
+# Restart and follow output
+gob restart -f V3x0QqI
+```
+
+**Flags:**
+- `-f, --follow` - Follow output until job completes
 
 #### `gob signal <job_id> <signal>`
 
@@ -324,13 +300,86 @@ Send a custom signal to a job.
 
 ```bash
 # Send SIGHUP (reload configuration)
-gob signal 1234567890 HUP
+gob signal V3x0QqI HUP
 
 # Send SIGUSR1
-gob signal 1234567890 USR1
+gob signal V3x0QqI USR1
 ```
 
 **Supported signals**: TERM, KILL, HUP, INT, QUIT, USR1, USR2, and more
+
+### Convenience
+
+#### `gob run <command> [args...]`
+
+Run a command and follow its output until completion. Smart job reuse:
+
+- If a stopped job with the same command exists → restart it
+- If a running job with the same command exists → error
+- If no matching job exists → create new job
+
+```bash
+# Run tests and wait for results
+gob run make test
+
+# Run build (will reuse existing stopped job)
+gob run make build
+```
+
+### Output
+
+#### `gob logs`
+
+Follow stdout and stderr for all jobs in the current directory.
+
+```bash
+gob logs
+```
+
+#### `gob stdout <job_id>`
+
+Display stdout output for a job.
+
+```bash
+# View stdout
+gob stdout V3x0QqI
+
+# Tail stdout in real-time
+gob stdout V3x0QqI --follow
+```
+
+#### `gob stderr <job_id>`
+
+Display stderr output for a job.
+
+```bash
+# View stderr
+gob stderr V3x0QqI
+
+# Tail stderr in real-time
+gob stderr V3x0QqI --follow
+```
+
+### Other
+
+#### `gob list`
+
+Display all jobs with their status (running/stopped), PID, and command.
+
+```bash
+gob list
+
+# Show jobs from all directories
+gob list --all
+```
+
+#### `gob overview`
+
+Display usage patterns and common workflows. Also shown when running `gob` without arguments.
+
+```bash
+gob overview
+```
 
 ## Contributing
 

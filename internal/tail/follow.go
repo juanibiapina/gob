@@ -65,6 +65,8 @@ type Follower struct {
 	sources map[string]bool // tracks which paths are already being followed
 	errCh   chan error
 	wg      sync.WaitGroup
+	done    chan struct{}
+	stopped bool
 }
 
 // SystemLogTag is the prefix used for system log messages (same length as job IDs)
@@ -87,6 +89,7 @@ func NewFollower(w io.Writer) *Follower {
 		w:       w,
 		sources: make(map[string]bool),
 		errCh:   make(chan error, 100),
+		done:    make(chan struct{}),
 	}
 }
 
@@ -104,19 +107,34 @@ func (f *Follower) AddSource(source FileSource) {
 	f.wg.Add(1)
 	go func() {
 		defer f.wg.Done()
-		err := followWithPrefix(source.Path, source.Prefix, f.w, &f.mu)
+		err := followWithPrefix(source.Path, source.Prefix, f.w, &f.mu, f.done)
 		if err != nil {
 			f.errCh <- err
 		}
 	}()
 }
 
-// Wait blocks until an error occurs from any source
-func (f *Follower) Wait() error {
-	for err := range f.errCh {
-		return err
+// Stop signals all followers to stop and waits for them to finish
+func (f *Follower) Stop() {
+	f.mu.Lock()
+	if f.stopped {
+		f.mu.Unlock()
+		return
 	}
-	return nil
+	f.stopped = true
+	f.mu.Unlock()
+	close(f.done)
+	f.wg.Wait()
+}
+
+// Wait blocks until an error occurs from any source or the follower is stopped
+func (f *Follower) Wait() error {
+	select {
+	case err := <-f.errCh:
+		return err
+	case <-f.done:
+		return nil
+	}
 }
 
 // FollowMultiple continuously reads from multiple files and writes to the given writer.
@@ -131,7 +149,7 @@ func FollowMultiple(sources []FileSource, w io.Writer) error {
 }
 
 // followWithPrefix follows a file and prefixes each line with the given prefix
-func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mutex) error {
+func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mutex, done <-chan struct{}) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -143,6 +161,13 @@ func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mute
 	var lineBuf bytes.Buffer
 
 	for {
+		// Check if we should stop
+		select {
+		case <-done:
+			return nil
+		default:
+		}
+
 		_, err := file.Seek(offset, io.SeekStart)
 		if err != nil {
 			return err

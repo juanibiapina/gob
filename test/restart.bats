@@ -10,7 +10,7 @@ load 'test_helper'
 
 @test "restart command restarts a running job" {
   # Add a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and original PID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -41,7 +41,7 @@ load 'test_helper'
 
 @test "restart command starts a stopped job" {
   # Add a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -76,7 +76,7 @@ load 'test_helper'
 
 @test "restart command preserves job ID" {
   # Add a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -95,7 +95,7 @@ load 'test_helper'
 
 @test "restart command updates PID in metadata" {
   # Add a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and original PID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -118,7 +118,7 @@ load 'test_helper'
 
 @test "restart command preserves command in metadata" {
   # Add a job with multiple arguments
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -136,7 +136,7 @@ load 'test_helper'
 
 @test "restarted job shows as running in list" {
   # Add a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -158,7 +158,7 @@ load 'test_helper'
 
 @test "restart command works multiple times" {
   # Add a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)

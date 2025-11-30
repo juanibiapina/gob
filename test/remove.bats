@@ -10,7 +10,7 @@ load 'test_helper'
 
 @test "remove command fails if job is running" {
   # Start a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -27,7 +27,7 @@ load 'test_helper'
 
 @test "remove command removes stopped job" {
   # Start a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -59,7 +59,7 @@ load 'test_helper'
 
 @test "remove command is not idempotent" {
   # Start a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
@@ -81,10 +81,10 @@ load 'test_helper'
 
 @test "remove command removes specific job among multiple jobs" {
   # Start first job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Start second job
-  "$JOB_CLI" start sleep 400
+  "$JOB_CLI" add sleep 400
 
   # Get metadata files sorted by time (newest first)
   metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
@@ -120,7 +120,7 @@ load 'test_helper'
 
 @test "remove command removes already stopped job" {
   # Start a job
-  "$JOB_CLI" start sleep 300
+  "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
   metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)

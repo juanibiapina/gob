@@ -17,7 +17,7 @@ load 'test_helper'
   sleep 0.3
 
   # Start a job that writes output
-  run "$JOB_CLI" start echo "Dynamic job output"
+  run "$JOB_CLI" add echo "Dynamic job output"
   assert_success
 
   # Extract job ID

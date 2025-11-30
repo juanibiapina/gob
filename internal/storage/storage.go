@@ -194,3 +194,33 @@ func listJobMetadataWithFilter(workdirFilter string) ([]JobInfo, error) {
 
 	return jobs, nil
 }
+
+// FindJobByCommand finds a job in the current directory with matching command+args
+// Returns nil if no matching job is found
+func FindJobByCommand(command []string) (*JobMetadata, error) {
+	jobs, err := ListJobMetadata()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, job := range jobs {
+		if commandsEqual(job.Metadata.Command, command) {
+			return job.Metadata, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// commandsEqual compares two command slices for equality
+func commandsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
