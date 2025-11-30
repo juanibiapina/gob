@@ -112,3 +112,26 @@ load 'test_helper'
   assert_success
   assert_output --partial "running: ls -a"
 }
+
+@test "run command passes flags to subcommand without -- separator" {
+  # Run command with flags without needing --
+  run "$JOB_CLI" run ls -la
+  assert_success
+  assert_output --partial "running: ls -la"
+}
+
+@test "run command handles complex flags without -- separator" {
+  # Simulate pnpm --filter style command
+  run "$JOB_CLI" run echo --filter web typecheck
+  assert_success
+  assert_output --partial "running: echo --filter web typecheck"
+  assert_output --partial "--filter web typecheck"
+}
+
+@test "run command handles quoted single string command" {
+  # Command passed as single quoted string
+  run "$JOB_CLI" run "echo hello world"
+  assert_success
+  assert_output --partial "running: echo hello world"
+  assert_output --partial "hello world"
+}

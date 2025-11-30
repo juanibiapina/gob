@@ -11,8 +11,9 @@ import (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run <command> [args...]",
-	Short: "Run a command and follow its output until completion",
+	Use:                "run <command> [args...]",
+	Short:              "Run a command and follow its output until completion",
+	DisableFlagParsing: true,
 	Long: `Run a command as a background job and follow its output until completion.
 
 Smart job reuse:
@@ -23,9 +24,6 @@ Smart job reuse:
 The job runs in the background, so if you press Ctrl+C or kill the CLI,
 the job continues running normally.
 
-Use -- to separate gob flags from the command when the command has flags:
-  gob run -- python -m http.server 8080
-
 Examples:
   # Run a build and follow its output
   gob run make build
@@ -33,8 +31,15 @@ Examples:
   # Run tests (will reuse existing job if found)
   gob run make test
 
-  # Run a command with flags (use -- separator)
-  gob run -- ls -la
+  # Run a command with flags (no special handling needed)
+  gob run ls -la
+  gob run pnpm --filter web typecheck
+
+  # Quoted command strings also work
+  gob run "make test"
+
+  # Optional -- separator is also supported
+  gob run -- python -m http.server 8080
 
 Output:
   Shows the job's stdout and stderr in real-time until the job completes.
@@ -42,8 +47,24 @@ Output:
 Exit codes:
   0: Job completed
   1: Error (failed to start job, job already running)`,
-	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Handle missing arguments
+		if len(args) == 0 {
+			return fmt.Errorf("requires at least 1 arg(s)")
+		}
+
+		// Strip leading -- if present (optional separator)
+		if args[0] == "--" {
+			args = args[1:]
+			if len(args) == 0 {
+				return fmt.Errorf("requires at least 1 arg(s)")
+			}
+		}
+
+		// Handle quoted command string: "echo hello world" -> ["echo", "hello", "world"]
+		if len(args) == 1 && strings.Contains(args[0], " ") {
+			args = strings.Fields(args[0])
+		}
 		// Check if a job with the same command exists
 		existingJob, err := storage.FindJobByCommand(args)
 		if err != nil {

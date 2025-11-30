@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Job metadata now includes `created_at` timestamp for explicit sorting (decoupled from ID format)
+- `run` command no longer requires `--` separator for commands with flags (e.g., `gob run pnpm --filter web typecheck`)
+- `run` command now supports quoted command strings (e.g., `gob run "make test"`)
 
 ## [0.7.0] - 2025-11-30
 
