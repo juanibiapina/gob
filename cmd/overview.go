@@ -26,7 +26,9 @@ PROCESS CONTROL
   gob signal <job_id> <sig>  Send signal to job
 
 CONVENIENCE
-  gob run <command>       Run command (reuses existing stopped job)
+  gob run <command>       Run and wait (reuses stopped job with same command)
+    gob run make test
+    gob run pnpm --filter web typecheck
 
 OUTPUT
   gob logs                Follow stdout+stderr for all jobs

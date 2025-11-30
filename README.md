@@ -112,11 +112,12 @@ gob completion powershell | Out-String | Invoke-Expression
 # Usage overview
 gob
 
-# Add a background job
-gob add -- python -m http.server 8000
-
 # Run a command and wait for it to complete
 gob run make test
+gob run pnpm --filter web typecheck
+
+# Add a background job (for long-running processes)
+gob add python -m http.server 8000
 
 # List all jobs
 gob list
@@ -149,7 +150,7 @@ Use `gob` to manage background processes.
 **When to use `add` (returns immediately):**
 - Dev servers: `gob add npm run dev`
 - Watch modes: `gob add npm run watch`
-- Long-running services: `gob add -- python -m http.server`
+- Long-running services: `gob add python -m http.server`
 - Any command that runs indefinitely
 
 **Commands:**
@@ -219,7 +220,7 @@ Create and start a new background job. The job runs detached and persists even a
 
 ```bash
 # Add a long-running server
-gob add -- python -m http.server 8000
+gob add python -m http.server 8000
 
 # Add with follow flag to watch output
 gob add -f make build
@@ -312,18 +313,15 @@ gob signal V3x0QqI USR1
 
 #### `gob run <command> [args...]`
 
-Run a command and follow its output until completion. Smart job reuse:
-
-- If a stopped job with the same command exists → restart it
-- If a running job with the same command exists → error
-- If no matching job exists → create new job
+Run a command and follow its output until completion. Reuses existing stopped job with the same command instead of creating a new one.
 
 ```bash
-# Run tests and wait for results
+# Simple commands
 gob run make test
 
-# Run build (will reuse existing stopped job)
-gob run make build
+# Commands with flags work directly
+gob run pnpm --filter web typecheck
+gob run ls -la
 ```
 
 ### Output
