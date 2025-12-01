@@ -502,6 +502,11 @@ func (m Model) restartJob(job Job) tea.Cmd {
 			}
 		}
 
+		// Clear previous logs
+		if err := storage.ClearJobLogs(job.ID); err != nil {
+			return actionResultMsg{message: fmt.Sprintf("Failed to clear logs: %v", err), isError: true}
+		}
+
 		// Get job directory
 		jobDir, err := storage.EnsureJobDir()
 		if err != nil {
