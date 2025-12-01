@@ -117,9 +117,9 @@ load 'test_helper'
   assert_output --partial "Line 3"
 }
 
-@test "restarted job appends to existing log files" {
-  # Start a job that writes output
-  run "$JOB_CLI" add echo "First run"
+@test "restarted job clears previous log files" {
+  # Start a job that writes unique output
+  run "$JOB_CLI" add -- sh -c "echo first-run-marker"
   assert_success
 
   # Extract job ID
@@ -127,9 +127,13 @@ load 'test_helper'
   job_id=$(basename "$metadata_file" .json)
 
   # Wait for output to be written
-  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "First run"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "first-run-marker"
 
-  # Restart the job
+  # Modify the command in metadata to output different text
+  jq '.command = ["sh", "-c", "echo second-run-marker"]' "$metadata_file" > "${metadata_file}.tmp"
+  mv "${metadata_file}.tmp" "$metadata_file"
+
+  # Restart the job (logs should be cleared)
   run "$JOB_CLI" restart "$job_id"
   assert_success
 
@@ -137,12 +141,11 @@ load 'test_helper'
   new_pid=$(jq -r '.pid' "$metadata_file")
   wait_for_process_death "$new_pid" || sleep 0.2
 
-  # Check that log file exists and has content
-  # Since we're using append mode, restarting should add to the log
+  # Check that log file only contains second run output
   run "$JOB_CLI" stdout "$job_id"
   assert_success
-  # The file should contain "First run" at least once
-  assert_output --partial "First run"
+  assert_output "second-run-marker"
+  refute_output --partial "first-run-marker"
 }
 
 @test "stdout command handles empty output" {

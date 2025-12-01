@@ -61,6 +61,11 @@ Exit codes:
 			return fmt.Errorf("failed to create job directory: %w", err)
 		}
 
+		// Clear previous logs before starting
+		if err := storage.ClearJobLogs(jobID); err != nil {
+			return fmt.Errorf("failed to clear job logs: %w", err)
+		}
+
 		pid, err := process.StartDetached(command, commandArgs, metadata.ID, storageDir)
 		if err != nil {
 			return fmt.Errorf("failed to start job: %w", err)

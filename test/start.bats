@@ -106,3 +106,36 @@ load 'test_helper'
   assert_success
   assert_output --regexp "${job_id}: \[[0-9]+\] running: sleep 300"
 }
+
+@test "start command clears previous log files" {
+  # Start a job that writes unique output
+  run "$JOB_CLI" add -- sh -c "echo first-run-marker"
+  assert_success
+
+  # Extract job ID
+  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
+  job_id=$(basename "$metadata_file" .json)
+
+  # Wait for output to be written and process to stop
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "first-run-marker"
+  pid=$(jq -r '.pid' "$metadata_file")
+  wait_for_process_death "$pid" || sleep 0.2
+
+  # Modify the command in metadata to output different text
+  jq '.command = ["sh", "-c", "echo second-run-marker"]' "$metadata_file" > "${metadata_file}.tmp"
+  mv "${metadata_file}.tmp" "$metadata_file"
+
+  # Start the job (logs should be cleared)
+  run "$JOB_CLI" start "$job_id"
+  assert_success
+
+  # Get new PID and wait for process to finish
+  new_pid=$(jq -r '.pid' "$metadata_file")
+  wait_for_process_death "$new_pid" || sleep 0.2
+
+  # Check that log file only contains second run output
+  run "$JOB_CLI" stdout "$job_id"
+  assert_success
+  assert_output "second-run-marker"
+  refute_output --partial "first-run-marker"
+}
