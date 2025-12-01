@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- TUI now shows `[following]` indicator on log panels regardless of which panel is focused
+
+## [0.9.2] - 2025-12-01
+
+### Changed
+
 - `start` and `restart` commands now clear previous logs before starting, consistent with `run` command behavior
 
 ## [0.9.1] - 2025-12-01

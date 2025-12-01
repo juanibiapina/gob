@@ -746,10 +746,8 @@ func (m Model) renderPanels() string {
 		}
 		stdoutTitle = fmt.Sprintf("2 stdout: %s %s", job.ID, status)
 		stderrTitle = "3 stderr"
-		if m.followLogs && m.activePanel == panelStdout {
+		if m.followLogs {
 			stdoutTitle += " [following]"
-		}
-		if m.followLogs && m.activePanel == panelStderr {
 			stderrTitle += " [following]"
 		}
 	} else {
