@@ -384,6 +384,16 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.jobs) > 0 && !m.jobs[m.cursor].Running {
 			return m, m.removeJob(m.jobs[m.cursor].ID)
 		}
+
+	case "K":
+		m.stdoutView.LineUp(1)
+		m.followLogs = false
+
+	case "J":
+		m.stdoutView.LineDown(1)
+		if m.stdoutView.AtBottom() {
+			m.followLogs = true
+		}
 	}
 
 	return m, nil
