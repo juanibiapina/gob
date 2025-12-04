@@ -1,0 +1,384 @@
+# Daemon Architecture Design
+
+## Overview
+
+This document describes the redesign of `gob` to use a daemon-based architecture similar to tmux. The daemon runs in the background and manages all job processes, while CLI commands and the TUI act as clients that communicate with the daemon via a Unix socket.
+
+**Platform Support:** This architecture is designed for Unix-like systems (Linux, macOS, BSD) only. Windows is not supported due to reliance on Unix-specific features (Unix sockets, signals, process groups, setsid).
+
+## Goals
+
+1. **Single source of truth**: All job state lives in the daemon process
+2. **Real-time updates**: Multiple clients can observe job state changes simultaneously
+3. **Simplified architecture**: Eliminate file-based state synchronization issues
+4. **Automatic daemon lifecycle**: Daemon auto-starts when needed, shuts down with `gob nuke`
+5. **Process isolation**: Jobs are children of the daemon, not individual CLI invocations
+
+## Architecture Components
+
+### 1. Daemon Process (Internal)
+
+The daemon is a long-running background process that:
+
+- **Manages all job processes**: Creates, monitors, and terminates jobs
+- **Maintains job state**: Holds all job metadata in memory (PID, status, command, logs, etc.)
+- **Listens on Unix socket**: Accepts connections from multiple clients simultaneously
+- **Handles client requests**: Processes commands (add, stop, list, etc.) and sends responses
+- **Manages job output**: Writes stdout/stderr to log files, provides paths to clients
+- **Auto-shutdown**: Exits when `gob nuke` is called
+
+**Process lifecycle:**
+```
+Start → Listen on socket → Accept client connections → Process requests → Shutdown (on nuke)
+                              ↑                            ↓
+                              └────────────────────────────┘
+                                   (loop until shutdown)
+```
+
+**Data structures (in-memory):**
+```go
+type Job struct {
+    ID         string
+    Command    []string
+    PID        int
+    Status     JobStatus // Running, Stopped
+    Workdir    string
+    CreatedAt  time.Time
+    StdoutPath string    // Path to stdout log file
+    StderrPath string    // Path to stderr log file
+}
+
+type Daemon struct {
+    jobs      map[string]*Job
+    clients   []*Client        // Connected clients
+    socket    net.Listener
+    mu        sync.RWMutex     // Protects jobs and clients
+}
+```
+
+**Daemon startup (internal, auto-daemonizes):**
+The daemon automatically detaches itself from the parent process using double-fork technique. No manual backgrounding needed.
+
+### 2. Client Commands (CLI and TUI)
+
+All existing commands (`add`, `run`, `list`, `stop`, etc.) become clients that:
+
+1. **Check if daemon is running** (probe the socket)
+2. **Auto-start daemon** if not running (daemon auto-daemonizes)
+3. **Connect to Unix socket**
+4. **Send request** with command and parameters
+5. **Receive response** (immediate for most commands)
+6. **Close connection** (or keep open for event subscriptions)
+
+**Commands that auto-start daemon:**
+- `gob add`
+- `gob run`
+- `gob list`
+- `gob start`
+- `gob stop`
+- `gob restart`
+- `gob signal`
+- `gob logs`
+- `gob stdout`
+- `gob stderr`
+- `gob tui`
+- `gob cleanup`
+- `gob nuke` (auto-starts then immediately shuts down)
+- `gob remove`
+
+**Commands that don't auto-start:**
+- `gob overview` (doesn't need daemon)
+- `gob completion` (doesn't need daemon)
+
+### 3. Communication Protocol
+
+**Socket location:**
+```
+Unix socket: $XDG_RUNTIME_DIR/gob/daemon.sock
+  - Falls back to /tmp/gob-$UID/daemon.sock if XDG_RUNTIME_DIR not set
+```
+
+**Message format (JSON over socket):**
+
+Client → Daemon (Request):
+```json
+{
+  "type": "add|run|list|stop|start|restart|remove|cleanup|nuke|subscribe|stream_output",
+  "payload": {
+    // Command-specific parameters
+    "command": ["npm", "start"],
+    "workdir": "/path/to/project",
+    "job_id": "V3x0QqI",
+    "stream": "stdout|stderr|both",
+    // ...
+  }
+}
+```
+
+Daemon → Client (Response):
+```json
+{
+  "success": true,
+  "error": "",
+  "data": {
+    // Command-specific response data
+    "job_id": "V3x0QqI",
+    "stdout_path": "/path/to/stdout.log",
+    "stderr_path": "/path/to/stderr.log",
+    "jobs": [...],
+    // ...
+  }
+}
+```
+
+Daemon → Client (Event Stream - for subscriptions):
+```json
+{
+  "event": "job_added|job_started|job_stopped|job_removed",
+  "job_id": "V3x0QqI",
+  "data": {
+    "status": "running|stopped",
+    "pid": 12345,
+    // ... full job metadata
+  }
+}
+```
+
+**Request Types:**
+
+| Request Type | Description | Response |
+|-------------|-------------|----------|
+| `add` | Create and start new job | Job metadata with log paths |
+| `run` | Create/reuse job, return metadata | Job metadata with log paths |
+| `list` | Get all jobs (optionally filtered by workdir) | Array of job metadata |
+| `stop` | Stop a running job | Success/error |
+| `start` | Start a stopped job | Success/error |
+| `restart` | Stop and start a job | Success/error |
+| `remove` | Remove stopped job | Success/error |
+| `cleanup` | Remove all stopped jobs | Count removed |
+| `nuke` | Stop all jobs, remove all metadata, shutdown daemon | Count removed |
+| `signal` | Send signal to job | Success/error |
+| `subscribe` | Subscribe to job events (state changes only) | Event stream (long-lived connection) |
+
+### 4. Auto-start Mechanism
+
+**How auto-start works:**
+
+1. Client attempts to connect to socket
+2. If connection fails (daemon not running):
+   - Client executes itself in daemon mode as a detached process
+   - Daemon process auto-daemonizes:
+     - Double-fork to detach from parent
+     - Close stdin/stdout/stderr
+     - Create new session (setsid)
+     - Create socket
+     - Write PID to lock file
+     - Start listening
+   - Parent waits briefly for socket to appear
+   - Retry connection
+3. If connection succeeds, proceed with request
+
+**Lock file location:**
+```
+PID file: $XDG_RUNTIME_DIR/gob/daemon.pid
+```
+
+**No user-facing daemon command:**
+The daemon is purely an internal implementation detail. Users interact only with regular commands (`add`, `run`, `list`, etc.), which handle daemon lifecycle transparently.
+
+### 5. Multiple Simultaneous Clients
+
+The daemon handles multiple clients connected at the same time:
+
+**Scenarios:**
+
+1. **TUI viewing jobs** while CLI adds a new job
+   - TUI has an open subscription to job events
+   - CLI connects, sends `add` request, receives response
+   - Daemon broadcasts `job_added` event to all subscribers
+   - TUI receives event and updates display
+
+2. **Multiple TUIs open simultaneously**
+   - Each TUI subscribes to job events
+   - Any state change (job added/stopped/removed) broadcasts to all
+   - All TUIs stay in sync automatically
+
+3. **CLI stopping a job** while TUI is viewing it
+   - CLI sends `stop` request
+   - Daemon stops the job
+   - Daemon broadcasts `job_stopped` event to all subscribers
+   - TUI receives event and updates display
+
+**Implementation:**
+```go
+// Daemon maintains list of active client connections
+type Client struct {
+    conn       net.Conn
+    encoder    *json.Encoder
+    decoder    *json.Decoder
+    subscribed bool           // Is this client subscribed to events?
+    filter     *EventFilter   // Optional filter (workdir, job IDs, etc.)
+}
+
+// When job state changes, broadcast to all subscribed clients
+func (d *Daemon) broadcastEvent(event Event) {
+    d.mu.RLock()
+    defer d.mu.RUnlock()
+    
+    for _, client := range d.clients {
+        if client.subscribed && client.matchesFilter(event) {
+            client.encoder.Encode(event)
+        }
+    }
+}
+```
+
+### 6. Job Output Management
+
+**Approach: Daemon writes, clients tail**
+
+The daemon writes job output to log files, and clients tail those files directly. No streaming through the daemon needed.
+
+**How it works:**
+1. Daemon spawns job process and captures stdout/stderr
+2. Daemon writes output to log files:
+   - `$XDG_RUNTIME_DIR/gob/logs/{job_id}.stdout.log`
+   - `$XDG_RUNTIME_DIR/gob/logs/{job_id}.stderr.log`
+3. When client requests output (e.g., `gob run`, `gob stdout --follow`):
+   - Client sends request
+   - Daemon responds with log file paths
+   - Client tails the files directly using standard file operations
+4. TUI:
+   - Subscribes to job events for state changes
+   - Receives log file paths in job metadata
+   - Tails log files directly (no daemon streaming)
+
+**Benefits:**
+- **Simpler daemon**: No output buffering or streaming logic needed
+- **Standard tools**: Clients can use existing file-tailing libraries
+- **No sync issues**: Single source of truth (the log file on disk)
+- **Lower memory**: Daemon doesn't need to buffer output
+- **Resilient**: If daemon restarts, log files persist
+
+**Log file cleanup:**
+- Log files removed when job is removed (`gob remove` or `gob cleanup`)
+- All logs deleted on `gob nuke`
+
+### 7. State Management
+
+**In-memory only:**
+- All job metadata lives only in daemon memory
+- No JSON metadata files written to disk
+- If daemon crashes, all state is lost
+
+**What persists to disk:**
+- **Log files only** - Job stdout/stderr written continuously
+- **Daemon PID file** - For detecting if daemon is running
+
+**Crash behavior:**
+- Daemon crash → all job metadata lost
+- Jobs keep running (they're child processes with Setsid)
+- Next client command auto-starts new daemon
+- New daemon starts with empty state (no jobs)
+- User must manually stop orphaned processes if needed
+
+**Clean shutdown (`gob nuke`):**
+1. Client sends `nuke` request
+2. Daemon:
+   - Stops all running jobs (SIGTERM with escalation to SIGKILL)
+   - Removes all log files
+   - Closes all client connections
+   - Removes PID file and socket
+   - Exits
+
+**Why no persistence:**
+- **Simplicity**: No need to sync memory and disk state
+- **No recovery complexity**: No stale PID detection or zombie cleanup
+- **Clear contract**: Daemon crash = clean slate
+- **User expectation**: Similar to tmux server - if it crashes, sessions are gone
+
+## Migration Path
+
+### Phase 1: Daemon Infrastructure
+- [ ] Implement daemon process with socket listener
+- [ ] Implement auto-daemonization (double-fork)
+- [ ] Implement client connection and protocol (basic request/response)
+- [ ] Implement auto-start mechanism
+
+### Phase 2: Core Commands
+- [ ] Migrate `add` command to client-server
+- [ ] Migrate `list` command to client-server
+- [ ] Migrate `stop/start/restart` commands to client-server
+- [ ] Migrate `remove/cleanup` commands to client-server
+- [ ] Implement `nuke` with daemon shutdown
+
+### Phase 3: Event Subscription
+- [ ] Implement event subscription mechanism
+- [ ] Broadcast job state changes to subscribers
+- [ ] Add client-side event handling
+
+### Phase 4: Output Management
+- [ ] Daemon writes job output to log files
+- [ ] Return log paths in responses
+- [ ] Migrate `run` command (returns paths, client tails)
+- [ ] Migrate `logs/stdout/stderr` commands (tail files directly)
+
+### Phase 5: TUI Integration
+- [ ] Convert TUI to daemon client
+- [ ] Subscribe to job events for state changes
+- [ ] Tail log files directly for output display
+- [ ] Remove file polling from TUI
+
+### Phase 6: Polish
+- [ ] Handle client disconnection gracefully
+- [ ] Proper error handling and logging
+- [ ] Performance testing
+- [ ] Documentation updates
+
+## Benefits
+
+1. **Simpler architecture**: No output streaming, no state persistence
+2. **Better UX**: Changes from one client immediately visible in others
+3. **Cleaner code**: Single source of truth (daemon memory)
+4. **More robust**: Daemon manages process lifecycle
+5. **Standard tools**: File tailing uses well-tested libraries
+6. **Lower memory**: No output buffering in daemon
+
+## Drawbacks & Considerations
+
+1. **No crash recovery**: Daemon crash loses all job metadata (by design)
+2. **Orphaned processes**: Jobs may keep running if daemon crashes
+3. **Socket permissions**: Unix socket security considerations
+4. **Breaking change**: Not backward compatible with current implementation
+5. **Testing**: Need integration tests for client-server communication
+6. **Unix-only**: Windows is not supported (Unix sockets, signals, setsid required)
+
+## Alternative Approaches Considered
+
+### 1. Stream output through daemon
+- **Pro**: Clients don't need file access
+- **Con**: Complex buffering logic, memory overhead, sync issues
+- **Decision**: Not needed - file tailing is simple and reliable
+
+### 2. Persist metadata to disk
+- **Pro**: Daemon crash recovery possible
+- **Con**: Complexity of syncing memory/disk, stale PID handling
+- **Decision**: Not worth it - crashes should be rare, clean slate is simpler
+
+### 3. Keep file-based architecture
+- **Pro**: No daemon needed
+- **Con**: Can't do real-time multi-client updates, polling required
+- **Decision**: Daemon enables better UX for TUI and multi-client scenarios
+
+### 4. Support Windows with named pipes
+- **Pro**: Cross-platform support
+- **Con**: Significant complexity, different IPC mechanisms, different process management
+- **Decision**: Not worth it - focus on Unix-like systems where gob is primarily used
+
+## Conclusion
+
+This daemon-based architecture provides a solid foundation for real-time job management while keeping complexity low. By avoiding output streaming through the daemon and not persisting metadata, we get a simpler implementation with clear failure modes.
+
+The auto-start mechanism ensures users don't need to think about the daemon - it's an invisible implementation detail. `gob nuke` provides a clear "reset everything" command that shuts down the daemon cleanly.
+
+The migration can be done incrementally over several phases, with each phase deliverable and testable independently.
