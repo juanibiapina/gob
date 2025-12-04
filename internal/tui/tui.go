@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -383,6 +384,20 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if len(m.jobs) > 0 && !m.jobs[m.cursor].Running {
 			return m, m.removeJob(m.jobs[m.cursor].ID)
+		}
+
+	case "c":
+		if len(m.jobs) > 0 {
+			err := clipboard.WriteAll(m.jobs[m.cursor].Command)
+			if err != nil {
+				m.message = fmt.Sprintf("Failed to copy: %v", err)
+				m.isError = true
+				m.messageTime = time.Now()
+			} else {
+				m.message = "Command copied to clipboard"
+				m.isError = false
+				m.messageTime = time.Now()
+			}
 		}
 
 	case "K":
@@ -967,6 +982,7 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("S", "kill"),
 				m.renderKey("r", "restart"),
 				m.renderKey("d", "delete"),
+				m.renderKey("c", "copy"),
 				m.renderKey("n", "new"),
 				m.renderKey("a", "all dirs"),
 				m.renderKey("1/2/3", "panels"),
@@ -1042,6 +1058,7 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("S", "kill (SIGKILL)"),
 		"  " + m.renderKey("r", "restart"),
 		"  " + m.renderKey("d", "delete stopped"),
+		"  " + m.renderKey("c", "copy command"),
 		"  " + m.renderKey("n", "new job"),
 		"",
 		helpKeyStyle.Render("Log Viewer"),

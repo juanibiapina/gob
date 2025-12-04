@@ -13,6 +13,7 @@ type keyMap struct {
 	New       key.Binding
 	ToggleAll key.Binding
 	Follow    key.Binding
+	Copy      key.Binding
 	Help      key.Binding
 	Quit      key.Binding
 	Escape    key.Binding
@@ -60,6 +61,10 @@ var keys = keyMap{
 		key.WithKeys("f"),
 		key.WithHelp("f", "toggle follow"),
 	),
+	Copy: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "copy command"),
+	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
 		key.WithHelp("?", "help"),
@@ -86,6 +91,6 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Enter, k.Escape},
 		{k.Stop, k.Kill, k.Restart, k.Remove},
-		{k.New, k.ToggleAll, k.Help, k.Quit},
+		{k.New, k.Copy, k.ToggleAll, k.Help, k.Quit},
 	}
 }
