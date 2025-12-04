@@ -57,7 +57,7 @@ type Daemon struct {
 ```
 
 **Daemon startup (internal, auto-daemonizes):**
-The daemon automatically detaches itself from the parent process using double-fork technique. No manual backgrounding needed.
+The daemon is started as a detached process with `setsid`, ensuring it survives after the parent exits. No manual backgrounding needed.
 
 ### 2. Client Commands (CLI and TUI)
 
@@ -166,14 +166,8 @@ Daemon → Client (Event Stream - for subscriptions):
 
 1. Client attempts to connect to socket
 2. If connection fails (daemon not running):
-   - Client executes itself in daemon mode as a detached process
-   - Daemon process auto-daemonizes:
-     - Double-fork to detach from parent
-     - Close stdin/stdout/stderr
-     - Create new session (setsid)
-     - Create socket
-     - Write PID to lock file
-     - Start listening
+   - Client starts daemon as a detached process with `setsid`
+   - Daemon creates socket and starts listening
    - Parent waits briefly for socket to appear
    - Retry connection
 3. If connection succeeds, proceed with request

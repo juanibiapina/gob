@@ -1,0 +1,87 @@
+package daemon
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// RequestType represents the type of request being made to the daemon
+type RequestType string
+
+const (
+	RequestTypePing     RequestType = "ping"
+	RequestTypeShutdown RequestType = "shutdown"
+)
+
+// Request represents a client request to the daemon
+type Request struct {
+	Type    RequestType            `json:"type"`
+	Payload map[string]interface{} `json:"payload,omitempty"`
+}
+
+// Response represents a daemon response to a client request
+type Response struct {
+	Success bool                   `json:"success"`
+	Error   string                 `json:"error,omitempty"`
+	Data    map[string]interface{} `json:"data,omitempty"`
+}
+
+// NewRequest creates a new request with the given type
+func NewRequest(reqType RequestType) *Request {
+	return &Request{
+		Type:    reqType,
+		Payload: make(map[string]interface{}),
+	}
+}
+
+// NewSuccessResponse creates a successful response
+func NewSuccessResponse() *Response {
+	return &Response{
+		Success: true,
+		Data:    make(map[string]interface{}),
+	}
+}
+
+// NewErrorResponse creates an error response
+func NewErrorResponse(err error) *Response {
+	return &Response{
+		Success: false,
+		Error:   err.Error(),
+	}
+}
+
+// EncodeRequest encodes a request to JSON
+func EncodeRequest(req *Request) ([]byte, error) {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+	return data, nil
+}
+
+// DecodeRequest decodes a request from JSON
+func DecodeRequest(data []byte) (*Request, error) {
+	var req Request
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, fmt.Errorf("failed to decode request: %w", err)
+	}
+	return &req, nil
+}
+
+// EncodeResponse encodes a response to JSON
+func EncodeResponse(resp *Response) ([]byte, error) {
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode response: %w", err)
+	}
+	return data, nil
+}
+
+// DecodeResponse decodes a response from JSON
+func DecodeResponse(data []byte) (*Response, error) {
+	var resp Response
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return &resp, nil
+}
