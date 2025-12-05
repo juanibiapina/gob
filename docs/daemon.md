@@ -308,7 +308,7 @@ The daemon writes job output to log files, and clients tail those files directly
 Note: Two tests in start.bats and stdout_stderr.bats modify metadata files to test
 log clearing behavior. These will need redesign when migrating to daemon.
 
-### Phase 2b: Test Metadata Cleanup
+### Phase 2b: Test Metadata Cleanup ✅
 Clean up remaining direct metadata file access in tests.
 
 **Log file access (OK - logs remain on disk after daemon migration):**
@@ -316,15 +316,12 @@ Clean up remaining direct metadata file access in tests.
 - Uses `wait_for_log_content` and checks for `.stdout.log`/`.stderr.log` files
 - These are fine - daemon will still write logs to disk
 
-**Metadata file modification (needs cleanup):**
-| File | Line | Usage |
-|------|------|-------|
-| `test/start.bats` | 122-124 | Modifies `.json` to change command (tests log clearing) |
-| `test/stdout_stderr.bats` | 131-133 | Modifies `.json` to change command (tests log clearing) |
+**Completed:**
+- [x] Refactored log clearing tests to use timestamp-based approach
+- [x] Removed direct metadata file manipulation from `test/start.bats` and `test/stdout_stderr.bats`
 
-**Tasks:**
-- [ ] Find alternative approach for testing log clearing behavior
-- [ ] Remove direct metadata file manipulation from tests
+The tests now use `date +%s%N` to output unique timestamps each run, verifying
+logs are cleared by checking the old output is gone rather than modifying commands
 
 ### Phase 2c: Core Commands
 - [ ] Add `Job` struct to daemon

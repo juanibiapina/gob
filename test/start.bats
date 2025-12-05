@@ -104,24 +104,25 @@ load 'test_helper'
 }
 
 @test "start command clears previous log files" {
-  # Start a job that writes unique output
-  run "$JOB_CLI" add -- sh -c "echo first-run-marker"
+  # Start a job that writes unique timestamp output
+  run "$JOB_CLI" add -- sh -c 'echo "run-$(date +%s%N)"'
   assert_success
 
   # Extract job ID
   local job_id=$(get_job_field id)
 
   # Wait for output to be written and process to stop
-  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "first-run-marker"
+  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "run-"
   local pid=$(get_job_field pid)
   wait_for_process_death "$pid" || sleep 0.2
 
-  # Modify the command in metadata to output different text
-  # Note: This test relies on implementation detail (metadata files)
-  # and will need redesign when migrating to daemon
-  local metadata_file="$XDG_DATA_HOME/gob/${job_id}.json"
-  jq '.command = ["sh", "-c", "echo second-run-marker"]' "$metadata_file" > "${metadata_file}.tmp"
-  mv "${metadata_file}.tmp" "$metadata_file"
+  # Record the first output
+  run "$JOB_CLI" stdout "$job_id"
+  assert_success
+  local first_output="$output"
+
+  # Small delay to ensure different timestamp
+  sleep 0.01
 
   # Start the job (logs should be cleared)
   run "$JOB_CLI" start "$job_id"
@@ -131,9 +132,9 @@ load 'test_helper'
   local new_pid=$(get_job_field pid)
   wait_for_process_death "$new_pid" || sleep 0.2
 
-  # Check that log file only contains second run output
+  # Check that log file only contains new output (first output is gone)
   run "$JOB_CLI" stdout "$job_id"
   assert_success
-  assert_output "second-run-marker"
-  refute_output --partial "first-run-marker"
+  refute_output --partial "$first_output"
+  assert_output --partial "run-"
 }
