@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-12-05
+
 ### Changed
 
 - **Backend rewrite**: Replaced detached process model with a tmux-style daemon architecture. Jobs are now children of the daemon instead of orphaned processes, enabling better lifetime control, reliable status tracking, and real-time multi-client updates. All commands work the same, but the foundation is now in place for upcoming features.
