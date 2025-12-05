@@ -4,19 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/adrg/xdg"
 )
 
 // GetRuntimeDir returns the runtime directory for gob daemon files
-// Uses XDG_RUNTIME_DIR if set, otherwise falls back to /tmp/gob-$UID
 func GetRuntimeDir() (string, error) {
-	// Try XDG_RUNTIME_DIR first
-	if xdgRuntime := os.Getenv("XDG_RUNTIME_DIR"); xdgRuntime != "" {
-		return filepath.Join(xdgRuntime, "gob"), nil
-	}
-
-	// Fallback to /tmp/gob-$UID
-	uid := os.Getuid()
-	return filepath.Join("/tmp", fmt.Sprintf("gob-%d", uid)), nil
+	return filepath.Join(xdg.RuntimeDir, "gob"), nil
 }
 
 // GetSocketPath returns the path to the daemon Unix socket

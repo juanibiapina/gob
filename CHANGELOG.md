@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daemon auto-shutdown: daemon exits after 5 minutes of inactivity (no jobs)
 - TUI: `f` key in jobs panel to toggle follow mode for log panels without switching focus
 
+### Changed
+
+- Use `github.com/adrg/xdg` package for runtime directory resolution instead of manual `XDG_RUNTIME_DIR` handling
+
 ### Fixed
 
 - TUI: First job now appears selected when added to an empty job list
