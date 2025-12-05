@@ -76,32 +76,62 @@ var (
 				Padding(0, 1).
 				Bold(true)
 
-	// Job list styles - selected uses violet tint for distinction
-	jobSelectedStyle = lipgloss.NewStyle().
-				Background(lipgloss.Color("#3d3655")). // Violet-tinted dark
-				Foreground(fgSalt)
+	// Job list styles - selection background color
+	selectionBg = lipgloss.Color("#2d3f76")
+
+	jobSelectedBgStyle = lipgloss.NewStyle().
+				Background(selectionBg)
 
 	jobRunningStyle = lipgloss.NewStyle().
 			Foreground(successColor).
 			Bold(true)
 
+	jobRunningSelectedStyle = lipgloss.NewStyle().
+				Foreground(successColor).
+				Background(selectionBg).
+				Bold(true)
+
 	jobSuccessStyle = lipgloss.NewStyle().
 			Foreground(successColor)
+
+	jobSuccessSelectedStyle = lipgloss.NewStyle().
+				Foreground(successColor).
+				Background(selectionBg)
 
 	jobFailedStyle = lipgloss.NewStyle().
 			Foreground(dangerColor)
 
+	jobFailedSelectedStyle = lipgloss.NewStyle().
+				Foreground(dangerColor).
+				Background(selectionBg)
+
 	jobStoppedStyle = lipgloss.NewStyle().
 			Foreground(fgOyster) // Gray for manually stopped/killed
+
+	jobStoppedSelectedStyle = lipgloss.NewStyle().
+				Foreground(fgOyster).
+				Background(selectionBg)
 
 	jobIDStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
 
+	jobIDSelectedStyle = lipgloss.NewStyle().
+				Foreground(highlightColor).
+				Background(selectionBg)
+
 	jobPIDStyle = lipgloss.NewStyle().
 			Foreground(fgSquid)
 
+	jobPIDSelectedStyle = lipgloss.NewStyle().
+				Foreground(fgSquid).
+				Background(selectionBg)
+
 	jobCommandStyle = lipgloss.NewStyle().
 			Foreground(fgSmoke)
+
+	jobCommandSelectedStyle = lipgloss.NewStyle().
+				Foreground(fgSmoke).
+				Background(selectionBg)
 
 	// Log styles
 	logPrefixStyle = lipgloss.NewStyle().
@@ -142,6 +172,11 @@ var (
 	workdirStyle = lipgloss.NewStyle().
 			Foreground(fgSquid).
 			Italic(true)
+
+	workdirSelectedStyle = lipgloss.NewStyle().
+				Foreground(fgSquid).
+				Background(selectionBg).
+				Italic(true)
 
 	// Help key style
 	helpKeyStyle = lipgloss.NewStyle().

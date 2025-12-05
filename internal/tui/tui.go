@@ -1054,32 +1054,28 @@ func (m Model) renderJobList(width, height int) string {
 		// Status indicator with semantic symbols
 		var status string
 		if job.Running {
-			// ◉ Running (green)
 			if isSelected {
-				status = "◉"
+				status = jobRunningSelectedStyle.Render("◉")
 			} else {
 				status = jobRunningStyle.Render("◉")
 			}
 		} else if job.ExitCode != nil {
 			if *job.ExitCode == 0 {
-				// ✓ Success (green)
 				if isSelected {
-					status = "✓"
+					status = jobSuccessSelectedStyle.Render("✓")
 				} else {
 					status = jobSuccessStyle.Render("✓")
 				}
 			} else {
-				// ✗ Failed (red)
 				if isSelected {
-					status = "✗"
+					status = jobFailedSelectedStyle.Render("✗")
 				} else {
 					status = jobFailedStyle.Render("✗")
 				}
 			}
 		} else {
-			// ◼ Stopped/killed (gray)
 			if isSelected {
-				status = "◼"
+				status = jobStoppedSelectedStyle.Render("◼")
 			} else {
 				status = jobStoppedStyle.Render("◼")
 			}
@@ -1088,16 +1084,16 @@ func (m Model) renderJobList(width, height int) string {
 		// Job ID
 		var id string
 		if isSelected {
-			id = job.ID
+			id = jobIDSelectedStyle.Render(job.ID)
 		} else {
 			id = jobIDStyle.Render(job.ID)
 		}
 
 		// PID
-		var pid string
 		pidStr := fmt.Sprintf("[%d]", job.PID)
+		var pid string
 		if isSelected {
-			pid = pidStr
+			pid = jobPIDSelectedStyle.Render(pidStr)
 		} else {
 			pid = jobPIDStyle.Render(pidStr)
 		}
@@ -1105,9 +1101,11 @@ func (m Model) renderJobList(width, height int) string {
 		// Exit code (only for failures)
 		var exitInfo string
 		if job.ExitCode != nil && *job.ExitCode != 0 {
-			exitInfo = fmt.Sprintf("(%d) ", *job.ExitCode)
-			if !isSelected {
-				exitInfo = jobFailedStyle.Render(exitInfo)
+			exitStr := fmt.Sprintf("(%d) ", *job.ExitCode)
+			if isSelected {
+				exitInfo = jobFailedSelectedStyle.Render(exitStr)
+			} else {
+				exitInfo = jobFailedStyle.Render(exitStr)
 			}
 		}
 
@@ -1117,32 +1115,39 @@ func (m Model) renderJobList(width, height int) string {
 			maxCmdLen = 10
 		}
 		cmd := m.truncate(job.Command, maxCmdLen)
-
-		line := fmt.Sprintf(" %s %s %s %s%s", status, id, pid, exitInfo, cmd)
-
-		// Pad to full width and apply selection style
+		var cmdStyled string
 		if isSelected {
-			// Pad with spaces to fill width
+			cmdStyled = jobCommandSelectedStyle.Render(cmd)
+		} else {
+			cmdStyled = cmd
+		}
+
+		// Build line with spaces also styled for selection
+		var line string
+		if isSelected {
+			sp := jobSelectedBgStyle.Render(" ")
+			line = sp + status + sp + id + sp + pid + sp + exitInfo + cmdStyled
+			// Pad with styled spaces to fill width
 			padding := width - lipgloss.Width(line)
 			if padding > 0 {
-				line = line + strings.Repeat(" ", padding)
+				line = line + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
 			}
-			line = jobSelectedStyle.Render(line)
+		} else {
+			line = fmt.Sprintf(" %s %s %s %s%s", status, id, pid, exitInfo, cmd)
 		}
 
 		lines = append(lines, line)
 
 		// Show workdir if showing all
 		if m.showAll && job.Workdir != "" {
-			var wd string
 			wdStr := m.shortenPath(job.Workdir)
+			var wd string
 			if isSelected {
-				wd = "   " + wdStr
+				wd = jobSelectedBgStyle.Render("   ") + workdirSelectedStyle.Render(wdStr)
 				padding := width - lipgloss.Width(wd)
 				if padding > 0 {
-					wd = wd + strings.Repeat(" ", padding)
+					wd = wd + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
 				}
-				wd = jobSelectedStyle.Render(wd)
 			} else {
 				wd = "   " + workdirStyle.Render(wdStr)
 			}
