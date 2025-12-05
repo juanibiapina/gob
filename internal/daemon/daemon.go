@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -104,7 +103,7 @@ func (d *Daemon) Start() error {
 	// Setup signal handling
 	d.setupSignalHandling()
 
-	log.Printf("Daemon started, listening on %s\n", d.socketPath)
+	Logger.Info("daemon started", "socket", d.socketPath)
 
 	// Accept connections
 	go d.acceptConnections()
@@ -126,7 +125,7 @@ func (d *Daemon) Run() error {
 
 // Shutdown gracefully shuts down the daemon
 func (d *Daemon) Shutdown() error {
-	log.Println("Shutting down daemon...")
+	Logger.Info("shutting down daemon")
 
 	// Close all subscriber connections
 	d.subscribersMu.Lock()
@@ -139,7 +138,7 @@ func (d *Daemon) Shutdown() error {
 	// Stop all managed jobs first
 	stopped, _, _ := d.jobManager.Nuke("")
 	if stopped > 0 {
-		log.Printf("Stopped %d running job(s)\n", stopped)
+		Logger.Info("stopped running jobs", "count", stopped)
 	}
 
 	// Close listener
@@ -149,15 +148,15 @@ func (d *Daemon) Shutdown() error {
 
 	// Remove socket
 	if err := os.Remove(d.socketPath); err != nil && !os.IsNotExist(err) {
-		log.Printf("Warning: failed to remove socket: %v\n", err)
+		Logger.Warn("failed to remove socket", "error", err)
 	}
 
 	// Remove PID file
 	if err := os.Remove(d.pidPath); err != nil && !os.IsNotExist(err) {
-		log.Printf("Warning: failed to remove PID file: %v\n", err)
+		Logger.Warn("failed to remove PID file", "error", err)
 	}
 
-	log.Println("Daemon shut down")
+	Logger.Info("daemon shut down")
 	return nil
 }
 
@@ -172,7 +171,7 @@ func (d *Daemon) cleanupStaleSocket() error {
 	conn, err := net.Dial("unix", d.socketPath)
 	if err != nil {
 		// Socket exists but can't connect - it's stale
-		log.Printf("Removing stale socket: %s\n", d.socketPath)
+		Logger.Info("removing stale socket", "path", d.socketPath)
 		return os.Remove(d.socketPath)
 	}
 
@@ -194,7 +193,7 @@ func (d *Daemon) setupSignalHandling() {
 
 	go func() {
 		sig := <-sigChan
-		log.Printf("Received signal %v, shutting down...\n", sig)
+		Logger.Info("received signal", "signal", sig)
 		d.cancel()
 	}()
 }
@@ -209,7 +208,7 @@ func (d *Daemon) acceptConnections() {
 				// Daemon is shutting down
 				return
 			default:
-				log.Printf("Error accepting connection: %v\n", err)
+				Logger.Error("error accepting connection", "error", err)
 				continue
 			}
 		}
@@ -227,7 +226,7 @@ func (d *Daemon) handleConnection(conn net.Conn) {
 	// Decode request
 	var req Request
 	if err := decoder.Decode(&req); err != nil {
-		log.Printf("Error decoding request: %v\n", err)
+		Logger.Error("error decoding request", "error", err)
 		d.sendErrorResponse(encoder, err)
 		conn.Close()
 		return
@@ -247,7 +246,7 @@ func (d *Daemon) handleConnection(conn net.Conn) {
 
 	// Send response
 	if err := encoder.Encode(resp); err != nil {
-		log.Printf("Error encoding response: %v\n", err)
+		Logger.Error("error encoding response", "error", err)
 	}
 }
 
@@ -628,13 +627,13 @@ func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Enco
 	d.subscribers = append(d.subscribers, sub)
 	d.subscribersMu.Unlock()
 
-	log.Printf("Subscriber added (workdir: %q), total: %d\n", workdir, len(d.subscribers))
+	Logger.Debug("subscriber added", "workdir", workdir, "total", len(d.subscribers))
 
 	// Send success response
 	resp := NewSuccessResponse()
 	resp.Data["message"] = "subscribed"
 	if err := encoder.Encode(resp); err != nil {
-		log.Printf("Error sending subscribe response: %v\n", err)
+		Logger.Error("error sending subscribe response", "error", err)
 		d.removeSubscriber(sub)
 		conn.Close()
 		return
@@ -656,7 +655,7 @@ func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Enco
 	// Remove subscriber
 	d.removeSubscriber(sub)
 	conn.Close()
-	log.Printf("Subscriber removed, total: %d\n", len(d.subscribers))
+	Logger.Debug("subscriber removed", "total", len(d.subscribers))
 }
 
 // broadcastEvent sends an event to all subscribed clients
@@ -677,7 +676,7 @@ func (d *Daemon) broadcastEvent(event Event) {
 		// Set write deadline to avoid blocking
 		sub.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		if err := sub.encoder.Encode(event); err != nil {
-			log.Printf("Error sending event to subscriber: %v\n", err)
+			Logger.Error("error sending event to subscriber", "error", err)
 			deadSubscribers = append(deadSubscribers, sub)
 		}
 	}

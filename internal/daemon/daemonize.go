@@ -20,7 +20,7 @@ func StartDaemon() error {
 
 	// Start daemon as detached process
 	cmd := exec.Command(exe, "daemon")
-	cmd.Stdin = nil // TODO: configure logging for daemon process
+	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{

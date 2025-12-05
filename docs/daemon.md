@@ -380,7 +380,7 @@ Notes:
 - [x] Signal handling (SIGTERM, SIGINT) for graceful daemon shutdown
 - [x] Stale socket cleanup on daemon start
 - [ ] Handle client disconnection gracefully (partial - subscribers removed on error)
-- [ ] Proper error handling and logging
+- [x] Proper error handling and logging (slog-based structured logging to daemon.log)
 - [ ] Performance testing
 - [ ] Documentation updates
 
@@ -390,7 +390,6 @@ Notes:
 - [ ] Test daemon auto-start behavior
 - [ ] Test event subscription/broadcasting
 - [ ] Test signal forwarding to jobs
-- [ ] Configure daemon process logging (TODO in `daemonize.go:23`)
 - [ ] Handle rapid client connect/disconnect
 - [ ] Stress test with many concurrent clients
 
@@ -400,7 +399,7 @@ Notes:
 - [ ] Job output size limits / log rotation
 - [ ] Detect and handle orphaned log files
 - [ ] `gob status` command to show daemon health/stats
-- [ ] Structured logging with log levels
+- [x] Structured logging with log levels
 
 ## Benefits
 
@@ -456,7 +455,6 @@ Notes:
 | Task | Priority | Notes |
 |------|----------|-------|
 | Unit tests for daemon package | High | No tests exist for `internal/daemon/` |
-| Configure daemon logging | Medium | TODO in `daemonize.go:23` |
 | Client disconnection handling | Medium | Subscribers removed on error, but could be cleaner |
 | Performance/stress testing | Low | Not tested with many concurrent clients |
 | Log rotation / size limits | Low | Job logs can grow unbounded |
