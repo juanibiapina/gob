@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -47,57 +45,28 @@ Exit codes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]
 
-		// Load job metadata
-		metadata, err := storage.LoadJobMetadata(jobID + ".json")
+		// Connect to daemon
+		client, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
+		}
+
+		// Stop via daemon
+		pid, err := client.Stop(jobID, forceStop)
 		if err != nil {
 			return fmt.Errorf("job not found: %s", jobID)
 		}
 
-		// Check if process is already stopped
-		if !process.IsProcessRunning(metadata.PID) {
-			if forceStop {
-				fmt.Printf("Force stopped job %s (PID %d)\n", jobID, metadata.PID)
-			} else {
-				fmt.Printf("Stopped job %s (PID %d)\n", jobID, metadata.PID)
-			}
-			return nil
-		}
-
-		// Stop the process
-		var stopErr error
-		if forceStop {
-			// Send SIGKILL immediately and wait for termination
-			stopErr = process.KillProcess(metadata.PID)
-			if stopErr != nil {
-				return fmt.Errorf("failed to kill job %s: %w", jobID, stopErr)
-			}
-
-			// Poll for termination after SIGKILL
-			deadline := time.Now().Add(5 * time.Second)
-			for time.Now().Before(deadline) {
-				if !process.IsProcessRunning(metadata.PID) {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-
-			// Verify process is actually dead
-			if process.IsProcessRunning(metadata.PID) {
-				return fmt.Errorf("process %d still running after SIGKILL", metadata.PID)
-			}
-		} else {
-			// Use graceful shutdown with timeout
-			stopErr = process.StopProcessWithTimeout(metadata.PID, 10*time.Second, 5*time.Second)
-			if stopErr != nil {
-				return fmt.Errorf("failed to stop job %s: %w", jobID, stopErr)
-			}
-		}
-
 		// Print confirmation
 		if forceStop {
-			fmt.Printf("Force stopped job %s (PID %d)\n", jobID, metadata.PID)
+			fmt.Printf("Force stopped job %s (PID %d)\n", jobID, pid)
 		} else {
-			fmt.Printf("Stopped job %s (PID %d)\n", jobID, metadata.PID)
+			fmt.Printf("Stopped job %s (PID %d)\n", jobID, pid)
 		}
 
 		return nil

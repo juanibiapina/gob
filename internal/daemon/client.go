@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"syscall"
 	"time"
 )
 
@@ -103,6 +104,273 @@ func (c *Client) Shutdown() error {
 	}
 
 	return nil
+}
+
+// List returns all jobs, optionally filtered by workdir
+func (c *Client) List(workdir string) ([]JobResponse, error) {
+	req := NewRequest(RequestTypeList)
+	if workdir != "" {
+		req.Payload["workdir"] = workdir
+	}
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("list failed: %s", resp.Error)
+	}
+
+	// Parse jobs from response
+	jobsRaw, ok := resp.Data["jobs"]
+	if !ok {
+		return []JobResponse{}, nil
+	}
+
+	// Convert to JobResponse slice
+	jobsJSON, err := json.Marshal(jobsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal jobs: %w", err)
+	}
+
+	var jobs []JobResponse
+	if err := json.Unmarshal(jobsJSON, &jobs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal jobs: %w", err)
+	}
+
+	return jobs, nil
+}
+
+// Add creates and starts a new job
+func (c *Client) Add(command []string, workdir string) (*JobResponse, error) {
+	req := NewRequest(RequestTypeAdd)
+	req.Payload["command"] = command
+	req.Payload["workdir"] = workdir
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("add failed: %s", resp.Error)
+	}
+
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
+	if !ok {
+		return nil, fmt.Errorf("no job in response")
+	}
+
+	jobJSON, err := json.Marshal(jobRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
+}
+
+// Stop stops a running job
+func (c *Client) Stop(jobID string, force bool) (int, error) {
+	req := NewRequest(RequestTypeStop)
+	req.Payload["job_id"] = jobID
+	req.Payload["force"] = force
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return 0, err
+	}
+
+	if !resp.Success {
+		return 0, fmt.Errorf("%s", resp.Error)
+	}
+
+	pid, _ := resp.Data["pid"].(float64)
+	return int(pid), nil
+}
+
+// Start starts a stopped job
+func (c *Client) Start(jobID string) (*JobResponse, error) {
+	req := NewRequest(RequestTypeStart)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
+	if !ok {
+		return nil, fmt.Errorf("no job in response")
+	}
+
+	jobJSON, err := json.Marshal(jobRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
+}
+
+// Restart restarts a job
+func (c *Client) Restart(jobID string) (*JobResponse, error) {
+	req := NewRequest(RequestTypeRestart)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
+	if !ok {
+		return nil, fmt.Errorf("no job in response")
+	}
+
+	jobJSON, err := json.Marshal(jobRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
+}
+
+// Remove removes a stopped job
+func (c *Client) Remove(jobID string) (int, error) {
+	req := NewRequest(RequestTypeRemove)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return 0, err
+	}
+
+	if !resp.Success {
+		return 0, fmt.Errorf("%s", resp.Error)
+	}
+
+	pid, _ := resp.Data["pid"].(float64)
+	return int(pid), nil
+}
+
+// Cleanup removes all stopped jobs
+func (c *Client) Cleanup(workdir string) (int, error) {
+	req := NewRequest(RequestTypeCleanup)
+	if workdir != "" {
+		req.Payload["workdir"] = workdir
+	}
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return 0, err
+	}
+
+	if !resp.Success {
+		return 0, fmt.Errorf("cleanup failed: %s", resp.Error)
+	}
+
+	count, _ := resp.Data["count"].(float64)
+	return int(count), nil
+}
+
+// Nuke stops all jobs and removes all data
+func (c *Client) Nuke(workdir string) (stopped, logsDeleted, cleaned int, err error) {
+	req := NewRequest(RequestTypeNuke)
+	if workdir != "" {
+		req.Payload["workdir"] = workdir
+	}
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	if !resp.Success {
+		return 0, 0, 0, fmt.Errorf("nuke failed: %s", resp.Error)
+	}
+
+	stoppedF, _ := resp.Data["stopped"].(float64)
+	logsDeletedF, _ := resp.Data["logs_deleted"].(float64)
+	cleanedF, _ := resp.Data["cleaned"].(float64)
+	return int(stoppedF), int(logsDeletedF), int(cleanedF), nil
+}
+
+// Signal sends a signal to a job
+func (c *Client) Signal(jobID string, signal syscall.Signal) (int, error) {
+	req := NewRequest(RequestTypeSignal)
+	req.Payload["job_id"] = jobID
+	req.Payload["signal"] = int(signal)
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return 0, err
+	}
+
+	if !resp.Success {
+		return 0, fmt.Errorf("%s", resp.Error)
+	}
+
+	pid, _ := resp.Data["pid"].(float64)
+	return int(pid), nil
+}
+
+// GetJob returns a job by ID
+func (c *Client) GetJob(jobID string) (*JobResponse, error) {
+	req := NewRequest(RequestTypeGetJob)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
+	if !ok {
+		return nil, fmt.Errorf("no job in response")
+	}
+
+	jobJSON, err := json.Marshal(jobRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
 }
 
 // Close closes the connection to the daemon

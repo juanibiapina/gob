@@ -111,8 +111,8 @@ load 'test_helper'
   # Extract job ID
   local job_id=$(get_job_field id)
 
-  # Wait for output to be written and process to stop
-  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "run-"
+  # Wait for output to be written and process to stop (logs in XDG_RUNTIME_DIR with daemon)
+  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" "run-"
   local pid=$(get_job_field pid)
   wait_for_process_death "$pid" || sleep 0.2
 

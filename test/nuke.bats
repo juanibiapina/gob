@@ -32,12 +32,12 @@ load 'test_helper'
   # Get job ID
   local job_id=$(get_job_field id)
 
-  # Wait for output to be written
-  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "test output"
+  # Wait for output to be written (logs in XDG_RUNTIME_DIR with daemon)
+  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" "test output"
 
   # Verify log files exist
-  assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log" ]
-  assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log" ]
+  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" ]
+  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}.stderr.log" ]
 
   # Run nuke
   run "$JOB_CLI" nuke
@@ -45,8 +45,8 @@ load 'test_helper'
   assert_output --partial "Deleted 2 log file(s)"
 
   # Verify log files are removed
-  assert [ ! -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log" ]
-  assert [ ! -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log" ]
+  assert [ ! -f "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" ]
+  assert [ ! -f "$XDG_RUNTIME_DIR/gob/${job_id}.stderr.log" ]
 }
 
 @test "nuke command stops running jobs" {
@@ -81,9 +81,9 @@ load 'test_helper'
   # Get job ID
   local job_id=$(get_job_field id)
 
-  # Manually remove log files to simulate missing logs
-  rm -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log"
-  rm -f "$XDG_DATA_HOME/gob/${job_id}.stderr.log"
+  # Manually remove log files to simulate missing logs (logs in XDG_RUNTIME_DIR with daemon)
+  rm -f "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log"
+  rm -f "$XDG_RUNTIME_DIR/gob/${job_id}.stderr.log"
 
   # Run nuke (should not fail even if log files are missing)
   run "$JOB_CLI" nuke

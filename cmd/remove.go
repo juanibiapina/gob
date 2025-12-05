@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -40,32 +37,25 @@ Exit codes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]
 
-		// Load job metadata
-		metadata, err := storage.LoadJobMetadata(jobID + ".json")
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("job not found: %s", jobID)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Check if process is still running
-		if process.IsProcessRunning(metadata.PID) {
-			return fmt.Errorf("cannot remove running job: %s (use 'stop' first)", jobID)
-		}
-
-		// Get job directory
-		jobDir, err := storage.GetJobDir()
+		// Remove via daemon
+		pid, err := client.Remove(jobID)
 		if err != nil {
-			return fmt.Errorf("failed to get job directory: %w", err)
-		}
-
-		// Remove the metadata file
-		filename := jobID + ".json"
-		filePath := filepath.Join(jobDir, filename)
-		if err := os.Remove(filePath); err != nil {
-			return fmt.Errorf("failed to remove job metadata: %w", err)
+			return err
 		}
 
 		// Print confirmation
-		fmt.Printf("Removed job %s (PID %d)\n", jobID, metadata.PID)
+		fmt.Printf("Removed job %s (PID %d)\n", jobID, pid)
 
 		return nil
 	},

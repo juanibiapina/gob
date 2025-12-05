@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,9 +15,10 @@ import (
 
 // followJob follows a job's output until it completes or is interrupted
 // Returns true if job completed, false if interrupted
-func followJob(jobID string, pid int, storageDir string) (bool, error) {
-	stdoutPath := filepath.Join(storageDir, fmt.Sprintf("%s.stdout.log", jobID))
-	stderrPath := filepath.Join(storageDir, fmt.Sprintf("%s.stderr.log", jobID))
+// stdoutPath is the full path to the stdout log file
+func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
+	// Derive stderr path from stdout path
+	stderrPath := strings.Replace(stdoutPath, ".stdout.log", ".stderr.log", 1)
 
 	// Wait for log files to exist
 	for i := 0; i < 50; i++ {
@@ -83,4 +85,11 @@ func followJob(jobID string, pid int, storageDir string) (bool, error) {
 	follower.Wait()
 
 	return completed, nil
+}
+
+// followJobByDir follows a job's output using storageDir to build paths
+// This is a convenience wrapper for commands that still use the old pattern
+func followJobByDir(jobID string, pid int, storageDir string) (bool, error) {
+	stdoutPath := filepath.Join(storageDir, fmt.Sprintf("%s.stdout.log", jobID))
+	return followJob(jobID, pid, stdoutPath)
 }

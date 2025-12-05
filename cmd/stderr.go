@@ -3,9 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/juanibiapina/gob/internal/tail"
 	"github.com/spf13/cobra"
 )
@@ -41,20 +40,24 @@ Exit codes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]
 
-		// Load job metadata to verify it exists
-		_, err := storage.LoadJobMetadata(jobID + ".json")
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("job not found: %s", jobID)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Get job directory
-		jobDir, err := storage.GetJobDir()
+		// Get job from daemon
+		job, err := client.GetJob(jobID)
 		if err != nil {
-			return fmt.Errorf("failed to get job directory: %w", err)
+			return err
 		}
 
-		// Calculate stderr file path using standard pattern
-		stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID))
+		stderrPath := job.StderrPath
 
 		// Check if stderr file exists
 		if _, err := os.Stat(stderrPath); os.IsNotExist(err) {

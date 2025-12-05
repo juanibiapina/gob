@@ -23,8 +23,8 @@ load 'test_helper'
   # Extract job ID
   local job_id=$(get_job_field id)
 
-  # Wait for output to be written
-  wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Dynamic job output"
+  # Wait for output to be written (logs in XDG_RUNTIME_DIR with daemon)
+  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" "Dynamic job output"
 
   # Give logs command time to pick it up
   sleep 0.5

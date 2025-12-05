@@ -270,11 +270,10 @@ The daemon writes job output to log files, and clients tail those files directly
 - **Daemon PID file** - For detecting if daemon is running
 
 **Crash behavior:**
-- Daemon crash → all job metadata lost
-- Jobs keep running (they're child processes with Setsid)
+- Daemon crash → all job metadata lost, all jobs terminated
+- Jobs are children of daemon (using Setpgid, not Setsid)
 - Next client command auto-starts new daemon
 - New daemon starts with empty state (no jobs)
-- User must manually stop orphaned processes if needed
 
 **Clean shutdown (`gob nuke`):**
 1. Client sends `nuke` request
@@ -323,32 +322,41 @@ Clean up remaining direct metadata file access in tests.
 The tests now use `date +%s%N` to output unique timestamps each run, verifying
 logs are cleared by checking the old output is gone rather than modifying commands
 
-### Phase 2c: Core Commands
-- [ ] Add `Job` struct to daemon
-- [ ] Migrate `add` command to client-server
-- [ ] Migrate `list` command to client-server
-- [ ] Migrate `stop/start/restart` commands to client-server
-- [ ] Migrate `remove/cleanup` commands to client-server
-- [ ] Implement `nuke` with daemon shutdown
+### Phase 2c: Core Commands ✅
+- [x] Add `Job` struct to daemon with in-memory job management
+- [x] Migrate `list` command to client-server
+- [x] Migrate `add` command to client-server
+- [x] Migrate `stop/start/restart` commands to client-server
+- [x] Migrate `signal` command to client-server
+- [x] Migrate `remove/cleanup` commands to client-server
+- [x] Migrate `stdout/stderr` commands to client-server
+- [x] Migrate `logs` command to client-server
+- [x] Migrate `nuke` command to client-server
+- [x] Update tests to use `XDG_RUNTIME_DIR` for log file paths
+
+**Note:** Log files are now stored in `$XDG_RUNTIME_DIR/gob/` instead of `$XDG_DATA_HOME/gob/`.
+
+**Not migrated (deferred to later phases):**
+- `run` command - requires special handling for job reuse logic
+- `tui` command - requires event subscription (Phase 3)
+
+### Phase 2d: Run Command
+- [ ] Implement `FindJobByCommand` in daemon for job reuse logic
+- [ ] Migrate `run` command to client-server
+- [ ] Handle restart existing vs create new job
 
 ### Phase 3: Event Subscription
 - [ ] Implement event subscription mechanism
 - [ ] Broadcast job state changes to subscribers
 - [ ] Add client-side event handling
 
-### Phase 4: Output Management
-- [ ] Daemon writes job output to log files
-- [ ] Return log paths in responses
-- [ ] Migrate `run` command (returns paths, client tails)
-- [ ] Migrate `logs/stdout/stderr` commands (tail files directly)
-
-### Phase 5: TUI Integration
+### Phase 4: TUI Integration
 - [ ] Convert TUI to daemon client
 - [ ] Subscribe to job events for state changes
 - [ ] Tail log files directly for output display
 - [ ] Remove file polling from TUI
 
-### Phase 6: Polish
+### Phase 5: Polish
 - [ ] Handle client disconnection gracefully
 - [ ] Proper error handling and logging
 - [ ] Performance testing

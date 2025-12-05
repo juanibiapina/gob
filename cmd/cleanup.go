@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -49,47 +47,35 @@ Exit codes:
   0: Cleanup completed successfully
   1: Error reading jobs`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var jobs []storage.JobInfo
-		var err error
-
-		// Get jobs based on --all flag
-		if cleanupAll {
-			jobs, err = storage.ListAllJobMetadata()
-		} else {
-			jobs, err = storage.ListJobMetadata()
-		}
-
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("failed to list jobs: %w", err)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Get job directory
-		jobDir, err := storage.GetJobDir()
-		if err != nil {
-			return fmt.Errorf("failed to get job directory: %w", err)
-		}
-
-		// Count cleaned up jobs
-		cleanedCount := 0
-
-		// Process each job
-		for _, job := range jobs {
-			// Check if process is still running
-			if !process.IsProcessRunning(job.Metadata.PID) {
-				// Remove the metadata file
-				filename := job.ID + ".json"
-				filePath := filepath.Join(jobDir, filename)
-				if err := os.Remove(filePath); err != nil {
-					// Continue even if removal fails, but log the error
-					fmt.Fprintf(os.Stderr, "Warning: failed to remove %s: %v\n", filename, err)
-					continue
-				}
-				cleanedCount++
+		// Determine workdir filter
+		var workdirFilter string
+		if !cleanupAll {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
 			}
+			workdirFilter = cwd
+		}
+
+		// Cleanup via daemon
+		count, err := client.Cleanup(workdirFilter)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup: %w", err)
 		}
 
 		// Print summary
-		fmt.Printf("Cleaned up %d stopped job(s)\n", cleanedCount)
+		fmt.Printf("Cleaned up %d stopped job(s)\n", count)
 
 		return nil
 	},

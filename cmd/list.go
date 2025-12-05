@@ -3,10 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -65,17 +65,31 @@ Exit codes:
   0: Success
   1: Error reading jobs`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var jobs []storage.JobInfo
-		var err error
+		// Connect to daemon
+		client, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
 
-		// Get jobs based on --all flag
-		if listAll {
-			jobs, err = storage.ListAllJobMetadata()
-			showWorkdir = true // Always show workdir with --all
-		} else {
-			jobs, err = storage.ListJobMetadata()
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
+		// Determine workdir filter
+		var workdirFilter string
+		if !listAll {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			workdirFilter = cwd
+		} else {
+			showWorkdir = true // Always show workdir with --all
+		}
+
+		// Get jobs from daemon
+		jobs, err := client.List(workdirFilter)
 		if err != nil {
 			return fmt.Errorf("failed to list jobs: %w", err)
 		}
@@ -90,23 +104,16 @@ Exit codes:
 			return nil
 		}
 
-		// Build job output list with status
+		// Build job output list
 		var jobOutputs []JobOutput
 		for _, job := range jobs {
-			var status string
-			if process.IsProcessRunning(job.Metadata.PID) {
-				status = "running"
-			} else {
-				status = "stopped"
-			}
-
 			jobOutputs = append(jobOutputs, JobOutput{
 				ID:        job.ID,
-				PID:       job.Metadata.PID,
-				Status:    status,
-				Command:   job.Metadata.Command,
-				Workdir:   job.Metadata.Workdir,
-				CreatedAt: job.Metadata.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				PID:       job.PID,
+				Status:    job.Status,
+				Command:   job.Command,
+				Workdir:   job.Workdir,
+				CreatedAt: job.CreatedAt,
 			})
 		}
 

@@ -3,11 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"time"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -55,82 +52,37 @@ Exit codes:
   0: Nuke completed successfully
   1: Error (failed to read jobs, failed to stop some jobs)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var jobs []storage.JobInfo
-		var err error
-
-		// Get jobs based on --all flag
-		if nukeAll {
-			jobs, err = storage.ListAllJobMetadata()
-		} else {
-			jobs, err = storage.ListJobMetadata()
-		}
-
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("failed to list jobs: %w", err)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Get job directory
-		jobDir, err := storage.GetJobDir()
+		// Determine workdir filter
+		var workdirFilter string
+		if !nukeAll {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			workdirFilter = cwd
+		}
+
+		// Nuke via daemon
+		stopped, logsDeleted, cleaned, err := client.Nuke(workdirFilter)
 		if err != nil {
-			return fmt.Errorf("failed to get job directory: %w", err)
-		}
-
-		// Count stopped, log files deleted, and cleaned jobs
-		stoppedCount := 0
-		logFilesDeleted := 0
-		cleanedCount := 0
-
-		// First pass: stop all running jobs with timeout
-		for _, job := range jobs {
-			// Check if process is still running
-			if process.IsProcessRunning(job.Metadata.PID) {
-				// Stop the process with timeout (10s graceful, 5s force)
-				if err := process.StopProcessWithTimeout(job.Metadata.PID, 10*time.Second, 5*time.Second); err != nil {
-					// Log error but continue with other jobs
-					fmt.Fprintf(os.Stderr, "Warning: failed to stop job %s (PID %d): %v\n", job.ID, job.Metadata.PID, err)
-					continue
-				}
-				stoppedCount++
-			}
-		}
-
-		// Second pass: delete log files
-		for _, job := range jobs {
-			// Delete stdout log file
-			stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", job.ID))
-			if err := os.Remove(stdoutPath); err != nil && !os.IsNotExist(err) {
-				// Log error but continue with other files
-				fmt.Fprintf(os.Stderr, "Warning: failed to remove stdout log %s: %v\n", stdoutPath, err)
-			} else if err == nil {
-				logFilesDeleted++
-			}
-
-			// Delete stderr log file
-			stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", job.ID))
-			if err := os.Remove(stderrPath); err != nil && !os.IsNotExist(err) {
-				// Log error but continue with other files
-				fmt.Fprintf(os.Stderr, "Warning: failed to remove stderr log %s: %v\n", stderrPath, err)
-			} else if err == nil {
-				logFilesDeleted++
-			}
-		}
-
-		// Third pass: remove all metadata files
-		for _, job := range jobs {
-			filename := job.ID + ".json"
-			filePath := filepath.Join(jobDir, filename)
-			if err := os.Remove(filePath); err != nil {
-				// Log error but continue with other jobs
-				fmt.Fprintf(os.Stderr, "Warning: failed to remove %s: %v\n", filename, err)
-				continue
-			}
-			cleanedCount++
+			return fmt.Errorf("failed to nuke: %w", err)
 		}
 
 		// Print summary
-		fmt.Printf("Stopped %d running job(s)\n", stoppedCount)
-		fmt.Printf("Deleted %d log file(s)\n", logFilesDeleted)
-		fmt.Printf("Cleaned up %d total job(s)\n", cleanedCount)
+		fmt.Printf("Stopped %d running job(s)\n", stopped)
+		fmt.Printf("Deleted %d log file(s)\n", logsDeleted)
+		fmt.Printf("Cleaned up %d total job(s)\n", cleaned)
 
 		return nil
 	},

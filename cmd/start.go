@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -37,56 +36,30 @@ Exit codes:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jobID := args[0]
 
-		// Load job metadata
-		metadata, err := storage.LoadJobMetadata(jobID + ".json")
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("job not found: %s", jobID)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Check if job is already running
-		if process.IsProcessRunning(metadata.PID) {
-			return fmt.Errorf("job %s is already running (use 'gob restart' to restart a running job)", jobID)
-		}
-
-		// Start the process with the saved command
-		command := metadata.Command[0]
-		commandArgs := []string{}
-		if len(metadata.Command) > 1 {
-			commandArgs = metadata.Command[1:]
-		}
-
-		// Ensure job directory exists and get its path
-		storageDir, err := storage.EnsureJobDir()
+		// Start via daemon
+		job, err := client.Start(jobID)
 		if err != nil {
-			return fmt.Errorf("failed to create job directory: %w", err)
-		}
-
-		// Clear previous logs before starting
-		if err := storage.ClearJobLogs(jobID); err != nil {
-			return fmt.Errorf("failed to clear job logs: %w", err)
-		}
-
-		pid, err := process.StartDetached(command, commandArgs, metadata.ID, storageDir)
-		if err != nil {
-			return fmt.Errorf("failed to start job: %w", err)
-		}
-
-		// Update the PID in metadata
-		metadata.PID = pid
-
-		// Save updated metadata
-		_, err = storage.SaveJobMetadata(metadata)
-		if err != nil {
-			return fmt.Errorf("failed to update job metadata: %w", err)
+			return err
 		}
 
 		// Print confirmation message
-		commandStr := strings.Join(metadata.Command, " ")
-		fmt.Printf("Started job %s with PID %d running: %s\n", jobID, pid, commandStr)
+		commandStr := strings.Join(job.Command, " ")
+		fmt.Printf("Started job %s with PID %d running: %s\n", jobID, job.PID, commandStr)
 
 		// If follow flag is set, follow the output
 		if startFollow {
-			completed, err := followJob(jobID, pid, storageDir)
+			completed, err := followJob(jobID, job.PID, job.StdoutPath)
 			if err != nil {
 				return err
 			}

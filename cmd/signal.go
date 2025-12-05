@@ -6,7 +6,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +19,8 @@ func parseSignal(signalStr string) (syscall.Signal, error) {
 
 	// Parse as signal name
 	// Remove "SIG" prefix if present
-	signalStr = strings.ToUpper(signalStr)
-	signalStr = strings.TrimPrefix(signalStr, "SIG")
+	upperStr := strings.ToUpper(signalStr)
+	normalizedStr := strings.TrimPrefix(upperStr, "SIG")
 
 	// Map common signal names to syscall constants
 	signalMap := map[string]syscall.Signal{
@@ -40,7 +40,7 @@ func parseSignal(signalStr string) (syscall.Signal, error) {
 		"TRAP": syscall.SIGTRAP,
 	}
 
-	if sig, ok := signalMap[signalStr]; ok {
+	if sig, ok := signalMap[normalizedStr]; ok {
 		return sig, nil
 	}
 
@@ -103,25 +103,25 @@ Exit codes:
 			return err
 		}
 
-		// Load job metadata
-		metadata, err := storage.LoadJobMetadata(jobID + ".json")
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("job not found: %s", jobID)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Send the signal to the process group (negative PID targets entire group)
-		// This ensures child processes also receive the signal
-		// Note: This is idempotent - sending to a stopped job returns nil
-		err = syscall.Kill(-metadata.PID, sig)
+		// Send signal via daemon
+		pid, err := client.Signal(jobID, sig)
 		if err != nil {
-			// Ignore "no such process" error for idempotency
-			if err != syscall.ESRCH {
-				return fmt.Errorf("failed to send signal to job %s: %w", jobID, err)
-			}
+			return err
 		}
 
 		// Print confirmation message
-		fmt.Printf("Sent signal %s to job %s (PID %d)\n", signalStr, jobID, metadata.PID)
+		fmt.Printf("Sent signal %s to job %s (PID %d)\n", signalStr, jobID, pid)
 
 		return nil
 	},

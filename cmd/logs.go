@@ -3,13 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
 	"github.com/juanibiapina/gob/internal/tail"
 	"github.com/spf13/cobra"
 )
@@ -49,9 +48,21 @@ Exit codes:
   1: Error (log files not available)`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		jobDir, err := storage.GetJobDir()
+		// Connect to daemon
+		client, err := daemon.NewClient()
 		if err != nil {
-			return fmt.Errorf("failed to get job directory: %w", err)
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
+		}
+
+		// Get current workdir
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
 		follower := tail.NewFollower(os.Stdout)
@@ -64,9 +75,9 @@ Exit codes:
 		runningJobs := make(map[string]runningJob) // jobID -> job info
 
 		// addJobSources adds stdout and stderr sources for a job (must be called with mu held)
-		addJobSources := func(jobID string, pid int, command string) error {
-			stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID))
-			stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID))
+		addJobSources := func(job *daemon.JobResponse) error {
+			stdoutPath := job.StdoutPath
+			stderrPath := job.StderrPath
 
 			// Check if log files exist
 			if _, err := os.Stat(stdoutPath); os.IsNotExist(err) {
@@ -77,102 +88,116 @@ Exit codes:
 			}
 
 			// Orange ANSI color for stderr prefix
-			orangePrefix := fmt.Sprintf("\033[38;5;208m[%s]\033[0m ", jobID)
-			stdoutPrefix := fmt.Sprintf("[%s] ", jobID)
+			orangePrefix := fmt.Sprintf("\033[38;5;208m[%s]\033[0m ", job.ID)
+			stdoutPrefix := fmt.Sprintf("[%s] ", job.ID)
 
 			follower.AddSource(tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix})
 			follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: orangePrefix})
 
-			runningJobs[jobID] = runningJob{pid: pid, command: command}
+			runningJobs[job.ID] = runningJob{pid: job.PID, command: strings.Join(job.Command, " ")}
 			return nil
 		}
 
-		// formatCommand returns a short representation of the command
-		formatCommand := func(command []string) string {
-			if len(command) == 0 {
-				return ""
-			}
-			return strings.Join(command, " ")
+		// Get initial jobs
+		jobs, err := client.List(cwd)
+		if err != nil {
+			return fmt.Errorf("failed to list jobs: %w", err)
 		}
 
-		// Follow all jobs in current directory and watch for new ones
-		jobs, err := storage.ListJobMetadata()
-			if err != nil {
-				return fmt.Errorf("failed to list jobs: %w", err)
+		// Add initial jobs (no "process started" log since they were already running)
+		mu.Lock()
+		for _, job := range jobs {
+			if err := addJobSources(&job); err != nil {
+				mu.Unlock()
+				return err
 			}
+			knownJobs[job.ID] = true
+		}
+		mu.Unlock()
 
-			// Add initial jobs (no "process started" log since they were already running)
-			mu.Lock()
-			for _, job := range jobs {
-				if err := addJobSources(job.ID, job.Metadata.PID, formatCommand(job.Metadata.Command)); err != nil {
-					mu.Unlock()
-					return err
+		// Start goroutine to watch for new jobs and detect stopped jobs
+		go func() {
+			for {
+				time.Sleep(500 * time.Millisecond)
+
+				mu.Lock()
+				// Check for stopped jobs - collect IDs to delete first
+				var stoppedJobs []string
+				for jobID, job := range runningJobs {
+					if !process.IsProcessRunning(job.pid) {
+						stoppedJobs = append(stoppedJobs, jobID)
+					}
 				}
-				knownJobs[job.ID] = true
+				// Now delete and log
+				for _, jobID := range stoppedJobs {
+					job := runningJobs[jobID]
+					follower.SystemLog("process stopped: %s (pid:%d id:%s)", job.command, job.pid, jobID)
+					delete(runningJobs, jobID)
+				}
+				// Check if all jobs have stopped
+				if len(stoppedJobs) > 0 && len(runningJobs) == 0 {
+					follower.SystemLog("all processes stopped")
+				}
+				mu.Unlock()
+
+				// Check for new jobs - need to reconnect for each request
+				newClient, err := daemon.NewClient()
+				if err != nil {
+					continue
+				}
+				if err := newClient.Connect(); err != nil {
+					newClient.Close()
+					continue
+				}
+				newJobs, err := newClient.List(cwd)
+				newClient.Close()
+				if err != nil {
+					continue
+				}
+
+				mu.Lock()
+				for _, job := range newJobs {
+					if !knownJobs[job.ID] {
+						knownJobs[job.ID] = true
+						addJobSources(&job)
+						follower.SystemLog("process started: %s (pid:%d id:%s)", strings.Join(job.Command, " "), job.PID, job.ID)
+					}
+				}
+				mu.Unlock()
 			}
-			mu.Unlock()
-
-			// Start goroutine to watch for new jobs and detect stopped jobs
-			go func() {
-				for {
-					time.Sleep(500 * time.Millisecond)
-
-					mu.Lock()
-					// Check for stopped jobs - collect IDs to delete first
-					var stoppedJobs []string
-					for jobID, job := range runningJobs {
-						if !process.IsProcessRunning(job.pid) {
-							stoppedJobs = append(stoppedJobs, jobID)
-						}
-					}
-					// Now delete and log
-					for _, jobID := range stoppedJobs {
-						job := runningJobs[jobID]
-						follower.SystemLog("process stopped: %s (pid:%d id:%s)", job.command, job.pid, jobID)
-						delete(runningJobs, jobID)
-					}
-					// Check if all jobs have stopped
-					if len(stoppedJobs) > 0 && len(runningJobs) == 0 {
-						follower.SystemLog("all processes stopped")
-					}
-					mu.Unlock()
-
-					// Check for new jobs
-					jobs, err := storage.ListJobMetadata()
-					if err != nil {
-						continue
-					}
-					mu.Lock()
-					for _, job := range jobs {
-						if !knownJobs[job.ID] {
-							knownJobs[job.ID] = true
-							addJobSources(job.ID, job.Metadata.PID, formatCommand(job.Metadata.Command))
-							follower.SystemLog("process started: %s (pid:%d id:%s)", formatCommand(job.Metadata.Command), job.Metadata.PID, job.ID)
-						}
-					}
-					mu.Unlock()
-				}
-			}()
+		}()
 
 		// If no initial jobs, wait for first job to appear
 		if len(jobs) == 0 {
 			follower.SystemLog("waiting for jobs...")
 			for {
 				time.Sleep(500 * time.Millisecond)
-				jobs, err := storage.ListJobMetadata()
+
+				// Reconnect for each request
+				newClient, err := daemon.NewClient()
 				if err != nil {
 					continue
 				}
-				if len(jobs) > 0 {
+				if err := newClient.Connect(); err != nil {
+					newClient.Close()
+					continue
+				}
+				newJobs, err := newClient.List(cwd)
+				newClient.Close()
+				if err != nil {
+					continue
+				}
+
+				if len(newJobs) > 0 {
 					mu.Lock()
-					for _, job := range jobs {
+					for _, job := range newJobs {
 						if !knownJobs[job.ID] {
 							knownJobs[job.ID] = true
-							if err := addJobSources(job.ID, job.Metadata.PID, formatCommand(job.Metadata.Command)); err != nil {
+							if err := addJobSources(&job); err != nil {
 								mu.Unlock()
 								return err
 							}
-							follower.SystemLog("process started: %s (pid:%d id:%s)", formatCommand(job.Metadata.Command), job.Metadata.PID, job.ID)
+							follower.SystemLog("process started: %s (pid:%d id:%s)", strings.Join(job.Command, " "), job.PID, job.ID)
 						}
 					}
 					mu.Unlock()

@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
-	"time"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -44,63 +43,43 @@ Exit codes:
   1: Error (missing command, failed to start)`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// First argument is the command, rest are arguments
-		command := args[0]
-		commandArgs := []string{}
-		if len(args) > 1 {
-			commandArgs = args[1:]
+		// Connect to daemon
+		client, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Generate job ID
-		jobID := storage.GenerateJobID()
-
 		// Get current working directory
-		cwd, err := storage.GetCurrentWorkdir()
+		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		// Ensure job directory exists and get its path
-		storageDir, err := storage.EnsureJobDir()
-		if err != nil {
-			return fmt.Errorf("failed to create job directory: %w", err)
-		}
-
-		// Start the detached process
-		pid, err := process.StartDetached(command, commandArgs, jobID, storageDir)
+		// Add job via daemon
+		job, err := client.Add(args, cwd)
 		if err != nil {
 			return fmt.Errorf("failed to add job: %w", err)
 		}
 
-		// Create job metadata
-		metadata := &storage.JobMetadata{
-			ID:        jobID,
-			Command:   args,
-			PID:       pid,
-			Workdir:   cwd,
-			CreatedAt: time.Now(),
-		}
-
-		// Save metadata
-		_, err = storage.SaveJobMetadata(metadata)
-		if err != nil {
-			return fmt.Errorf("failed to save job metadata: %w", err)
-		}
-
 		// Print confirmation message
 		commandStr := strings.Join(args, " ")
-		fmt.Printf("Added job %s running: %s\n", jobID, commandStr)
+		fmt.Printf("Added job %s running: %s\n", job.ID, commandStr)
 
 		// If follow flag is set, follow the output
 		if addFollow {
-			completed, err := followJob(jobID, pid, storageDir)
+			completed, err := followJob(job.ID, job.PID, job.StdoutPath)
 			if err != nil {
 				return err
 			}
 			if completed {
-				fmt.Printf("\nJob %s completed\n", jobID)
+				fmt.Printf("\nJob %s completed\n", job.ID)
 			} else {
-				fmt.Printf("\nJob %s continues running in background\n", jobID)
+				fmt.Printf("\nJob %s continues running in background\n", job.ID)
 			}
 		}
 

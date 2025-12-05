@@ -11,6 +11,16 @@ type RequestType string
 const (
 	RequestTypePing     RequestType = "ping"
 	RequestTypeShutdown RequestType = "shutdown"
+	RequestTypeList     RequestType = "list"
+	RequestTypeAdd      RequestType = "add"
+	RequestTypeStop     RequestType = "stop"
+	RequestTypeStart    RequestType = "start"
+	RequestTypeRestart  RequestType = "restart"
+	RequestTypeRemove   RequestType = "remove"
+	RequestTypeCleanup  RequestType = "cleanup"
+	RequestTypeNuke     RequestType = "nuke"
+	RequestTypeSignal   RequestType = "signal"
+	RequestTypeGetJob   RequestType = "get_job"
 )
 
 // Request represents a client request to the daemon
@@ -24,6 +34,18 @@ type Response struct {
 	Success bool                   `json:"success"`
 	Error   string                 `json:"error,omitempty"`
 	Data    map[string]interface{} `json:"data,omitempty"`
+}
+
+// JobResponse represents a job in API responses
+type JobResponse struct {
+	ID         string   `json:"id"`
+	PID        int      `json:"pid"`
+	Status     string   `json:"status"`
+	Command    []string `json:"command"`
+	Workdir    string   `json:"workdir"`
+	CreatedAt  string   `json:"created_at"`
+	StdoutPath string   `json:"stdout_path"`
+	StderrPath string   `json:"stderr_path"`
 }
 
 // NewRequest creates a new request with the given type
