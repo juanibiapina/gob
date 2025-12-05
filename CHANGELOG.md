@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Job IDs shortened from 7 characters to 3 characters (e.g., `abc` instead of `V3x0QqI`)
+- System log prefix changed from `[monitor]` to `[gob]` (matches new 3-char job ID length)
 - Use `github.com/adrg/xdg` package for runtime directory resolution instead of manual `XDG_RUNTIME_DIR` handling
 
 ### Fixed

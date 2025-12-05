@@ -64,10 +64,10 @@ load 'test_helper'
   assert [ "$(echo "$job" | jq -r '.command[0]')" = "sleep" ]
   assert [ "$(echo "$job" | jq -r '.command[1]')" = "300" ]
 
-  # Verify id is present (base62 encoded timestamp)
+  # Verify id is present (3-character random base62)
   local id=$(echo "$job" | jq -r '.id')
   assert [ -n "$id" ]
-  assert [ ${#id} -ge 7 ]
+  assert [ ${#id} -eq 3 ]
 }
 
 @test "add command with multiple arguments" {

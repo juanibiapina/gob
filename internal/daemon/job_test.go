@@ -9,20 +9,31 @@ import (
 )
 
 func TestGenerateJobID(t *testing.T) {
-	id := generateJobID()
+	existing := make(map[string]bool)
+	id := generateJobID(existing)
 	if id == "" {
 		t.Error("expected non-empty job ID")
+	}
+	if len(id) != 3 {
+		t.Errorf("expected 3-character ID, got %d characters: %s", len(id), id)
 	}
 
 	// Generate multiple IDs and ensure they're different
 	ids := make(map[string]bool)
 	for i := 0; i < 100; i++ {
-		id := generateJobID()
+		id := generateJobID(ids)
 		if ids[id] {
 			t.Errorf("duplicate ID generated: %s", id)
 		}
 		ids[id] = true
-		time.Sleep(time.Millisecond) // IDs are timestamp-based
+	}
+}
+
+func TestGenerateJobID_AvoidsCollisions(t *testing.T) {
+	existing := map[string]bool{"abc": true, "def": true}
+	id := generateJobID(existing)
+	if id == "abc" || id == "def" {
+		t.Errorf("generated ID %s collides with existing IDs", id)
 	}
 }
 

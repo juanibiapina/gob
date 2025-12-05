@@ -70,7 +70,7 @@ type Follower struct {
 }
 
 // SystemLogTag is the prefix used for system log messages (same length as job IDs)
-const SystemLogTag = "monitor"
+const SystemLogTag = "gob"
 
 // SystemLog writes a system log message with the monitor prefix
 // The message is colored cyan to distinguish it from job output

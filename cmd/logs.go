@@ -22,7 +22,7 @@ OUTPUT FORMAT:
   Each line is prefixed with a tag in square brackets:
   - [<job_id>] white prefix for stdout lines
   - [<job_id>] orange prefix for stderr lines
-  - [monitor] cyan prefix for system events (process started/stopped)
+  - [gob] cyan prefix for system events (process started/stopped)
 
   For raw output without prefixes, use the stdout and stderr commands instead.
 
@@ -31,10 +31,10 @@ Example:
   gob logs
 
 Output:
-  [monitor] process started: ./my-server (pid:12345 id:V3x0QqI)
+  [gob] process started: ./my-server (pid:12345 id:abc)
   [V3x0QqI] Server listening on port 8080
   [V3x0QqI] Error: connection refused (orange prefix)
-  [monitor] process stopped: ./my-server (pid:12345 id:V3x0QqI)
+  [gob] process stopped: ./my-server (pid:12345 id:abc)
 
 Notes:
   - Streams output in real-time as it's written

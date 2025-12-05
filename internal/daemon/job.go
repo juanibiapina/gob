@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 	"os/exec"
@@ -100,16 +101,30 @@ func (j *Job) Status() string {
 }
 
 const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+const jobIDLength = 3
 
-// generateJobID creates a unique job ID using base62-encoded millisecond timestamp
-func generateJobID() string {
-	n := time.Now().UnixMilli()
-	var result []byte
-	for n > 0 {
-		result = append([]byte{base62Chars[n%62]}, result...)
-		n /= 62
+// generateJobID creates a unique 3-character job ID using cryptographic randomness
+// It checks against existing IDs to avoid collisions
+func generateJobID(existingIDs map[string]bool) string {
+	for {
+		bytes := make([]byte, jobIDLength)
+		if _, err := rand.Read(bytes); err != nil {
+			// Fallback should never happen, but use timestamp if crypto fails
+			n := time.Now().UnixNano()
+			for i := 0; i < jobIDLength; i++ {
+				bytes[i] = byte(n % 256)
+				n /= 256
+			}
+		}
+		result := make([]byte, jobIDLength)
+		for i := 0; i < jobIDLength; i++ {
+			result[i] = base62Chars[int(bytes[i])%62]
+		}
+		id := string(result)
+		if !existingIDs[id] {
+			return id
+		}
 	}
-	return string(result)
 }
 
 // AddJob creates and starts a new job
@@ -117,7 +132,11 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
-	jobID := generateJobID()
+	existingIDs := make(map[string]bool)
+	for id := range jm.jobs {
+		existingIDs[id] = true
+	}
+	jobID := generateJobID(existingIDs)
 
 	// Create log file paths
 	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", jm.runtimeDir, jobID)
@@ -662,7 +681,11 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 	}
 
 	// Create new job (same logic as AddJob but without re-locking)
-	jobID := generateJobID()
+	existingIDs := make(map[string]bool)
+	for id := range jm.jobs {
+		existingIDs[id] = true
+	}
+	jobID := generateJobID(existingIDs)
 
 	// Create log file paths
 	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", jm.runtimeDir, jobID)
