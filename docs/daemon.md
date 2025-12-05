@@ -337,24 +337,31 @@ logs are cleared by checking the old output is gone rather than modifying comman
 **Note:** Log files are now stored in `$XDG_RUNTIME_DIR/gob/` instead of `$XDG_DATA_HOME/gob/`.
 
 **Not migrated (deferred to later phases):**
-- `run` command - requires special handling for job reuse logic
-- `tui` command - requires event subscription (Phase 3)
+- `tui` command - requires TUI daemon integration (Phase 3)
 
 ### Phase 2d: Run Command ✅
 - [x] Implement `FindJobByCommand` in daemon for job reuse logic
 - [x] Migrate `run` command to client-server
 - [x] Handle restart existing vs create new job
 
-### Phase 3: Event Subscription
-- [ ] Implement event subscription mechanism
-- [ ] Broadcast job state changes to subscribers
-- [ ] Add client-side event handling
+### Phase 3: TUI Basic Daemon Integration ✅
+Convert TUI to use daemon client instead of direct file access. This fixes the broken
+state where TUI reads logs from `$XDG_DATA_HOME` but daemon writes to `$XDG_RUNTIME_DIR`.
 
-### Phase 4: TUI Integration
-- [ ] Convert TUI to daemon client
-- [ ] Subscribe to job events for state changes
-- [ ] Tail log files directly for output display
-- [ ] Remove file polling from TUI
+- [x] Convert TUI to use `client.List()` for job list (replace `storage.ListJobMetadata()`)
+- [x] Get log paths from daemon response (`StdoutPath`, `StderrPath` fields)
+- [x] Remove dependency on `storage` package from TUI
+- [x] Keep 500ms polling for now (works correctly, just uses daemon)
+
+### Phase 4: Event Subscription + Real-time TUI
+Add event subscription to daemon and update TUI to use it instead of polling.
+
+- [ ] Implement `subscribe` request type in daemon protocol
+- [ ] Maintain list of subscribed clients in daemon
+- [ ] Broadcast job state changes (added/started/stopped/removed) to subscribers
+- [ ] Add client-side event handling (`Subscribe()` method)
+- [ ] Update TUI to subscribe to events instead of polling
+- [ ] Remove polling from TUI
 
 ### Phase 5: Polish
 - [ ] Handle client disconnection gracefully

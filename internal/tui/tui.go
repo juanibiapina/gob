@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,8 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 )
 
 // Panel focus
@@ -37,11 +35,13 @@ const (
 
 // Job represents a job with its runtime status
 type Job struct {
-	ID      string
-	PID     int
-	Command string
-	Workdir string
-	Running bool
+	ID         string
+	PID        int
+	Command    string
+	Workdir    string
+	Running    bool
+	StdoutPath string
+	StderrPath string
 }
 
 // tickMsg is sent periodically to refresh job status
@@ -103,7 +103,7 @@ func New() Model {
 	h := help.New()
 	h.ShowAll = true
 
-	cwd, _ := storage.GetCurrentWorkdir()
+	cwd, _ := os.Getwd()
 
 	return Model{
 		jobs:        []Job{},
@@ -116,6 +116,18 @@ func New() Model {
 		cwd:         cwd,
 		followLogs:  true,
 	}
+}
+
+// connectClient creates a new daemon client connection
+func connectClient() (*daemon.Client, error) {
+	client, err := daemon.NewClient()
+	if err != nil {
+		return nil, err
+	}
+	if err := client.Connect(); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 // Init initializes the model
@@ -136,27 +148,32 @@ func tickCmd() tea.Cmd {
 // refreshJobs fetches the current job list
 func (m Model) refreshJobs() tea.Cmd {
 	return func() tea.Msg {
-		var jobInfos []storage.JobInfo
-		var err error
+		client, err := connectClient()
+		if err != nil {
+			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
+		}
+		defer client.Close()
 
-		if m.showAll {
-			jobInfos, err = storage.ListAllJobMetadata()
-		} else {
-			jobInfos, err = storage.ListJobMetadata()
+		workdir := ""
+		if !m.showAll {
+			workdir = m.cwd
 		}
 
+		jobResponses, err := client.List(workdir)
 		if err != nil {
 			return actionResultMsg{message: fmt.Sprintf("Failed to list jobs: %v", err), isError: true}
 		}
 
-		jobs := make([]Job, len(jobInfos))
-		for i, ji := range jobInfos {
+		jobs := make([]Job, len(jobResponses))
+		for i, jr := range jobResponses {
 			jobs[i] = Job{
-				ID:      ji.ID,
-				PID:     ji.Metadata.PID,
-				Command: strings.Join(ji.Metadata.Command, " "),
-				Workdir: ji.Metadata.Workdir,
-				Running: process.IsProcessRunning(ji.Metadata.PID),
+				ID:         jr.ID,
+				PID:        jr.PID,
+				Command:    strings.Join(jr.Command, " "),
+				Workdir:    jr.Workdir,
+				Running:    jr.Status == "running",
+				StdoutPath: jr.StdoutPath,
+				StderrPath: jr.StderrPath,
 			}
 		}
 
@@ -171,17 +188,9 @@ func (m Model) readLogs() tea.Cmd {
 			return logUpdateMsg{stdout: "", stderr: ""}
 		}
 
-		jobID := m.jobs[m.cursor].ID
-		jobDir, err := storage.GetJobDir()
-		if err != nil {
-			return logUpdateMsg{stdout: "", stderr: fmt.Sprintf("Error: %v", err)}
-		}
-
-		stdoutPath := filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID))
-		stderrPath := filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID))
-
-		stdout, _ := os.ReadFile(stdoutPath)
-		stderr, _ := os.ReadFile(stderrPath)
+		job := m.jobs[m.cursor]
+		stdout, _ := os.ReadFile(job.StdoutPath)
+		stderr, _ := os.ReadFile(job.StderrPath)
 
 		return logUpdateMsg{
 			stdout: string(stdout),
@@ -272,7 +281,7 @@ func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmd := m.textInput.Value()
 			if cmd != "" {
 				m.modal = modalNone
-				return m, m.startJob(cmd)
+				return m, m.addJob(cmd)
 			}
 		case "ctrl+c":
 			return m, tea.Quit
@@ -368,17 +377,17 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "s":
 		if len(m.jobs) > 0 && m.jobs[m.cursor].Running {
-			return m, m.stopJob(m.jobs[m.cursor].PID, false)
+			return m, m.stopJob(m.jobs[m.cursor].ID, false)
 		}
 
 	case "S":
 		if len(m.jobs) > 0 && m.jobs[m.cursor].Running {
-			return m, m.stopJob(m.jobs[m.cursor].PID, true)
+			return m, m.stopJob(m.jobs[m.cursor].ID, true)
 		}
 
 	case "r":
 		if len(m.jobs) > 0 {
-			return m, m.restartJob(m.jobs[m.cursor])
+			return m, m.restartJob(m.jobs[m.cursor].ID)
 		}
 
 	case "d":
@@ -465,38 +474,19 @@ func (m Model) updateLogsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // Actions
 
-func (m Model) stopJob(pid int, force bool) tea.Cmd {
+func (m Model) stopJob(jobID string, force bool) tea.Cmd {
 	return func() tea.Msg {
-		// Check if already stopped
-		if !process.IsProcessRunning(pid) {
-			action := "Stopped"
-			if force {
-				action = "Killed"
-			}
-			return actionResultMsg{
-				message: fmt.Sprintf("%s PID %d", action, pid),
-				isError: false,
-			}
+		client, err := connectClient()
+		if err != nil {
+			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
+		defer client.Close()
 
-		var err error
-		if force {
-			// Send SIGKILL immediately
-			err = process.KillProcess(pid)
-			if err != nil {
-				return actionResultMsg{
-					message: fmt.Sprintf("Failed to kill: %v", err),
-					isError: true,
-				}
-			}
-		} else {
-			// Graceful shutdown with timeout (same as CLI)
-			err = process.StopProcessWithTimeout(pid, 10*time.Second, 5*time.Second)
-			if err != nil {
-				return actionResultMsg{
-					message: fmt.Sprintf("Failed to stop: %v", err),
-					isError: true,
-				}
+		pid, err := client.Stop(jobID, force)
+		if err != nil {
+			return actionResultMsg{
+				message: fmt.Sprintf("Failed to stop: %v", err),
+				isError: true,
 			}
 		}
 
@@ -511,54 +501,21 @@ func (m Model) stopJob(pid int, force bool) tea.Cmd {
 	}
 }
 
-func (m Model) restartJob(job Job) tea.Cmd {
+func (m Model) restartJob(jobID string) tea.Cmd {
 	return func() tea.Msg {
-		// Load job metadata to get the original command
-		metadata, err := storage.LoadJobMetadata(job.ID + ".json")
+		client, err := connectClient()
 		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Job not found: %v", err), isError: true}
+			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
+		defer client.Close()
 
-		// Stop if running (same timeouts as CLI)
-		if process.IsProcessRunning(metadata.PID) {
-			err := process.StopProcessWithTimeout(metadata.PID, 10*time.Second, 5*time.Second)
-			if err != nil {
-				return actionResultMsg{message: fmt.Sprintf("Failed to stop: %v", err), isError: true}
-			}
-		}
-
-		// Clear previous logs
-		if err := storage.ClearJobLogs(job.ID); err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed to clear logs: %v", err), isError: true}
-		}
-
-		// Get job directory
-		jobDir, err := storage.EnsureJobDir()
+		job, err := client.Restart(jobID)
 		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed: %v", err), isError: true}
-		}
-
-		// Start with the same job ID
-		command := metadata.Command[0]
-		args := []string{}
-		if len(metadata.Command) > 1 {
-			args = metadata.Command[1:]
-		}
-
-		pid, err := process.StartDetached(command, args, metadata.ID, jobDir)
-		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed to start: %v", err), isError: true}
-		}
-
-		// Update PID in metadata
-		metadata.PID = pid
-		_, err = storage.SaveJobMetadata(metadata)
-		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed to save: %v", err), isError: true}
+			return actionResultMsg{message: fmt.Sprintf("Failed to restart: %v", err), isError: true}
 		}
 
 		return actionResultMsg{
-			message: fmt.Sprintf("Restarted %s (PID %d)", job.ID, pid),
+			message: fmt.Sprintf("Restarted %s (PID %d)", job.ID, job.PID),
 			isError: false,
 		}
 	}
@@ -566,19 +523,15 @@ func (m Model) restartJob(job Job) tea.Cmd {
 
 func (m Model) removeJob(jobID string) tea.Cmd {
 	return func() tea.Msg {
-		jobDir, err := storage.GetJobDir()
+		client, err := connectClient()
 		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed: %v", err), isError: true}
+			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
+		defer client.Close()
 
-		files := []string{
-			filepath.Join(jobDir, fmt.Sprintf("%s.json", jobID)),
-			filepath.Join(jobDir, fmt.Sprintf("%s.stdout.log", jobID)),
-			filepath.Join(jobDir, fmt.Sprintf("%s.stderr.log", jobID)),
-		}
-
-		for _, f := range files {
-			os.Remove(f)
+		_, err = client.Remove(jobID)
+		if err != nil {
+			return actionResultMsg{message: fmt.Sprintf("Failed to remove: %v", err), isError: true}
 		}
 
 		return actionResultMsg{
@@ -588,36 +541,26 @@ func (m Model) removeJob(jobID string) tea.Cmd {
 	}
 }
 
-func (m Model) startJob(command string) tea.Cmd {
+func (m Model) addJob(command string) tea.Cmd {
 	return func() tea.Msg {
-		jobDir, err := storage.EnsureJobDir()
-		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed: %v", err), isError: true}
-		}
-
 		parts := strings.Fields(command)
 		if len(parts) == 0 {
 			return actionResultMsg{message: "Empty command", isError: true}
 		}
 
-		newID := storage.GenerateJobID()
-		pid, err := process.StartDetached(parts[0], parts[1:], newID, jobDir)
+		client, err := connectClient()
 		if err != nil {
-			return actionResultMsg{message: fmt.Sprintf("Failed: %v", err), isError: true}
+			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
+		defer client.Close()
 
-		cwd, _ := storage.GetCurrentWorkdir()
-		metadata := &storage.JobMetadata{
-			ID:        newID,
-			Command:   parts,
-			PID:       pid,
-			Workdir:   cwd,
-			CreatedAt: time.Now(),
+		job, err := client.Add(parts, m.cwd)
+		if err != nil {
+			return actionResultMsg{message: fmt.Sprintf("Failed to add: %v", err), isError: true}
 		}
-		storage.SaveJobMetadata(metadata)
 
 		return actionResultMsg{
-			message: fmt.Sprintf("Started %s (PID %d)", newID, pid),
+			message: fmt.Sprintf("Started %s (PID %d)", job.ID, job.PID),
 			isError: false,
 		}
 	}
