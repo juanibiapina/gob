@@ -14,11 +14,11 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ## Features
 
-- **Interactive TUI** - Full-screen terminal interface for managing jobs
-- **Detached Process Execution** - Run commands that persist independently of the CLI
-- **AI coding agent friendly** - Easy for Coding Agents to start and monitor background processes
-- **Jobs per directory** - Jobs are scoped per directory, making it easier to maintain per project jobs
-- **Smart job reuse** - `run` command reuses existing stopped jobs with same command
+- **Interactive TUI** - Full-screen terminal interface with real-time job status and log streaming
+- **AI agent friendly** - Shared view of all processes for you and your coding agent
+- **Real-time sync** - Changes from CLI instantly appear in TUI, and vice-versa
+- **Per-directory jobs** - Jobs are scoped to directories, keeping projects organized
+- **Process lifecycle control** - Start, stop, restart, send signals to any job
 
 ## Installation
 
@@ -219,7 +219,7 @@ The TUI has three panels:
 
 #### `gob add <command> [args...]`
 
-Create and start a new background job. The job runs detached and persists even after the CLI exits.
+Create and start a new background job. The job continues running after the CLI exits.
 
 ```bash
 # Add a long-running server
