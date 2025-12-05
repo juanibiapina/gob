@@ -9,20 +9,38 @@ import (
 type RequestType string
 
 const (
-	RequestTypePing     RequestType = "ping"
-	RequestTypeShutdown RequestType = "shutdown"
-	RequestTypeList     RequestType = "list"
-	RequestTypeAdd      RequestType = "add"
-	RequestTypeStop     RequestType = "stop"
-	RequestTypeStart    RequestType = "start"
-	RequestTypeRestart  RequestType = "restart"
-	RequestTypeRemove   RequestType = "remove"
-	RequestTypeCleanup  RequestType = "cleanup"
-	RequestTypeNuke     RequestType = "nuke"
-	RequestTypeSignal   RequestType = "signal"
-	RequestTypeGetJob   RequestType = "get_job"
-	RequestTypeRun      RequestType = "run"
+	RequestTypePing      RequestType = "ping"
+	RequestTypeShutdown  RequestType = "shutdown"
+	RequestTypeList      RequestType = "list"
+	RequestTypeAdd       RequestType = "add"
+	RequestTypeStop      RequestType = "stop"
+	RequestTypeStart     RequestType = "start"
+	RequestTypeRestart   RequestType = "restart"
+	RequestTypeRemove    RequestType = "remove"
+	RequestTypeCleanup   RequestType = "cleanup"
+	RequestTypeNuke      RequestType = "nuke"
+	RequestTypeSignal    RequestType = "signal"
+	RequestTypeGetJob    RequestType = "get_job"
+	RequestTypeRun       RequestType = "run"
+	RequestTypeSubscribe RequestType = "subscribe"
 )
+
+// EventType represents the type of event emitted by the daemon
+type EventType string
+
+const (
+	EventTypeJobAdded   EventType = "job_added"
+	EventTypeJobStarted EventType = "job_started"
+	EventTypeJobStopped EventType = "job_stopped"
+	EventTypeJobRemoved EventType = "job_removed"
+)
+
+// Event represents a job state change event
+type Event struct {
+	Type  EventType   `json:"type"`
+	JobID string      `json:"job_id"`
+	Job   JobResponse `json:"job,omitempty"`
+}
 
 // Request represents a client request to the daemon
 type Request struct {

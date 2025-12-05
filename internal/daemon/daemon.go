@@ -9,18 +9,29 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
+	"time"
 )
+
+// Subscriber represents a client subscribed to events
+type Subscriber struct {
+	conn    net.Conn
+	encoder *json.Encoder
+	workdir string
+}
 
 // Daemon represents the gob daemon server
 type Daemon struct {
-	listener   net.Listener
-	socketPath string
-	pidPath    string
-	runtimeDir string
-	ctx        context.Context
-	cancel     context.CancelFunc
-	jobManager *JobManager
+	listener      net.Listener
+	socketPath    string
+	pidPath       string
+	runtimeDir    string
+	ctx           context.Context
+	cancel        context.CancelFunc
+	jobManager    *JobManager
+	subscribers   []*Subscriber
+	subscribersMu sync.RWMutex
 }
 
 // New creates a new daemon instance
@@ -42,14 +53,19 @@ func New() (*Daemon, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &Daemon{
-		socketPath: socketPath,
-		pidPath:    pidPath,
-		runtimeDir: runtimeDir,
-		ctx:        ctx,
-		cancel:     cancel,
-		jobManager: NewJobManager(runtimeDir),
-	}, nil
+	d := &Daemon{
+		socketPath:  socketPath,
+		pidPath:     pidPath,
+		runtimeDir:  runtimeDir,
+		ctx:         ctx,
+		cancel:      cancel,
+		subscribers: make([]*Subscriber, 0),
+	}
+
+	// Initialize job manager with event callback
+	d.jobManager = NewJobManager(runtimeDir, d.broadcastEvent)
+
+	return d, nil
 }
 
 // Start starts the daemon server
@@ -111,6 +127,14 @@ func (d *Daemon) Run() error {
 // Shutdown gracefully shuts down the daemon
 func (d *Daemon) Shutdown() error {
 	log.Println("Shutting down daemon...")
+
+	// Close all subscriber connections
+	d.subscribersMu.Lock()
+	for _, sub := range d.subscribers {
+		sub.conn.Close()
+	}
+	d.subscribers = nil
+	d.subscribersMu.Unlock()
 
 	// Stop all managed jobs first
 	stopped, _, _ := d.jobManager.Nuke("")
@@ -197,8 +221,6 @@ func (d *Daemon) acceptConnections() {
 
 // handleConnection handles a single client connection
 func (d *Daemon) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 
@@ -207,8 +229,18 @@ func (d *Daemon) handleConnection(conn net.Conn) {
 	if err := decoder.Decode(&req); err != nil {
 		log.Printf("Error decoding request: %v\n", err)
 		d.sendErrorResponse(encoder, err)
+		conn.Close()
 		return
 	}
+
+	// Handle subscribe specially - don't close connection
+	if req.Type == RequestTypeSubscribe {
+		d.handleSubscribe(&req, conn, encoder)
+		return
+	}
+
+	// For all other requests, close connection after handling
+	defer conn.Close()
 
 	// Handle request
 	resp := d.handleRequest(&req)
@@ -578,4 +610,94 @@ func (d *Daemon) handleRun(req *Request) *Response {
 func (d *Daemon) sendErrorResponse(encoder *json.Encoder, err error) {
 	resp := NewErrorResponse(err)
 	encoder.Encode(resp)
+}
+
+// handleSubscribe handles a subscribe request
+func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Encoder) {
+	workdir, _ := req.Payload["workdir"].(string)
+
+	// Create subscriber
+	sub := &Subscriber{
+		conn:    conn,
+		encoder: encoder,
+		workdir: workdir,
+	}
+
+	// Add to subscribers list
+	d.subscribersMu.Lock()
+	d.subscribers = append(d.subscribers, sub)
+	d.subscribersMu.Unlock()
+
+	log.Printf("Subscriber added (workdir: %q), total: %d\n", workdir, len(d.subscribers))
+
+	// Send success response
+	resp := NewSuccessResponse()
+	resp.Data["message"] = "subscribed"
+	if err := encoder.Encode(resp); err != nil {
+		log.Printf("Error sending subscribe response: %v\n", err)
+		d.removeSubscriber(sub)
+		conn.Close()
+		return
+	}
+
+	// Keep connection open and wait for it to close
+	// The connection will be closed when the client disconnects or daemon shuts down
+	// We detect this by trying to read (which will block until close or error)
+	buf := make([]byte, 1)
+	for {
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		_, err := conn.Read(buf)
+		if err != nil {
+			// Connection closed or error
+			break
+		}
+	}
+
+	// Remove subscriber
+	d.removeSubscriber(sub)
+	conn.Close()
+	log.Printf("Subscriber removed, total: %d\n", len(d.subscribers))
+}
+
+// broadcastEvent sends an event to all subscribed clients
+func (d *Daemon) broadcastEvent(event Event) {
+	d.subscribersMu.RLock()
+	subscribers := make([]*Subscriber, len(d.subscribers))
+	copy(subscribers, d.subscribers)
+	d.subscribersMu.RUnlock()
+
+	var deadSubscribers []*Subscriber
+
+	for _, sub := range subscribers {
+		// Check workdir filter
+		if sub.workdir != "" && event.Job.Workdir != sub.workdir {
+			continue
+		}
+
+		// Set write deadline to avoid blocking
+		sub.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		if err := sub.encoder.Encode(event); err != nil {
+			log.Printf("Error sending event to subscriber: %v\n", err)
+			deadSubscribers = append(deadSubscribers, sub)
+		}
+	}
+
+	// Remove dead subscribers
+	for _, sub := range deadSubscribers {
+		d.removeSubscriber(sub)
+		sub.conn.Close()
+	}
+}
+
+// removeSubscriber removes a subscriber from the list
+func (d *Daemon) removeSubscriber(sub *Subscriber) {
+	d.subscribersMu.Lock()
+	defer d.subscribersMu.Unlock()
+
+	for i, s := range d.subscribers {
+		if s == sub {
+			d.subscribers = append(d.subscribers[:i], d.subscribers[i+1:]...)
+			return
+		}
+	}
 }

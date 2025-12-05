@@ -44,8 +44,8 @@ type Job struct {
 	StderrPath string
 }
 
-// tickMsg is sent periodically to refresh job status
-type tickMsg time.Time
+// logTickMsg is sent periodically to refresh log content
+type logTickMsg time.Time
 
 // jobsUpdatedMsg is sent when jobs are refreshed
 type jobsUpdatedMsg struct {
@@ -63,6 +63,26 @@ type actionResultMsg struct {
 	message string
 	isError bool
 }
+
+// subscriptionStartedMsg is sent when subscription is established
+type subscriptionStartedMsg struct {
+	client *daemon.Client
+	events <-chan daemon.Event
+	errs   <-chan error
+}
+
+// daemonEventMsg wraps an event from the daemon
+type daemonEventMsg struct {
+	event daemon.Event
+}
+
+// subscriptionErrorMsg is sent when subscription fails
+type subscriptionErrorMsg struct {
+	err error
+}
+
+// reconnectMsg triggers a reconnection attempt
+type reconnectMsg struct{}
 
 // Model is the main TUI model
 type Model struct {
@@ -91,6 +111,12 @@ type Model struct {
 	followLogs    bool
 	stdoutContent string
 	stderrContent string
+
+	// Subscription state
+	subscribed bool
+	subClient  *daemon.Client
+	eventChan  <-chan daemon.Event
+	errChan    <-chan error
 }
 
 // New creates a new TUI model
@@ -134,14 +160,65 @@ func connectClient() (*daemon.Client, error) {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.refreshJobs(),
-		tickCmd(),
+		m.startSubscription(),
+		logTickCmd(),
 	)
 }
 
-// tickCmd returns a command that sends a tick every 500ms
-func tickCmd() tea.Cmd {
+// logTickCmd returns a command that sends a tick every 500ms for log updates
+func logTickCmd() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
-		return tickMsg(t)
+		return logTickMsg(t)
+	})
+}
+
+// startSubscription attempts to connect and subscribe to daemon events
+func (m Model) startSubscription() tea.Cmd {
+	return func() tea.Msg {
+		client, err := daemon.NewClient()
+		if err != nil {
+			return subscriptionErrorMsg{err: err}
+		}
+		if err := client.Connect(); err != nil {
+			return subscriptionErrorMsg{err: err}
+		}
+
+		workdir := ""
+		if !m.showAll {
+			workdir = m.cwd
+		}
+
+		events, errs := client.SubscribeChan(workdir)
+		return subscriptionStartedMsg{
+			client: client,
+			events: events,
+			errs:   errs,
+		}
+	}
+}
+
+// waitForEvent waits for an event or error from the subscription
+func waitForEvent(events <-chan daemon.Event, errs <-chan error) tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return subscriptionErrorMsg{err: fmt.Errorf("event channel closed")}
+			}
+			return daemonEventMsg{event: event}
+		case err, ok := <-errs:
+			if !ok {
+				return subscriptionErrorMsg{err: fmt.Errorf("error channel closed")}
+			}
+			return subscriptionErrorMsg{err: err}
+		}
+	}
+}
+
+// reconnectCmd triggers reconnection after a delay
+func reconnectCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return reconnectMsg{}
 	})
 }
 
@@ -225,8 +302,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stderrView = viewport.New(logWidth-4, stderrHeight-3)
 		m.jobListView = viewport.New(m.jobPanelWidth()-4, totalLogHeight-3)
 
-	case tickMsg:
-		cmds = append(cmds, m.refreshJobs(), m.readLogs(), tickCmd())
+	case logTickMsg:
+		// Update logs only - job status is handled by events
+		cmds = append(cmds, m.readLogs(), logTickCmd())
+
+	case subscriptionStartedMsg:
+		m.subscribed = true
+		m.subClient = msg.client
+		m.eventChan = msg.events
+		m.errChan = msg.errs
+		// Start waiting for events
+		cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
+
+	case daemonEventMsg:
+		// Handle the event by updating the job list
+		m.handleDaemonEvent(msg.event)
+		// Continue waiting for more events
+		if m.subscribed && m.eventChan != nil {
+			cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
+		}
+
+	case subscriptionErrorMsg:
+		// Subscription failed - close old client and schedule reconnect
+		if m.subClient != nil {
+			m.subClient.Close()
+			m.subClient = nil
+		}
+		m.subscribed = false
+		m.eventChan = nil
+		m.errChan = nil
+		// Schedule reconnection attempt
+		cmds = append(cmds, reconnectCmd())
+
+	case reconnectMsg:
+		// Try to reconnect
+		cmds = append(cmds, m.startSubscription())
 
 	case jobsUpdatedMsg:
 		m.jobs = msg.jobs
@@ -251,7 +361,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = msg.message
 		m.isError = msg.isError
 		m.messageTime = time.Now()
-		cmds = append(cmds, m.refreshJobs())
+		// No need to refresh jobs - events will handle that
 
 	case tea.KeyMsg:
 		// Clear old messages
@@ -270,6 +380,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// handleDaemonEvent updates the job list based on a daemon event
+func (m *Model) handleDaemonEvent(event daemon.Event) {
+	switch event.Type {
+	case daemon.EventTypeJobAdded:
+		// Add job to the beginning of the list (newest first)
+		newJob := Job{
+			ID:         event.Job.ID,
+			PID:        event.Job.PID,
+			Command:    strings.Join(event.Job.Command, " "),
+			Workdir:    event.Job.Workdir,
+			Running:    event.Job.Status == "running",
+			StdoutPath: event.Job.StdoutPath,
+			StderrPath: event.Job.StderrPath,
+		}
+		m.jobs = append([]Job{newJob}, m.jobs...)
+		// Adjust cursor if needed
+		if m.cursor >= 0 {
+			m.cursor++
+		}
+
+	case daemon.EventTypeJobStarted:
+		// Update job status to running
+		for i := range m.jobs {
+			if m.jobs[i].ID == event.JobID {
+				m.jobs[i].Running = true
+				m.jobs[i].PID = event.Job.PID
+				break
+			}
+		}
+
+	case daemon.EventTypeJobStopped:
+		// Update job status to stopped
+		for i := range m.jobs {
+			if m.jobs[i].ID == event.JobID {
+				m.jobs[i].Running = false
+				break
+			}
+		}
+
+	case daemon.EventTypeJobRemoved:
+		// Remove job from list
+		for i := range m.jobs {
+			if m.jobs[i].ID == event.JobID {
+				m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
+				// Adjust cursor if needed
+				if m.cursor >= len(m.jobs) {
+					m.cursor = len(m.jobs) - 1
+				}
+				if m.cursor < 0 {
+					m.cursor = 0
+				}
+				break
+			}
+		}
+	}
+}
+
 func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.modal {
 	case modalNewJob:
@@ -284,6 +451,9 @@ func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.addJob(cmd)
 			}
 		case "ctrl+c":
+			if m.subClient != nil {
+				m.subClient.Close()
+			}
 			return m, tea.Quit
 		}
 		var cmd tea.Cmd
@@ -295,6 +465,9 @@ func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "esc", "?", "q":
 			m.modal = modalNone
 		case "ctrl+c":
+			if m.subClient != nil {
+				m.subClient.Close()
+			}
 			return m, tea.Quit
 		}
 	}
@@ -304,6 +477,10 @@ func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
+		// Close subscription client on quit
+		if m.subClient != nil {
+			m.subClient.Close()
+		}
 		return m, tea.Quit
 
 	case "1":
@@ -337,7 +514,15 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.showAll = !m.showAll
 		m.cursor = 0
-		return m, m.refreshJobs()
+		// Restart subscription with new filter
+		if m.subClient != nil {
+			m.subClient.Close()
+			m.subClient = nil
+		}
+		m.subscribed = false
+		m.eventChan = nil
+		m.errChan = nil
+		return m, tea.Batch(m.refreshJobs(), m.startSubscription())
 	}
 
 	// Panel-specific keys

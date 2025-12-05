@@ -353,15 +353,23 @@ state where TUI reads logs from `$XDG_DATA_HOME` but daemon writes to `$XDG_RUNT
 - [x] Remove dependency on `storage` package from TUI
 - [x] Keep 500ms polling for now (works correctly, just uses daemon)
 
-### Phase 4: Event Subscription + Real-time TUI
+### Phase 4: Event Subscription + Real-time TUI ✅
 Add event subscription to daemon and update TUI to use it instead of polling.
 
-- [ ] Implement `subscribe` request type in daemon protocol
-- [ ] Maintain list of subscribed clients in daemon
-- [ ] Broadcast job state changes (added/started/stopped/removed) to subscribers
-- [ ] Add client-side event handling (`Subscribe()` method)
-- [ ] Update TUI to subscribe to events instead of polling
-- [ ] Remove polling from TUI
+- [x] Implement `subscribe` request type in daemon protocol
+- [x] Maintain list of subscribed clients in daemon
+- [x] Broadcast job state changes (added/started/stopped/removed) to subscribers
+- [x] Add client-side event handling (`Subscribe()` and `SubscribeChan()` methods)
+- [x] Update TUI to subscribe to events instead of polling for job state
+- [x] Keep log file polling for log content (500ms)
+- [x] Automatic process exit detection via `cmd.Wait()` goroutines
+- [x] Rewrite `gob logs` to use event subscription (no polling)
+
+Notes:
+- Added `gob events` command for testing/debugging subscriptions
+- Events provide instant updates for all job state changes
+- No polling for job state - daemon monitors processes via `cmd.Wait()` and emits events
+- Log content still polled from files (daemon writes logs, clients tail them)
 
 ### Phase 5: Polish
 - [ ] Handle client disconnection gracefully

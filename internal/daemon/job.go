@@ -19,6 +19,9 @@ type Job struct {
 	CreatedAt  time.Time `json:"created_at"`
 	StdoutPath string    `json:"stdout_path"`
 	StderrPath string    `json:"stderr_path"`
+
+	// Internal fields for process management
+	cmd *exec.Cmd // The running command
 }
 
 // JobManager manages all jobs in the daemon
@@ -26,13 +29,36 @@ type JobManager struct {
 	jobs       map[string]*Job
 	mu         sync.RWMutex
 	runtimeDir string
+	onEvent    func(Event)
 }
 
 // NewJobManager creates a new job manager
-func NewJobManager(runtimeDir string) *JobManager {
+func NewJobManager(runtimeDir string, onEvent func(Event)) *JobManager {
 	return &JobManager{
 		jobs:       make(map[string]*Job),
 		runtimeDir: runtimeDir,
+		onEvent:    onEvent,
+	}
+}
+
+// emitEvent sends an event if a callback is registered
+func (jm *JobManager) emitEvent(event Event) {
+	if jm.onEvent != nil {
+		jm.onEvent(event)
+	}
+}
+
+// jobToResponse converts a Job to JobResponse
+func (jm *JobManager) jobToResponse(job *Job) JobResponse {
+	return JobResponse{
+		ID:         job.ID,
+		PID:        job.PID,
+		Status:     job.Status(),
+		Command:    job.Command,
+		Workdir:    job.Workdir,
+		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		StdoutPath: job.StdoutPath,
+		StderrPath: job.StderrPath,
 	}
 }
 
@@ -75,7 +101,7 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, jobID)
 
 	// Start the process
-	pid, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
+	cmd, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
 	if err != nil {
 		return nil, err
 	}
@@ -83,21 +109,33 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	job := &Job{
 		ID:         jobID,
 		Command:    command,
-		PID:        pid,
+		PID:        cmd.Process.Pid,
 		Workdir:    workdir,
 		CreatedAt:  time.Now(),
 		StdoutPath: stdoutPath,
 		StderrPath: stderrPath,
+		cmd:        cmd,
 	}
 
 	jm.jobs[jobID] = job
+
+	// Start goroutine to wait for process exit and emit event
+	go jm.waitForProcessExit(job)
+
+	// Emit job added event
+	jm.emitEvent(Event{
+		Type:  EventTypeJobAdded,
+		JobID: job.ID,
+		Job:   jm.jobToResponse(job),
+	})
+
 	return job, nil
 }
 
 // startProcess starts a process as a child of the daemon
-func (jm *JobManager) startProcess(command []string, workdir string, stdoutPath, stderrPath string) (int, error) {
+func (jm *JobManager) startProcess(command []string, workdir string, stdoutPath, stderrPath string) (*exec.Cmd, error) {
 	if len(command) == 0 {
-		return 0, fmt.Errorf("empty command")
+		return nil, fmt.Errorf("empty command")
 	}
 
 	cmd := exec.Command(command[0], command[1:]...)
@@ -112,13 +150,13 @@ func (jm *JobManager) startProcess(command []string, workdir string, stdoutPath,
 	// Create log files
 	stdoutFile, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		return 0, fmt.Errorf("failed to open stdout log file: %w", err)
+		return nil, fmt.Errorf("failed to open stdout log file: %w", err)
 	}
 
 	stderrFile, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		stdoutFile.Close()
-		return 0, fmt.Errorf("failed to open stderr log file: %w", err)
+		return nil, fmt.Errorf("failed to open stderr log file: %w", err)
 	}
 
 	// Redirect stdin to /dev/null
@@ -126,7 +164,7 @@ func (jm *JobManager) startProcess(command []string, workdir string, stdoutPath,
 	if err != nil {
 		stdoutFile.Close()
 		stderrFile.Close()
-		return 0, fmt.Errorf("failed to open /dev/null: %w", err)
+		return nil, fmt.Errorf("failed to open /dev/null: %w", err)
 	}
 
 	cmd.Stdout = stdoutFile
@@ -138,20 +176,32 @@ func (jm *JobManager) startProcess(command []string, workdir string, stdoutPath,
 		stdoutFile.Close()
 		stderrFile.Close()
 		devNull.Close()
-		return 0, fmt.Errorf("failed to start process: %w", err)
+		return nil, fmt.Errorf("failed to start process: %w", err)
 	}
-
-	pid := cmd.Process.Pid
 
 	// Close file descriptors in daemon (child keeps them)
 	stdoutFile.Close()
 	stderrFile.Close()
 	devNull.Close()
 
-	// Reap the process in a goroutine to prevent zombies
-	go cmd.Wait()
+	return cmd, nil
+}
 
-	return pid, nil
+// waitForProcessExit waits for a job's process to exit and emits an event
+func (jm *JobManager) waitForProcessExit(job *Job) {
+	if job.cmd == nil {
+		return
+	}
+
+	// Wait for process to exit (this blocks until the process terminates)
+	job.cmd.Wait()
+
+	// Emit stopped event - this handles both explicit stops and natural exits
+	jm.emitEvent(Event{
+		Type:  EventTypeJobStopped,
+		JobID: job.ID,
+		Job:   jm.jobToResponse(job),
+	})
 }
 
 // GetJob returns a job by ID
@@ -214,7 +264,7 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 		}
 	}
 
-	// Wait for process to terminate
+	// Wait for process to terminate (event will be emitted by waitForProcessExit)
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if !job.IsRunning() {
@@ -270,12 +320,24 @@ func (jm *JobManager) StartJob(jobID string) error {
 	}
 
 	// Start the process
-	pid, err := jm.startProcess(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
+	cmd, err := jm.startProcess(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
 	if err != nil {
 		return err
 	}
 
-	job.PID = pid
+	job.cmd = cmd
+	job.PID = cmd.Process.Pid
+
+	// Start goroutine to wait for process exit
+	go jm.waitForProcessExit(job)
+
+	// Emit started event
+	jm.emitEvent(Event{
+		Type:  EventTypeJobStarted,
+		JobID: job.ID,
+		Job:   jm.jobToResponse(job),
+	})
+
 	return nil
 }
 
@@ -289,7 +351,7 @@ func (jm *JobManager) RestartJob(jobID string) error {
 		return fmt.Errorf("job not found: %s", jobID)
 	}
 
-	// Stop if running
+	// Stop if running (waitForProcessExit will emit the stopped event)
 	if job.IsRunning() {
 		if err := syscall.Kill(-job.PID, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
 			return fmt.Errorf("failed to stop process: %w", err)
@@ -329,12 +391,24 @@ func (jm *JobManager) RestartJob(jobID string) error {
 	}
 
 	// Start the process
-	pid, err := jm.startProcess(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
+	cmd, err := jm.startProcess(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
 	if err != nil {
 		return err
 	}
 
-	job.PID = pid
+	job.cmd = cmd
+	job.PID = cmd.Process.Pid
+
+	// Start goroutine to wait for process exit
+	go jm.waitForProcessExit(job)
+
+	// Emit started event
+	jm.emitEvent(Event{
+		Type:  EventTypeJobStarted,
+		JobID: job.ID,
+		Job:   jm.jobToResponse(job),
+	})
+
 	return nil
 }
 
@@ -352,11 +426,22 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 		return fmt.Errorf("cannot remove running job: %s (use 'stop' first)", jobID)
 	}
 
+	// Capture job info for event before deletion
+	jobResp := jm.jobToResponse(job)
+
 	// Remove log files
 	os.Remove(job.StdoutPath)
 	os.Remove(job.StderrPath)
 
 	delete(jm.jobs, jobID)
+
+	// Emit removed event
+	jm.emitEvent(Event{
+		Type:  EventTypeJobRemoved,
+		JobID: jobID,
+		Job:   jobResp,
+	})
+
 	return nil
 }
 
@@ -365,17 +450,31 @@ func (jm *JobManager) Cleanup(workdirFilter string) int {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
+	// Collect jobs to remove and their info for events
+	var removedJobs []Event
 	count := 0
 	for id, job := range jm.jobs {
 		if workdirFilter != "" && job.Workdir != workdirFilter {
 			continue
 		}
 		if !job.IsRunning() {
+			// Capture job info for event before deletion
+			removedJobs = append(removedJobs, Event{
+				Type:  EventTypeJobRemoved,
+				JobID: id,
+				Job:   jm.jobToResponse(job),
+			})
 			os.Remove(job.StdoutPath)
 			os.Remove(job.StderrPath)
 			delete(jm.jobs, id)
 			count++
 		}
+	}
+
+	// Emit events after releasing lock would be safer, but we need to emit inside
+	// to ensure consistency. Events are sent asynchronously anyway.
+	for _, event := range removedJobs {
+		jm.emitEvent(event)
 	}
 
 	return count
@@ -434,6 +533,9 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 
 	stopped = len(runningJobs)
 
+	// Note: stopped events will be emitted by waitForProcessExit goroutines
+	// when cmd.Wait() returns for each killed process
+
 	// Delete log files and remove jobs
 	for _, job := range jobsToNuke {
 		if err := os.Remove(job.StdoutPath); err == nil {
@@ -442,8 +544,17 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 		if err := os.Remove(job.StderrPath); err == nil {
 			logsDeleted++
 		}
+		// Capture job info for event
+		jobResp := jm.jobToResponse(job)
 		delete(jm.jobs, job.ID)
 		cleaned++
+
+		// Emit removed event
+		jm.emitEvent(Event{
+			Type:  EventTypeJobRemoved,
+			JobID: job.ID,
+			Job:   jobResp,
+		})
 	}
 
 	return stopped, logsDeleted, cleaned
@@ -527,12 +638,24 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 		}
 
 		// Start the process
-		pid, err := jm.startProcess(existingJob.Command, existingJob.Workdir, existingJob.StdoutPath, existingJob.StderrPath)
+		cmd, err := jm.startProcess(existingJob.Command, existingJob.Workdir, existingJob.StdoutPath, existingJob.StderrPath)
 		if err != nil {
 			return nil, false, err
 		}
 
-		existingJob.PID = pid
+		existingJob.cmd = cmd
+		existingJob.PID = cmd.Process.Pid
+
+		// Start goroutine to wait for process exit
+		go jm.waitForProcessExit(existingJob)
+
+		// Emit started event (restart of existing job)
+		jm.emitEvent(Event{
+			Type:  EventTypeJobStarted,
+			JobID: existingJob.ID,
+			Job:   jm.jobToResponse(existingJob),
+		})
+
 		return existingJob, true, nil
 	}
 
@@ -544,7 +667,7 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, jobID)
 
 	// Start the process
-	pid, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
+	cmd, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -552,13 +675,25 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 	job := &Job{
 		ID:         jobID,
 		Command:    command,
-		PID:        pid,
+		PID:        cmd.Process.Pid,
 		Workdir:    workdir,
 		CreatedAt:  time.Now(),
 		StdoutPath: stdoutPath,
 		StderrPath: stderrPath,
+		cmd:        cmd,
 	}
 
 	jm.jobs[jobID] = job
+
+	// Start goroutine to wait for process exit
+	go jm.waitForProcessExit(job)
+
+	// Emit added event (new job)
+	jm.emitEvent(Event{
+		Type:  EventTypeJobAdded,
+		JobID: job.ID,
+		Job:   jm.jobToResponse(job),
+	})
+
 	return job, false, nil
 }

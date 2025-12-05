@@ -5,10 +5,8 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/juanibiapina/gob/internal/daemon"
-	"github.com/juanibiapina/gob/internal/process"
 	"github.com/juanibiapina/gob/internal/tail"
 	"github.com/spf13/cobra"
 )
@@ -48,26 +46,25 @@ Exit codes:
   1: Error (log files not available)`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Connect to daemon
-		client, err := daemon.NewClient()
-		if err != nil {
-			return fmt.Errorf("failed to create client: %w", err)
-		}
-		defer client.Close()
-
-		if err := client.Connect(); err != nil {
-			return fmt.Errorf("failed to connect to daemon: %w", err)
-		}
-
 		// Get current workdir
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
+		// Connect to daemon for initial list
+		listClient, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer listClient.Close()
+
+		if err := listClient.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
+		}
+
 		follower := tail.NewFollower(os.Stdout)
 		var mu sync.Mutex
-		knownJobs := make(map[string]bool)
 		type runningJob struct {
 			pid     int
 			command string
@@ -99,7 +96,7 @@ Exit codes:
 		}
 
 		// Get initial jobs
-		jobs, err := client.List(cwd)
+		jobs, err := listClient.List(cwd)
 		if err != nil {
 			return fmt.Errorf("failed to list jobs: %w", err)
 		}
@@ -111,99 +108,68 @@ Exit codes:
 				mu.Unlock()
 				return err
 			}
-			knownJobs[job.ID] = true
 		}
+		hasInitialJobs := len(jobs) > 0
 		mu.Unlock()
 
-		// Start goroutine to watch for new jobs and detect stopped jobs
+		// Connect a separate client for event subscription
+		eventClient, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create event client: %w", err)
+		}
+		defer eventClient.Close()
+
+		if err := eventClient.Connect(); err != nil {
+			return fmt.Errorf("failed to connect event client: %w", err)
+		}
+
+		// Subscribe to events for this workdir
+		eventCh, errCh := eventClient.SubscribeChan(cwd)
+
+		// Handle events in a goroutine
 		go func() {
 			for {
-				time.Sleep(500 * time.Millisecond)
-
-				mu.Lock()
-				// Check for stopped jobs - collect IDs to delete first
-				var stoppedJobs []string
-				for jobID, job := range runningJobs {
-					if !process.IsProcessRunning(job.pid) {
-						stoppedJobs = append(stoppedJobs, jobID)
+				select {
+				case event, ok := <-eventCh:
+					if !ok {
+						return
 					}
-				}
-				// Now delete and log
-				for _, jobID := range stoppedJobs {
-					job := runningJobs[jobID]
-					follower.SystemLog("process stopped: %s (pid:%d id:%s)", job.command, job.pid, jobID)
-					delete(runningJobs, jobID)
-				}
-				// Check if all jobs have stopped
-				if len(stoppedJobs) > 0 && len(runningJobs) == 0 {
-					follower.SystemLog("all processes stopped")
-				}
-				mu.Unlock()
-
-				// Check for new jobs - need to reconnect for each request
-				newClient, err := daemon.NewClient()
-				if err != nil {
-					continue
-				}
-				if err := newClient.Connect(); err != nil {
-					newClient.Close()
-					continue
-				}
-				newJobs, err := newClient.List(cwd)
-				newClient.Close()
-				if err != nil {
-					continue
-				}
-
-				mu.Lock()
-				for _, job := range newJobs {
-					if !knownJobs[job.ID] {
-						knownJobs[job.ID] = true
-						addJobSources(&job)
-						follower.SystemLog("process started: %s (pid:%d id:%s)", strings.Join(job.Command, " "), job.PID, job.ID)
-					}
-				}
-				mu.Unlock()
-			}
-		}()
-
-		// If no initial jobs, wait for first job to appear
-		if len(jobs) == 0 {
-			follower.SystemLog("waiting for jobs...")
-			for {
-				time.Sleep(500 * time.Millisecond)
-
-				// Reconnect for each request
-				newClient, err := daemon.NewClient()
-				if err != nil {
-					continue
-				}
-				if err := newClient.Connect(); err != nil {
-					newClient.Close()
-					continue
-				}
-				newJobs, err := newClient.List(cwd)
-				newClient.Close()
-				if err != nil {
-					continue
-				}
-
-				if len(newJobs) > 0 {
 					mu.Lock()
-					for _, job := range newJobs {
-						if !knownJobs[job.ID] {
-							knownJobs[job.ID] = true
-							if err := addJobSources(&job); err != nil {
-								mu.Unlock()
-								return err
+					switch event.Type {
+					case daemon.EventTypeJobAdded, daemon.EventTypeJobStarted:
+						if event.Job.Status == "running" {
+							// Only add if not already tracking
+							if _, exists := runningJobs[event.JobID]; !exists {
+								addJobSources(&event.Job)
+								follower.SystemLog("process started: %s (pid:%d id:%s)",
+									strings.Join(event.Job.Command, " "), event.Job.PID, event.JobID)
 							}
-							follower.SystemLog("process started: %s (pid:%d id:%s)", strings.Join(job.Command, " "), job.PID, job.ID)
+						}
+					case daemon.EventTypeJobStopped:
+						if job, exists := runningJobs[event.JobID]; exists {
+							follower.SystemLog("process stopped: %s (pid:%d id:%s)",
+								job.command, job.pid, event.JobID)
+							delete(runningJobs, event.JobID)
+							// Check if all jobs have stopped
+							if len(runningJobs) == 0 {
+								follower.SystemLog("all processes stopped")
+							}
 						}
 					}
 					mu.Unlock()
-					break
+				case err, ok := <-errCh:
+					if ok && err != nil {
+						// Log error but don't exit - logs can continue without events
+						follower.SystemLog("event subscription error: %v", err)
+					}
+					return
 				}
 			}
+		}()
+
+		// If no initial jobs, log and wait (events will add them)
+		if !hasInitialJobs {
+			follower.SystemLog("waiting for jobs...")
 		}
 
 		return follower.Wait()

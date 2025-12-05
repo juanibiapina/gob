@@ -425,3 +425,69 @@ func (c *Client) Close() error {
 	}
 	return nil
 }
+
+// Subscribe subscribes to daemon events and calls the callback for each event
+// This blocks until an error occurs or the connection is closed
+func (c *Client) Subscribe(workdir string, callback func(Event) error) error {
+	if c.conn == nil {
+		return fmt.Errorf("not connected to daemon")
+	}
+
+	encoder := json.NewEncoder(c.conn)
+	decoder := json.NewDecoder(c.conn)
+
+	// Send subscribe request
+	req := NewRequest(RequestTypeSubscribe)
+	if workdir != "" {
+		req.Payload["workdir"] = workdir
+	}
+
+	if err := encoder.Encode(req); err != nil {
+		return fmt.Errorf("failed to send subscribe request: %w", err)
+	}
+
+	// Read initial response
+	var resp Response
+	if err := decoder.Decode(&resp); err != nil {
+		return fmt.Errorf("failed to decode subscribe response: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("subscribe failed: %s", resp.Error)
+	}
+
+	// Read events in a loop
+	for {
+		var event Event
+		if err := decoder.Decode(&event); err != nil {
+			return fmt.Errorf("failed to decode event: %w", err)
+		}
+
+		if err := callback(event); err != nil {
+			return err
+		}
+	}
+}
+
+// SubscribeChan subscribes to daemon events and returns channels for events and errors
+// The caller should select on both channels and handle events/errors appropriately
+// To stop the subscription, close the client connection
+func (c *Client) SubscribeChan(workdir string) (<-chan Event, <-chan error) {
+	eventCh := make(chan Event, 10)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(eventCh)
+		defer close(errCh)
+
+		err := c.Subscribe(workdir, func(event Event) error {
+			eventCh <- event
+			return nil
+		})
+		if err != nil {
+			errCh <- err
+		}
+	}()
+
+	return eventCh, errCh
+}
