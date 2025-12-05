@@ -13,16 +13,18 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Try to remove running job - should fail
   run "$JOB_CLI" remove "$job_id"
   assert_failure
   assert_output --partial "cannot remove running job: $job_id (use 'stop' first)"
 
-  # Verify metadata file still exists
-  [ -f "$metadata_file" ]
+  # Verify job still exists in list
+  run "$JOB_CLI" list --json
+  assert_success
+  local count=$(echo "$output" | jq 'length')
+  assert_equal "$count" "1"
 }
 
 @test "remove command removes stopped job" {
@@ -30,9 +32,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -47,8 +48,10 @@ load 'test_helper'
   assert_success
   assert_output "Removed job $job_id (PID $pid)"
 
-  # Verify metadata file is gone
-  [ ! -f "$metadata_file" ]
+  # Verify job is gone from list
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }
 
 @test "remove command with invalid job ID shows error" {
@@ -61,10 +64,9 @@ load 'test_helper'
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -86,36 +88,29 @@ load 'test_helper'
   # Start second job
   "$JOB_CLI" add sleep 400
 
-  # Get metadata files sorted by time (newest first)
-  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
+  # Get first job (older one - index 1)
+  local job_id1=$(get_job_field id 1)
+  local pid1=$(get_job_field pid 1)
 
-  # Get first job (older one)
-  job_id1=$(basename "${metadata_files[1]}" .json)
-  metadata_file1="${metadata_files[1]}"
-
-  # Get second job (newer one)
-  job_id2=$(basename "${metadata_files[0]}" .json)
-  metadata_file2="${metadata_files[0]}"
+  # Get second job (newer one - index 0)
+  local job_id2=$(get_job_field id 0)
 
   # Stop the first job
-  pid1=$(jq -r '.pid' "$metadata_file1")
   "$JOB_CLI" stop "$job_id1"
   wait_for_process_death "$pid1"
 
   # Remove only the first job
   "$JOB_CLI" remove "$job_id1"
 
-  # First job metadata should be gone
-  [ ! -f "$metadata_file1" ]
-
-  # Second job metadata should still exist
-  [ -f "$metadata_file2" ]
-
   # List should show only the second job
   run "$JOB_CLI" list
   assert_success
   assert_output --regexp "${job_id2}: \[[0-9]+\] running: sleep 400"
   refute_output --partial "$job_id1"
+
+  # Verify only one job left
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 }
 
 @test "remove command removes already stopped job" {
@@ -123,9 +118,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the process
   "$JOB_CLI" stop "$job_id"
@@ -135,11 +129,13 @@ load 'test_helper'
   run kill -0 "$pid"
   assert_failure
 
-  # Remove should work even if we didn't use stop command
+  # Remove should work
   run "$JOB_CLI" remove "$job_id"
   assert_success
   assert_output "Removed job $job_id (PID $pid)"
 
-  # Verify metadata file is gone
-  [ ! -f "$metadata_file" ]
+  # Verify job is gone from list
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }

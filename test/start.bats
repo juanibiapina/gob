@@ -13,9 +13,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  original_pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local original_pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -31,7 +30,7 @@ load 'test_helper'
   assert_output --regexp "Started job $job_id with PID [0-9]+ running: sleep 300"
 
   # Get new PID
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  local new_pid=$(get_job_field pid)
 
   # Verify new process is running
   assert kill -0 "$new_pid"
@@ -42,8 +41,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Try to start the already running job
   run "$JOB_CLI" start "$job_id"
@@ -63,9 +61,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and original PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  original_pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local original_pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -74,8 +71,8 @@ load 'test_helper'
   # Start the job
   "$JOB_CLI" start "$job_id"
 
-  # Get new PID from metadata
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  # Get new PID
+  local new_pid=$(get_job_field pid)
 
   # Verify PID was updated
   assert [ "$new_pid" != "$original_pid" ]
@@ -89,10 +86,9 @@ load 'test_helper'
   # Add a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -113,15 +109,17 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for output to be written and process to stop
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "first-run-marker"
-  pid=$(jq -r '.pid' "$metadata_file")
+  local pid=$(get_job_field pid)
   wait_for_process_death "$pid" || sleep 0.2
 
   # Modify the command in metadata to output different text
+  # Note: This test relies on implementation detail (metadata files)
+  # and will need redesign when migrating to daemon
+  local metadata_file="$XDG_DATA_HOME/gob/${job_id}.json"
   jq '.command = ["sh", "-c", "echo second-run-marker"]' "$metadata_file" > "${metadata_file}.tmp"
   mv "${metadata_file}.tmp" "$metadata_file"
 
@@ -130,7 +128,7 @@ load 'test_helper'
   assert_success
 
   # Get new PID and wait for process to finish
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  local new_pid=$(get_job_field pid)
   wait_for_process_death "$new_pid" || sleep 0.2
 
   # Check that log file only contains second run output

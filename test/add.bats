@@ -13,9 +13,8 @@ load 'test_helper'
   assert_success
   assert_output --regexp "Added job [A-Za-z0-9]+ running: sleep 300"
 
-  # Extract PID from metadata file
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json 2>/dev/null | head -n 1)
-  TEST_PID=$(jq -r '.pid' "$metadata_file")
+  # Extract PID from list --json
+  TEST_PID=$("$JOB_CLI" list --json | jq -r '.[0].pid')
 
   # Verify process is running
   assert kill -0 "$TEST_PID"
@@ -25,9 +24,8 @@ load 'test_helper'
   # Run the command
   output=$("$JOB_CLI" add sleep 300)
 
-  # Extract PID from metadata file
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  TEST_PID=$(jq -r '.pid' "$metadata_file")
+  # Extract PID from list --json
+  TEST_PID=$("$JOB_CLI" list --json | jq -r '.[0].pid')
 
   # Wait a moment to ensure CLI has exited
   sleep 1
@@ -36,41 +34,38 @@ load 'test_helper'
   assert kill -0 "$TEST_PID"
 }
 
-@test "metadata file is created in XDG data directory" {
+@test "job is tracked after add" {
   run "$JOB_CLI" add sleep 300
   assert_success
 
-  # Check that metadata directory exists
-  assert [ -d "$XDG_DATA_HOME/gob" ]
+  # Job should appear in list
+  run "$JOB_CLI" list --json
+  assert_success
 
-  # Check that a JSON file was created
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  assert [ -f "$metadata_file" ]
-
-  # Clean up
-  TEST_PID=$(jq -r '.pid' "$metadata_file")
+  local count=$(echo "$output" | jq 'length')
+  assert_equal "$count" "1"
 }
 
-@test "metadata contains correct command and PID" {
+@test "job has correct command and PID" {
   run "$JOB_CLI" add sleep 300
   assert_success
 
-  # Get the metadata file
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
+  # Get job from list --json
+  local job=$( "$JOB_CLI" list --json | jq '.[0]')
 
   # Verify PID is present and valid
-  TEST_PID=$(jq -r '.pid' "$metadata_file")
-  assert [ -n "$TEST_PID" ]
-  assert [ "$TEST_PID" -gt 0 ]
+  local pid=$(echo "$job" | jq -r '.pid')
+  assert [ -n "$pid" ]
+  assert [ "$pid" -gt 0 ]
 
   # Verify command is correct
-  command_length=$(jq '.command | length' "$metadata_file")
+  local command_length=$(echo "$job" | jq '.command | length')
   assert [ "$command_length" -eq 2 ]
-  assert [ "$(jq -r '.command[0]' "$metadata_file")" = "sleep" ]
-  assert [ "$(jq -r '.command[1]' "$metadata_file")" = "300" ]
+  assert [ "$(echo "$job" | jq -r '.command[0]')" = "sleep" ]
+  assert [ "$(echo "$job" | jq -r '.command[1]')" = "300" ]
 
   # Verify id is present (base62 encoded timestamp)
-  id=$(jq -r '.id' "$metadata_file")
+  local id=$(echo "$job" | jq -r '.id')
   assert [ -n "$id" ]
   assert [ ${#id} -ge 7 ]
 }
@@ -81,8 +76,7 @@ load 'test_helper'
   assert_output --regexp "Added job [A-Za-z0-9]+ running: sleep 300"
 
   # Extract PID and verify process is running
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  TEST_PID=$(jq -r '.pid' "$metadata_file")
+  TEST_PID=$("$JOB_CLI" list --json | jq -r '.[0].pid')
   assert kill -0 "$TEST_PID"
 }
 
@@ -92,24 +86,21 @@ load 'test_helper'
   assert_output --partial "failed to add job"
 }
 
-@test "multiple jobs create separate metadata files" {
+@test "multiple jobs are tracked separately" {
   # Add first job
   run "$JOB_CLI" add sleep 300
   assert_success
-  metadata_file1=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  TEST_PID=$(jq -r '.pid' "$metadata_file1")
 
   # Add second job
-  run "$JOB_CLI" add sleep 300
+  run "$JOB_CLI" add sleep 301
   assert_success
 
-  # Verify two separate files exist
-  file_count=$(ls $XDG_DATA_HOME/gob/*.json | wc -l)
-  assert [ "$file_count" -eq 2 ]
+  # Verify two jobs exist
+  local job_count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$job_count" "2"
 
   # Clean up second process
-  metadata_file2=$(ls $XDG_DATA_HOME/gob/*.json | tail -n 1)
-  job_id2=$(basename "$metadata_file2" .json)
+  local job_id2=$("$JOB_CLI" list --json | jq -r '.[0].id')
   "$JOB_CLI" stop "$job_id2"
 }
 

@@ -19,9 +19,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Verify process is running
   assert kill -0 "$pid"
@@ -44,9 +43,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Send SIGTERM signal
   run "$JOB_CLI" signal "$job_id" SIGTERM
@@ -66,9 +64,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Send signal 15 (SIGTERM)
   run "$JOB_CLI" signal "$job_id" 15
@@ -88,9 +85,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Send INT signal
   run "$JOB_CLI" signal "$job_id" INT
@@ -110,9 +106,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Send KILL signal
   run "$JOB_CLI" signal "$job_id" KILL
@@ -132,9 +127,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -157,8 +151,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Try to send invalid signal
   run "$JOB_CLI" signal "$job_id" INVALID
@@ -171,9 +164,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Send signal with lowercase name
   run "$JOB_CLI" signal "$job_id" term
@@ -193,9 +185,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Send HUP signal
   run "$JOB_CLI" signal "$job_id" HUP

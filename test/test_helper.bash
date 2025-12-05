@@ -3,6 +3,20 @@ load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'wait_helpers'
 
+# Get job info as JSON. Usage: get_job [index]
+# index defaults to 0 (first/newest job)
+get_job() {
+  local index=${1:-0}
+  "$JOB_CLI" list --json | jq ".[$index]"
+}
+
+# Get specific field from job. Usage: get_job_field <field> [index]
+get_job_field() {
+  local field=$1
+  local index=${2:-0}
+  "$JOB_CLI" list --json | jq -r ".[$index].$field"
+}
+
 # Helper to get runtime directory for daemon files
 get_runtime_dir() {
   echo "$XDG_RUNTIME_DIR/gob"

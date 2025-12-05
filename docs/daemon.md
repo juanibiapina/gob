@@ -293,13 +293,41 @@ The daemon writes job output to log files, and clients tail those files directly
 
 ## Migration Path
 
-### Phase 1: Daemon Infrastructure
-- [ ] Implement daemon process with socket listener
-- [ ] Implement auto-daemonization (double-fork)
-- [ ] Implement client connection and protocol (basic request/response)
-- [ ] Implement auto-start mechanism
+### Phase 1: Daemon Infrastructure ✅
+- [x] Implement daemon process with socket listener
+- [x] Implement auto-daemonization (setsid)
+- [x] Implement client connection and protocol (basic request/response)
+- [x] Implement auto-start mechanism
 
-### Phase 2: Core Commands
+### Phase 2a: Test Refactoring ✅
+- [x] Add `--json` flag to `list` command
+- [x] Add `get_job` and `get_job_field` test helpers
+- [x] Update all tests to use `gob list --json` instead of reading metadata files
+- [x] Tests are now implementation-agnostic (ready for daemon migration)
+
+Note: Two tests in start.bats and stdout_stderr.bats modify metadata files to test
+log clearing behavior. These will need redesign when migrating to daemon.
+
+### Phase 2b: Test Metadata Cleanup
+Clean up remaining direct metadata file access in tests.
+
+**Log file access (OK - logs remain on disk after daemon migration):**
+- `test/logs.bats`, `test/nuke.bats`, `test/start.bats`, `test/stdout_stderr.bats`
+- Uses `wait_for_log_content` and checks for `.stdout.log`/`.stderr.log` files
+- These are fine - daemon will still write logs to disk
+
+**Metadata file modification (needs cleanup):**
+| File | Line | Usage |
+|------|------|-------|
+| `test/start.bats` | 122-124 | Modifies `.json` to change command (tests log clearing) |
+| `test/stdout_stderr.bats` | 131-133 | Modifies `.json` to change command (tests log clearing) |
+
+**Tasks:**
+- [ ] Find alternative approach for testing log clearing behavior
+- [ ] Remove direct metadata file manipulation from tests
+
+### Phase 2c: Core Commands
+- [ ] Add `Job` struct to daemon
 - [ ] Migrate `add` command to client-server
 - [ ] Migrate `list` command to client-server
 - [ ] Migrate `stop/start/restart` commands to client-server

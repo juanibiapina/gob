@@ -13,9 +13,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job manually
   "$JOB_CLI" stop "$job_id"
@@ -25,26 +24,28 @@ load 'test_helper'
   run kill -0 "$pid"
   assert_failure
 
-  # Verify metadata file exists
-  assert [ -f "$XDG_DATA_HOME/gob/$job_id.json" ]
+  # Verify job exists in list
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 
   # Run cleanup
   run "$JOB_CLI" cleanup
   assert_success
   assert_output "Cleaned up 1 stopped job(s)"
 
-  # Verify metadata file was removed
-  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id.json" ]
+  # Verify job was removed from list
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }
 
 @test "cleanup command preserves running jobs" {
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Verify process is running
   assert kill -0 "$pid"
@@ -54,35 +55,27 @@ load 'test_helper'
   assert_success
   assert_output "Cleaned up 0 stopped job(s)"
 
-  # Verify metadata file still exists
-  assert [ -f "$XDG_DATA_HOME/gob/$job_id.json" ]
+  # Verify job still exists in list
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 
   # Verify process is still running
   assert kill -0 "$pid"
 }
 
 @test "cleanup command with mixed running and stopped jobs" {
-  # Start first job
+  # Start three jobs
   "$JOB_CLI" add sleep 300
-
-  # Start second job
   "$JOB_CLI" add sleep 400
-
-  # Start third job
   "$JOB_CLI" add sleep 500
 
-  # Get metadata files sorted by time (newest first)
-  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
-
-  # Get job IDs and PIDs
-  job_id1=$(basename "${metadata_files[2]}" .json)
-  pid1=$(jq -r '.pid' "${metadata_files[2]}")
-
-  job_id2=$(basename "${metadata_files[1]}" .json)
-  pid2=$(jq -r '.pid' "${metadata_files[1]}")
-
-  job_id3=$(basename "${metadata_files[0]}" .json)
-  pid3=$(jq -r '.pid' "${metadata_files[0]}")
+  # Get job IDs and PIDs (newest first: 500, 400, 300)
+  local job_id1=$(get_job_field id 2)  # sleep 300 (oldest)
+  local pid1=$(get_job_field pid 2)
+  local job_id2=$(get_job_field id 1)  # sleep 400 (middle)
+  local pid2=$(get_job_field pid 1)
+  local job_id3=$(get_job_field id 0)  # sleep 500 (newest)
+  local pid3=$(get_job_field pid 0)
 
   # Stop first and third jobs
   "$JOB_CLI" stop "$job_id1"
@@ -93,9 +86,7 @@ load 'test_helper'
   # Verify first and third are stopped, second is running
   run kill -0 "$pid1"
   assert_failure
-
   assert kill -0 "$pid2"
-
   run kill -0 "$pid3"
   assert_failure
 
@@ -104,12 +95,12 @@ load 'test_helper'
   assert_success
   assert_output "Cleaned up 2 stopped job(s)"
 
-  # Verify stopped jobs were removed
-  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id1.json" ]
-  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id3.json" ]
+  # Verify only running job remains
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 
-  # Verify running job still exists
-  assert [ -f "$XDG_DATA_HOME/gob/$job_id2.json" ]
+  local remaining_id=$(get_job_field id)
+  assert_equal "$remaining_id" "$job_id2"
   assert kill -0 "$pid2"
 }
 
@@ -119,13 +110,11 @@ load 'test_helper'
   "$JOB_CLI" add sleep 400
   "$JOB_CLI" add sleep 500
 
-  # Get metadata files
-  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
-
   # Stop all jobs
-  for metadata_file in "${metadata_files[@]}"; do
-    job_id=$(basename "$metadata_file" .json)
-    pid=$(jq -r '.pid' "$metadata_file")
+  local jobs=$("$JOB_CLI" list --json)
+  for i in 0 1 2; do
+    local job_id=$(echo "$jobs" | jq -r ".[$i].id")
+    local pid=$(echo "$jobs" | jq -r ".[$i].pid")
     "$JOB_CLI" stop "$job_id"
     wait_for_process_death "$pid"
   done
@@ -135,19 +124,19 @@ load 'test_helper'
   assert_success
   assert_output "Cleaned up 3 stopped job(s)"
 
-  # Verify all metadata files were removed
-  run ls $XDG_DATA_HOME/gob/*.json
-  assert_failure
+  # Verify all jobs were removed
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }
 
 @test "cleanup command is safe to run multiple times" {
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -168,23 +157,25 @@ load 'test_helper'
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop using stop command
   "$JOB_CLI" stop "$job_id"
   wait_for_process_death "$pid"
 
-  # Verify metadata file still exists (stop doesn't remove it)
-  assert [ -f "$XDG_DATA_HOME/gob/$job_id.json" ]
+  # Verify job still exists in list (stop doesn't remove it)
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 
   # Run cleanup
   run "$JOB_CLI" cleanup
   assert_success
   assert_output "Cleaned up 1 stopped job(s)"
 
-  # Verify metadata file was removed
-  assert [ ! -f "$XDG_DATA_HOME/gob/$job_id.json" ]
+  # Verify job was removed from list
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }

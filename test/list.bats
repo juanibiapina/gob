@@ -23,9 +23,9 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and stop the process
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job=$( "$JOB_CLI" list --json | jq '.[0]')
+  local job_id=$(echo "$job" | jq -r '.id')
+  local pid=$(echo "$job" | jq -r '.pid')
   "$JOB_CLI" stop "$job_id"
   wait_for_process_death "$pid"
 
@@ -58,9 +58,8 @@ load 'test_helper'
   # Start second job
   "$JOB_CLI" add sleep 400
 
-  # Kill the first job
-  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
-  pid=$(jq -r '.pid' "${metadata_files[1]}")
+  # Kill the first job (oldest, so second in list since newest first)
+  local pid=$("$JOB_CLI" list --json | jq -r '.[1].pid')
   kill "$pid"
   wait_for_process_death "$pid"
 
@@ -109,10 +108,10 @@ load 'test_helper'
   assert_success
 
   # Verify format: <job_id>: [<pid>] <status>: <command>
-  # Extract job ID from metadata file
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Extract job ID and PID from list --json
+  local job=$("$JOB_CLI" list --json | jq '.[0]')
+  local job_id=$(echo "$job" | jq -r '.id')
+  local pid=$(echo "$job" | jq -r '.pid')
 
   # Check that output contains the expected format
   assert_output --regexp "^${job_id}: \[${pid}\] (running|stopped): echo test$"
@@ -145,4 +144,35 @@ load 'test_helper'
   assert_success
   # Should contain the working directory path in parentheses
   assert_output --regexp "\(.*\)"
+}
+
+@test "list command with --json outputs valid JSON" {
+  "$JOB_CLI" add sleep 300
+
+  run "$JOB_CLI" list --json
+  assert_success
+
+  # Should be valid JSON array
+  echo "$output" | jq -e '.' > /dev/null
+
+  # Should have one job
+  local count=$(echo "$output" | jq 'length')
+  assert_equal "$count" "1"
+
+  # Should have expected fields
+  local id=$(echo "$output" | jq -r '.[0].id')
+  local pid=$(echo "$output" | jq -r '.[0].pid')
+  local status=$(echo "$output" | jq -r '.[0].status')
+  local cmd=$(echo "$output" | jq -r '.[0].command[0]')
+
+  assert [ -n "$id" ]
+  assert [ "$pid" -gt 0 ]
+  assert_equal "$status" "running"
+  assert_equal "$cmd" "sleep"
+}
+
+@test "list command with --json and no jobs outputs empty array" {
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }

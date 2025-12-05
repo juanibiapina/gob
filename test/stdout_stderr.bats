@@ -32,8 +32,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for output to be written
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Hello stdout"
@@ -50,8 +49,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for error output to be written
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stderr.log" "No such file or directory"
@@ -67,8 +65,7 @@ load 'test_helper'
   run "$JOB_CLI" add echo "To stdout"
   assert_success
 
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for output to be written
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "To stdout"
@@ -89,8 +86,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Verify log files exist
   assert [ -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log" ]
@@ -103,8 +99,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for output to be written
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Line 3"
@@ -123,13 +118,17 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
-  # Wait for output to be written
+  # Wait for output to be written and process to stop
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "first-run-marker"
+  local pid=$(get_job_field pid)
+  wait_for_process_death "$pid" || sleep 0.2
 
   # Modify the command in metadata to output different text
+  # Note: This test relies on implementation detail (metadata files)
+  # and will need redesign when migrating to daemon
+  local metadata_file="$XDG_DATA_HOME/gob/${job_id}.json"
   jq '.command = ["sh", "-c", "echo second-run-marker"]' "$metadata_file" > "${metadata_file}.tmp"
   mv "${metadata_file}.tmp" "$metadata_file"
 
@@ -138,7 +137,7 @@ load 'test_helper'
   assert_success
 
   # Get new PID and wait for process to finish
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  local new_pid=$(get_job_field pid)
   wait_for_process_death "$new_pid" || sleep 0.2
 
   # Check that log file only contains second run output
@@ -154,8 +153,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Check stdout (should be empty but succeed)
   run "$JOB_CLI" stdout "$job_id"

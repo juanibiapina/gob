@@ -16,8 +16,8 @@ load 'test_helper'
   assert_output --partial "completed"
 
   # Verify job was created
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  assert [ -f "$metadata_file" ]
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 }
 
 @test "run command reuses existing stopped job with same command" {
@@ -25,8 +25,7 @@ load 'test_helper'
   "$JOB_CLI" add echo "reuse-test"
   
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
   
   # Wait for it to complete
   sleep 0.5
@@ -38,8 +37,8 @@ load 'test_helper'
   assert_output --partial "completed"
   
   # Verify still only one job
-  file_count=$(ls $XDG_DATA_HOME/gob/*.json | wc -l)
-  assert [ "$file_count" -eq 1 ]
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "1"
 }
 
 @test "run command errors when job with same command is already running" {
@@ -47,8 +46,7 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
   
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
   
   # Try to run same command - should error
   run "$JOB_CLI" run sleep 300
@@ -85,8 +83,8 @@ load 'test_helper'
   assert_output --partial "Added job"
   
   # Should have two jobs
-  file_count=$(ls $XDG_DATA_HOME/gob/*.json | wc -l)
-  assert [ "$file_count" -eq 2 ]
+  local count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$count" "2"
 }
 
 @test "run command matches exact command and args" {
@@ -94,13 +92,13 @@ load 'test_helper'
   "$JOB_CLI" run echo "a" "b"
   sleep 0.3
   
-  job_count_before=$(ls $XDG_DATA_HOME/gob/*.json | wc -l)
+  local job_count_before=$("$JOB_CLI" list --json | jq 'length')
   
   # Run with different args - should create new
   "$JOB_CLI" run echo "a" "b" "c"
   sleep 0.3
   
-  job_count_after=$(ls $XDG_DATA_HOME/gob/*.json | wc -l)
+  local job_count_after=$("$JOB_CLI" list --json | jq 'length')
   
   # Should have created a new job
   assert [ "$job_count_after" -gt "$job_count_before" ]

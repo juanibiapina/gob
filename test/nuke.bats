@@ -2,25 +2,26 @@
 
 load 'test_helper'
 
-@test "nuke command removes all metadata files" {
+@test "nuke command removes all jobs" {
   # Start multiple jobs
   run "$JOB_CLI" add sleep 300
   assert_success
   run "$JOB_CLI" add sleep 300
   assert_success
 
-  # Verify metadata files exist
-  metadata_count=$(ls $XDG_DATA_HOME/gob/*.json 2>/dev/null | wc -l)
-  assert [ "$metadata_count" -eq 2 ]
+  # Verify jobs exist
+  local job_count=$("$JOB_CLI" list --json | jq 'length')
+  assert_equal "$job_count" "2"
 
   # Run nuke
   run "$JOB_CLI" nuke
   assert_success
   assert_output --partial "Cleaned up 2 total job(s)"
 
-  # Verify no metadata files remain
-  metadata_count=$(ls $XDG_DATA_HOME/gob/*.json 2>/dev/null | wc -l)
-  assert [ "$metadata_count" -eq 0 ]
+  # Verify no jobs remain
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_output "[]"
 }
 
 @test "nuke command removes all log files" {
@@ -29,8 +30,7 @@ load 'test_helper'
   assert_success
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for output to be written
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "test output"
@@ -55,9 +55,8 @@ load 'test_helper'
   assert_success
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Verify process is running
   run ps -p "$pid"
@@ -80,8 +79,7 @@ load 'test_helper'
   assert_success
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Manually remove log files to simulate missing logs
   rm -f "$XDG_DATA_HOME/gob/${job_id}.stdout.log"

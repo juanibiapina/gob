@@ -13,9 +13,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and original PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  original_pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local original_pid=$(get_job_field pid)
 
   # Verify original process is running
   assert kill -0 "$original_pid"
@@ -26,7 +25,7 @@ load 'test_helper'
   assert_output --regexp "Restarted job $job_id with new PID [0-9]+ running: sleep 300"
 
   # Get new PID
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  local new_pid=$(get_job_field pid)
 
   # Verify new process is running
   assert kill -0 "$new_pid"
@@ -44,9 +43,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  original_pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local original_pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -62,7 +60,7 @@ load 'test_helper'
   assert_output --regexp "Restarted job $job_id with new PID [0-9]+ running: sleep 300"
 
   # Get new PID
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  local new_pid=$(get_job_field pid)
 
   # Verify new process is running
   assert kill -0 "$new_pid"
@@ -79,18 +77,14 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Restart the job
   "$JOB_CLI" restart "$job_id"
 
   # Verify job ID is still the same
-  new_job_id=$(basename "$metadata_file" .json)
-  assert [ "$job_id" = "$new_job_id" ]
-
-  # Verify metadata file still exists at same location
-  assert [ -f "$metadata_file" ]
+  local new_job_id=$(get_job_field id)
+  assert_equal "$job_id" "$new_job_id"
 }
 
 @test "restart command updates PID in metadata" {
@@ -98,15 +92,14 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and original PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  original_pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local original_pid=$(get_job_field pid)
 
   # Restart the job
   "$JOB_CLI" restart "$job_id"
 
-  # Get new PID from metadata
-  new_pid=$(jq -r '.pid' "$metadata_file")
+  # Get new PID
+  local new_pid=$(get_job_field pid)
 
   # Verify PID was updated
   assert [ "$new_pid" != "$original_pid" ]
@@ -121,27 +114,26 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Restart the job
   "$JOB_CLI" restart "$job_id"
 
   # Verify command is preserved
-  command_length=$(jq '.command | length' "$metadata_file")
+  local job=$("$JOB_CLI" list --json | jq '.[0]')
+  local command_length=$(echo "$job" | jq '.command | length')
   assert [ "$command_length" -eq 2 ]
-  assert [ "$(jq -r '.command[0]' "$metadata_file")" = "sleep" ]
-  assert [ "$(jq -r '.command[1]' "$metadata_file")" = "300" ]
+  assert [ "$(echo "$job" | jq -r '.command[0]')" = "sleep" ]
+  assert [ "$(echo "$job" | jq -r '.command[1]')" = "300" ]
 }
 
 @test "restarted job shows as running in list" {
   # Add a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
@@ -161,13 +153,12 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  first_pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local first_pid=$(get_job_field pid)
 
   # First restart
   "$JOB_CLI" restart "$job_id"
-  second_pid=$(jq -r '.pid' "$metadata_file")
+  local second_pid=$(get_job_field pid)
 
   # Verify PID changed
   assert [ "$second_pid" != "$first_pid" ]
@@ -175,7 +166,7 @@ load 'test_helper'
 
   # Second restart
   "$JOB_CLI" restart "$job_id"
-  third_pid=$(jq -r '.pid' "$metadata_file")
+  local third_pid=$(get_job_field pid)
 
   # Verify PID changed again
   assert [ "$third_pid" != "$second_pid" ]

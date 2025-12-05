@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,7 +13,18 @@ import (
 var (
 	listAll     bool
 	showWorkdir bool
+	listJSON    bool
 )
+
+// JobOutput represents a job in JSON output format
+type JobOutput struct {
+	ID        string   `json:"id"`
+	PID       int      `json:"pid"`
+	Status    string   `json:"status"`
+	Command   []string `json:"command"`
+	Workdir   string   `json:"workdir"`
+	CreatedAt string   `json:"created_at"`
+}
 
 var listCmd = &cobra.Command{
 	Use:   "list",
@@ -68,15 +80,19 @@ Exit codes:
 			return fmt.Errorf("failed to list jobs: %w", err)
 		}
 
-		// If no jobs, print message
+		// If no jobs, print message (unless JSON output)
 		if len(jobs) == 0 {
-			fmt.Println("No jobs found")
+			if listJSON {
+				fmt.Println("[]")
+			} else {
+				fmt.Println("No jobs found")
+			}
 			return nil
 		}
 
-		// Print each job
+		// Build job output list with status
+		var jobOutputs []JobOutput
 		for _, job := range jobs {
-			// Check if process is running
 			var status string
 			if process.IsProcessRunning(job.Metadata.PID) {
 				status = "running"
@@ -84,20 +100,37 @@ Exit codes:
 				status = "stopped"
 			}
 
-			// Format command as a single string
-			commandStr := strings.Join(job.Metadata.Command, " ")
+			jobOutputs = append(jobOutputs, JobOutput{
+				ID:        job.ID,
+				PID:       job.Metadata.PID,
+				Status:    status,
+				Command:   job.Metadata.Command,
+				Workdir:   job.Metadata.Workdir,
+				CreatedAt: job.Metadata.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			})
+		}
 
-			// Print with or without workdir
+		// Output as JSON or human-readable
+		if listJSON {
+			enc := json.NewEncoder(cmd.OutOrStdout())
+			enc.SetIndent("", "  ")
+			return enc.Encode(jobOutputs)
+		}
+
+		// Print each job in human-readable format
+		for _, job := range jobOutputs {
+			commandStr := strings.Join(job.Command, " ")
+
 			if showWorkdir {
-				workdir := job.Metadata.Workdir
+				workdir := job.Workdir
 				if workdir == "" {
-					workdir = "<unknown>" // For legacy jobs without workdir
+					workdir = "<unknown>"
 				}
 				fmt.Printf("%s: [%d] %s (%s): %s\n",
-					job.ID, job.Metadata.PID, status, workdir, commandStr)
+					job.ID, job.PID, job.Status, workdir, commandStr)
 			} else {
 				fmt.Printf("%s: [%d] %s: %s\n",
-					job.ID, job.Metadata.PID, status, commandStr)
+					job.ID, job.PID, job.Status, commandStr)
 			}
 		}
 
@@ -111,4 +144,6 @@ func init() {
 		"Show jobs from all directories (implies --workdir)")
 	listCmd.Flags().BoolVar(&showWorkdir, "workdir", false,
 		"Show working directory for each job")
+	listCmd.Flags().BoolVar(&listJSON, "json", false,
+		"Output in JSON format")
 }

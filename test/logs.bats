@@ -21,8 +21,7 @@ load 'test_helper'
   assert_success
 
   # Extract job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  local job_id=$(get_job_field id)
 
   # Wait for output to be written
   wait_for_log_content "$XDG_DATA_HOME/gob/${job_id}.stdout.log" "Dynamic job output"

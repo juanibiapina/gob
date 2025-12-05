@@ -12,10 +12,9 @@ load 'test_helper'
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Verify process is running
   assert kill -0 "$pid"
@@ -38,9 +37,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job manually
   "$JOB_CLI" stop "$job_id"
@@ -63,9 +61,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Verify process is running
   assert kill -0 "$pid"
@@ -88,9 +85,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Verify process is running
   assert kill -0 "$pid"
@@ -112,15 +108,12 @@ load 'test_helper'
   # Start a job
   "$JOB_CLI" add sleep 300
 
-  # Get job ID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
+  # Get job ID and PID
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job
   "$JOB_CLI" stop "$job_id"
-
-  # Get PID to wait for termination
-  pid=$(jq -r '.pid' "$metadata_file")
   wait_for_process_death "$pid"
 
   # List jobs
@@ -136,16 +129,12 @@ load 'test_helper'
   # Start second job
   "$JOB_CLI" add sleep 400
 
-  # Get metadata files sorted by time (newest first)
-  metadata_files=($(ls -t $XDG_DATA_HOME/gob/*.json))
+  # Get first job (older one - index 1 since newest first)
+  local job_id1=$(get_job_field id 1)
+  local pid1=$(get_job_field pid 1)
 
-  # Get first job (older one)
-  job_id1=$(basename "${metadata_files[1]}" .json)
-  pid1=$(jq -r '.pid' "${metadata_files[1]}")
-
-  # Get second job (newer one)
-  job_id2=$(basename "${metadata_files[0]}" .json)
-  pid2=$(jq -r '.pid' "${metadata_files[0]}")
+  # Get second job (newer one - index 0)
+  local pid2=$(get_job_field pid 0)
 
   # Stop only the first job
   "$JOB_CLI" stop "$job_id1"
@@ -164,9 +153,8 @@ load 'test_helper'
   "$JOB_CLI" add sleep 300
 
   # Get job ID and PID
-  metadata_file=$(ls $XDG_DATA_HOME/gob/*.json | head -n 1)
-  job_id=$(basename "$metadata_file" .json)
-  pid=$(jq -r '.pid' "$metadata_file")
+  local job_id=$(get_job_field id)
+  local pid=$(get_job_field pid)
 
   # Stop the job manually
   "$JOB_CLI" stop "$job_id"
