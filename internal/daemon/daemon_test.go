@@ -1,0 +1,332 @@
+package daemon
+
+import (
+	"testing"
+	"time"
+)
+
+func TestDaemon_handlePing(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{Type: RequestTypePing}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Error("expected success")
+	}
+	if resp.Data["message"] != "pong" {
+		t.Errorf("expected pong, got %v", resp.Data["message"])
+	}
+}
+
+func TestDaemon_handleList_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{Type: RequestTypeList, Payload: map[string]interface{}{}}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Error("expected success")
+	}
+
+	jobs, ok := resp.Data["jobs"]
+	if !ok {
+		t.Fatal("expected jobs in response")
+	}
+
+	if jobs != nil && len(jobs.([]JobResponse)) != 0 {
+		t.Error("expected empty jobs list")
+	}
+}
+
+func TestDaemon_handleList_WithJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	// Add a job
+	jm.AddJob([]string{"echo", "hello"}, "/workdir")
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{Type: RequestTypeList, Payload: map[string]interface{}{}}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Error("expected success")
+	}
+
+	jobs := resp.Data["jobs"].([]JobResponse)
+	if len(jobs) != 1 {
+		t.Errorf("expected 1 job, got %d", len(jobs))
+	}
+}
+
+func TestDaemon_handleAdd(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeAdd,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo", "hello"},
+			"workdir": "/workdir",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	job := resp.Data["job"].(JobResponse)
+	if job.ID == "" {
+		t.Error("expected non-empty job ID")
+	}
+	if job.Status != "running" {
+		t.Errorf("expected running, got %s", job.Status)
+	}
+}
+
+func TestDaemon_handleAdd_MissingCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypeAdd,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error")
+	}
+	if resp.Error == "" {
+		t.Error("expected error message")
+	}
+}
+
+func TestDaemon_handleAdd_MissingWorkdir(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeAdd,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo"},
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error")
+	}
+}
+
+func TestDaemon_handleGetJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeGetJob,
+		Payload: map[string]interface{}{
+			"job_id": job.ID,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	respJob := resp.Data["job"].(JobResponse)
+	if respJob.ID != job.ID {
+		t.Error("job ID mismatch")
+	}
+}
+
+func TestDaemon_handleGetJob_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeGetJob,
+		Payload: map[string]interface{}{
+			"job_id": "nonexistent",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error for non-existent job")
+	}
+}
+
+func TestDaemon_handleStop(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
+
+	// Stop the fake process so Stop() can succeed
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeStop,
+		Payload: map[string]interface{}{
+			"job_id": job.ID,
+			"force":  false,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+}
+
+func TestDaemon_handleStop_MissingJobID(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypeStop,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error for missing job_id")
+	}
+}
+
+func TestDaemon_handleCleanup(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	jm.AddJob([]string{"echo"}, "/workdir")
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypeCleanup,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	count := int(resp.Data["count"].(int))
+	if count != 1 {
+		t.Errorf("expected 1 cleaned, got %d", count)
+	}
+}
+
+func TestDaemon_handleRun_NewJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeRun,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo", "hello"},
+			"workdir": "/workdir",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	restarted := resp.Data["restarted"].(bool)
+	if restarted {
+		t.Error("expected new job, not restart")
+	}
+}
+
+func TestDaemon_handleRun_Restart(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	// Create and stop initial job
+	jm.AddJob([]string{"echo", "hello"}, "/workdir")
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeRun,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo", "hello"},
+			"workdir": "/workdir",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	restarted := resp.Data["restarted"].(bool)
+	if !restarted {
+		t.Error("expected restart, not new job")
+	}
+}
+
+func TestDaemon_handleRequest_UnknownType(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{Type: "unknown"}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error for unknown request type")
+	}
+}

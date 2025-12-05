@@ -384,8 +384,11 @@ Notes:
 - [ ] Performance testing
 - [ ] Documentation updates
 
-### Phase 6: Testing & Robustness (Proposed)
-- [ ] Unit tests for daemon package (`internal/daemon/*_test.go`)
+### Phase 6: Testing & Robustness (In Progress)
+- [x] Unit tests for daemon package (`internal/daemon/*_test.go`)
+  - Protocol encoding/decoding tests
+  - JobManager tests with fake process executor
+  - Daemon request handler tests
 - [ ] Integration tests for client-server communication
 - [ ] Test daemon auto-start behavior
 - [ ] Test event subscription/broadcasting
@@ -454,7 +457,7 @@ Notes:
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Unit tests for daemon package | High | No tests exist for `internal/daemon/` |
+| ~~Unit tests for daemon package~~ | ~~High~~ | ✅ Added protocol, job manager, and handler tests |
 | Client disconnection handling | Medium | Subscribers removed on error, but could be cleaner |
 | Performance/stress testing | Low | Not tested with many concurrent clients |
 | Log rotation / size limits | Low | Job logs can grow unbounded |

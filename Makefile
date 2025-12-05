@@ -1,7 +1,14 @@
 VERSION ?= dev
 
 .PHONY: test
-test: build
+test: build unit-test integration-test
+
+.PHONY: unit-test
+unit-test:
+	@go test ./...
+
+.PHONY: integration-test
+integration-test: build
 	@./test/bats/bin/bats test
 
 .PHONY: build

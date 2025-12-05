@@ -3,7 +3,6 @@ package daemon
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 	"sync"
 	"syscall"
@@ -21,7 +20,7 @@ type Job struct {
 	StderrPath string    `json:"stderr_path"`
 
 	// Internal fields for process management
-	cmd *exec.Cmd // The running command
+	process ProcessHandle // The running process
 }
 
 // JobManager manages all jobs in the daemon
@@ -30,6 +29,7 @@ type JobManager struct {
 	mu         sync.RWMutex
 	runtimeDir string
 	onEvent    func(Event)
+	executor   ProcessExecutor
 }
 
 // NewJobManager creates a new job manager
@@ -38,6 +38,17 @@ func NewJobManager(runtimeDir string, onEvent func(Event)) *JobManager {
 		jobs:       make(map[string]*Job),
 		runtimeDir: runtimeDir,
 		onEvent:    onEvent,
+		executor:   &RealProcessExecutor{},
+	}
+}
+
+// NewJobManagerWithExecutor creates a new job manager with a custom executor (for testing)
+func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor ProcessExecutor) *JobManager {
+	return &JobManager{
+		jobs:       make(map[string]*Job),
+		runtimeDir: runtimeDir,
+		onEvent:    onEvent,
+		executor:   executor,
 	}
 }
 
@@ -64,8 +75,10 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 
 // IsRunning checks if the job's process is still running
 func (j *Job) IsRunning() bool {
-	err := syscall.Kill(j.PID, syscall.Signal(0))
-	return err == nil
+	if j.process == nil {
+		return false
+	}
+	return j.process.IsRunning()
 }
 
 // Status returns "running" or "stopped" based on the process state
@@ -101,7 +114,7 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, jobID)
 
 	// Start the process
-	cmd, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
+	process, err := jm.executor.Start(command, workdir, stdoutPath, stderrPath)
 	if err != nil {
 		return nil, err
 	}
@@ -109,12 +122,12 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	job := &Job{
 		ID:         jobID,
 		Command:    command,
-		PID:        cmd.Process.Pid,
+		PID:        process.Pid(),
 		Workdir:    workdir,
 		CreatedAt:  time.Now(),
 		StdoutPath: stdoutPath,
 		StderrPath: stderrPath,
-		cmd:        cmd,
+		process:    process,
 	}
 
 	jm.jobs[jobID] = job
@@ -132,69 +145,14 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	return job, nil
 }
 
-// startProcess starts a process as a child of the daemon
-func (jm *JobManager) startProcess(command []string, workdir string, stdoutPath, stderrPath string) (*exec.Cmd, error) {
-	if len(command) == 0 {
-		return nil, fmt.Errorf("empty command")
-	}
-
-	cmd := exec.Command(command[0], command[1:]...)
-	cmd.Dir = workdir
-
-	// Create a new process group so we can signal all children together
-	// But don't detach (no Setsid) - the daemon manages these processes
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-
-	// Create log files
-	stdoutFile, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open stdout log file: %w", err)
-	}
-
-	stderrFile, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		stdoutFile.Close()
-		return nil, fmt.Errorf("failed to open stderr log file: %w", err)
-	}
-
-	// Redirect stdin to /dev/null
-	devNull, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0)
-	if err != nil {
-		stdoutFile.Close()
-		stderrFile.Close()
-		return nil, fmt.Errorf("failed to open /dev/null: %w", err)
-	}
-
-	cmd.Stdout = stdoutFile
-	cmd.Stderr = stderrFile
-	cmd.Stdin = devNull
-
-	// Start the process
-	if err := cmd.Start(); err != nil {
-		stdoutFile.Close()
-		stderrFile.Close()
-		devNull.Close()
-		return nil, fmt.Errorf("failed to start process: %w", err)
-	}
-
-	// Close file descriptors in daemon (child keeps them)
-	stdoutFile.Close()
-	stderrFile.Close()
-	devNull.Close()
-
-	return cmd, nil
-}
-
 // waitForProcessExit waits for a job's process to exit and emits an event
 func (jm *JobManager) waitForProcessExit(job *Job) {
-	if job.cmd == nil {
+	if job.process == nil {
 		return
 	}
 
 	// Wait for process to exit (this blocks until the process terminates)
-	job.cmd.Wait()
+	job.process.Wait()
 
 	// Emit stopped event - this handles both explicit stops and natural exits
 	jm.emitEvent(Event{
@@ -320,13 +278,13 @@ func (jm *JobManager) StartJob(jobID string) error {
 	}
 
 	// Start the process
-	cmd, err := jm.startProcess(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
+	process, err := jm.executor.Start(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
 	if err != nil {
 		return err
 	}
 
-	job.cmd = cmd
-	job.PID = cmd.Process.Pid
+	job.process = process
+	job.PID = process.Pid()
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job)
@@ -391,13 +349,13 @@ func (jm *JobManager) RestartJob(jobID string) error {
 	}
 
 	// Start the process
-	cmd, err := jm.startProcess(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
+	process, err := jm.executor.Start(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
 	if err != nil {
 		return err
 	}
 
-	job.cmd = cmd
-	job.PID = cmd.Process.Pid
+	job.process = process
+	job.PID = process.Pid()
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job)
@@ -638,13 +596,13 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 		}
 
 		// Start the process
-		cmd, err := jm.startProcess(existingJob.Command, existingJob.Workdir, existingJob.StdoutPath, existingJob.StderrPath)
+		process, err := jm.executor.Start(existingJob.Command, existingJob.Workdir, existingJob.StdoutPath, existingJob.StderrPath)
 		if err != nil {
 			return nil, false, err
 		}
 
-		existingJob.cmd = cmd
-		existingJob.PID = cmd.Process.Pid
+		existingJob.process = process
+		existingJob.PID = process.Pid()
 
 		// Start goroutine to wait for process exit
 		go jm.waitForProcessExit(existingJob)
@@ -667,7 +625,7 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, jobID)
 
 	// Start the process
-	cmd, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
+	process, err := jm.executor.Start(command, workdir, stdoutPath, stderrPath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -675,12 +633,12 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 	job := &Job{
 		ID:         jobID,
 		Command:    command,
-		PID:        cmd.Process.Pid,
+		PID:        process.Pid(),
 		Workdir:    workdir,
 		CreatedAt:  time.Now(),
 		StdoutPath: stdoutPath,
 		StderrPath: stderrPath,
-		cmd:        cmd,
+		process:    process,
 	}
 
 	jm.jobs[jobID] = job
