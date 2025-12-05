@@ -147,8 +147,13 @@ Exit codes:
 						}
 					case daemon.EventTypeJobStopped:
 						if job, exists := runningJobs[event.JobID]; exists {
-							follower.SystemLog("process stopped: %s (pid:%d id:%s)",
-								job.command, job.pid, event.JobID)
+							if event.Job.ExitCode != nil {
+								follower.SystemLog("process stopped: %s (pid:%d id:%s) exit: %d",
+									job.command, job.pid, event.JobID, *event.Job.ExitCode)
+							} else {
+								follower.SystemLog("process stopped: %s (pid:%d id:%s)",
+									job.command, job.pid, event.JobID)
+							}
 							delete(runningJobs, event.JobID)
 							// Check if all jobs have stopped
 							if len(runningJobs) == 0 {

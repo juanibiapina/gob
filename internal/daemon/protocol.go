@@ -66,6 +66,7 @@ type JobResponse struct {
 	CreatedAt  string   `json:"created_at"`
 	StdoutPath string   `json:"stdout_path"`
 	StderrPath string   `json:"stderr_path"`
+	ExitCode   *int     `json:"exit_code,omitempty"`
 }
 
 // NewRequest creates a new request with the given type

@@ -107,14 +107,14 @@ load 'test_helper'
   run "$JOB_CLI" list
   assert_success
 
-  # Verify format: <job_id>: [<pid>] <status>: <command>
+  # Verify format: <job_id>: [<pid>] <status> [(<exit_code>)]: <command>
   # Extract job ID and PID from list --json
   local job=$("$JOB_CLI" list --json | jq '.[0]')
   local job_id=$(echo "$job" | jq -r '.id')
   local pid=$(echo "$job" | jq -r '.pid')
 
-  # Check that output contains the expected format
-  assert_output --regexp "^${job_id}: \[${pid}\] (running|stopped): echo test$"
+  # Check that output contains the expected format (exit code optional)
+  assert_output --regexp "^${job_id}: \[${pid}\] (running|stopped( \([0-9]+\))?): echo test$"
 }
 
 @test "list command with --all flag shows all jobs" {
@@ -175,4 +175,55 @@ load 'test_helper'
   run "$JOB_CLI" list --json
   assert_success
   assert_output "[]"
+}
+
+@test "list command shows exit code for completed job" {
+  # Run a command that exits with code 42
+  "$JOB_CLI" add -- sh -c "exit 42"
+  sleep 0.5
+  
+  # List jobs
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --regexp "stopped \(42\): sh"
+}
+
+@test "list command shows exit code 0 for successful job" {
+  # Run a successful command
+  "$JOB_CLI" add true
+  sleep 0.5
+  
+  # List jobs
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --regexp "stopped \(0\): true"
+}
+
+@test "list command with --json includes exit code" {
+  # Run a command that exits with specific code
+  "$JOB_CLI" add -- sh -c "exit 7"
+  sleep 0.5
+  
+  run "$JOB_CLI" list --json
+  assert_success
+  
+  # Should have exit_code field
+  local exit_code=$(echo "$output" | jq -r '.[0].exit_code')
+  assert_equal "$exit_code" "7"
+}
+
+@test "list command shows no exit code for stopped running job" {
+  # Start a long-running job
+  "$JOB_CLI" add sleep 300
+  
+  # Get job ID and stop it
+  local job_id=$("$JOB_CLI" list --json | jq -r '.[0].id')
+  "$JOB_CLI" stop "$job_id"
+  sleep 0.3
+  
+  # List jobs - should just show "stopped" without exit code
+  run "$JOB_CLI" list
+  assert_success
+  # Should NOT have exit code in parentheses for killed process
+  assert_output --regexp "stopped: sleep 300"
 }

@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"sync"
 	"syscall"
@@ -18,6 +19,7 @@ type Job struct {
 	CreatedAt  time.Time `json:"created_at"`
 	StdoutPath string    `json:"stdout_path"`
 	StderrPath string    `json:"stderr_path"`
+	ExitCode   *int      `json:"exit_code,omitempty"` // nil while running, set when process exits
 
 	// Internal fields for process management
 	process ProcessHandle // The running process
@@ -77,6 +79,7 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		StdoutPath: job.StdoutPath,
 		StderrPath: job.StderrPath,
+		ExitCode:   job.ExitCode,
 	}
 }
 
@@ -160,7 +163,26 @@ func (jm *JobManager) waitForProcessExit(job *Job) {
 	}
 
 	// Wait for process to exit (this blocks until the process terminates)
-	job.process.Wait()
+	err := job.process.Wait()
+
+	// Extract exit code from the error
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				// Only get exit code if process exited normally (not killed by signal)
+				if status.Exited() {
+					code := status.ExitStatus()
+					job.ExitCode = &code
+				}
+				// If killed by signal, leave ExitCode as nil
+			}
+		}
+		// If we couldn't extract exit code, leave it as nil (killed/unknown)
+	} else {
+		// No error means exit code 0
+		code := 0
+		job.ExitCode = &code
+	}
 
 	// Get job count while holding lock
 	jm.mu.RLock()
@@ -299,6 +321,7 @@ func (jm *JobManager) StartJob(jobID string) error {
 
 	job.process = process
 	job.PID = process.Pid()
+	job.ExitCode = nil // Clear previous exit code
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job)
@@ -371,6 +394,7 @@ func (jm *JobManager) RestartJob(jobID string) error {
 
 	job.process = process
 	job.PID = process.Pid()
+	job.ExitCode = nil // Clear previous exit code
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job)
@@ -621,6 +645,7 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 
 		existingJob.process = process
 		existingJob.PID = process.Pid()
+		existingJob.ExitCode = nil // Clear previous exit code
 
 		// Start goroutine to wait for process exit
 		go jm.waitForProcessExit(existingJob)

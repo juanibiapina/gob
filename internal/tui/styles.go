@@ -85,8 +85,14 @@ var (
 			Foreground(successColor).
 			Bold(true)
 
-	jobStoppedStyle = lipgloss.NewStyle().
+	jobSuccessStyle = lipgloss.NewStyle().
+			Foreground(successColor)
+
+	jobFailedStyle = lipgloss.NewStyle().
 			Foreground(dangerColor)
+
+	jobStoppedStyle = lipgloss.NewStyle().
+			Foreground(fgOyster) // Gray for manually stopped/killed
 
 	jobIDStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)

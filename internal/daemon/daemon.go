@@ -318,16 +318,7 @@ func (d *Daemon) handleList(req *Request) *Response {
 
 	var jobResponses []JobResponse
 	for _, job := range jobs {
-		jobResponses = append(jobResponses, JobResponse{
-			ID:         job.ID,
-			PID:        job.PID,
-			Status:     job.Status(),
-			Command:    job.Command,
-			Workdir:    job.Workdir,
-			CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			StdoutPath: job.StdoutPath,
-			StderrPath: job.StderrPath,
-		})
+		jobResponses = append(jobResponses, d.jobManager.jobToResponse(job))
 	}
 
 	resp := NewSuccessResponse()
@@ -549,16 +540,7 @@ func (d *Daemon) handleGetJob(req *Request) *Response {
 	}
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = JobResponse{
-		ID:         job.ID,
-		PID:        job.PID,
-		Status:     job.Status(),
-		Command:    job.Command,
-		Workdir:    job.Workdir,
-		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StdoutPath: job.StdoutPath,
-		StderrPath: job.StderrPath,
-	}
+	resp.Data["job"] = d.jobManager.jobToResponse(job)
 	return resp
 }
 

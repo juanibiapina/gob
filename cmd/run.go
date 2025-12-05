@@ -108,7 +108,25 @@ Exit codes:
 		}
 
 		if completed {
-			fmt.Printf("\nJob %s completed\n", job.ID)
+			// Poll for exit code (daemon sets it asynchronously after process exits)
+			var exitCode *int
+			for i := 0; i < 20; i++ { // Wait up to 2 seconds
+				finalJob, err := client.GetJob(job.ID)
+				if err == nil && finalJob.ExitCode != nil {
+					exitCode = finalJob.ExitCode
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			if exitCode != nil {
+				fmt.Printf("\nJob %s completed with exit code %d\n", job.ID, *exitCode)
+				if *exitCode != 0 {
+					os.Exit(*exitCode)
+				}
+			} else {
+				fmt.Printf("\nJob %s completed\n", job.ID)
+			}
 		} else {
 			fmt.Printf("\nJob %s continues running in background\n", job.ID)
 		}

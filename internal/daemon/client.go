@@ -55,12 +55,15 @@ func (c *Client) Connect() error {
 
 // SendRequest sends a request to the daemon and returns the response
 func (c *Client) SendRequest(req *Request) (*Response, error) {
-	if c.conn == nil {
-		return nil, fmt.Errorf("not connected to daemon")
+	// Reconnect for each request (daemon closes connection after each response)
+	conn, err := net.Dial("unix", c.socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to daemon: %w", err)
 	}
+	defer conn.Close()
 
-	encoder := json.NewEncoder(c.conn)
-	decoder := json.NewDecoder(c.conn)
+	encoder := json.NewEncoder(conn)
+	decoder := json.NewDecoder(conn)
 
 	// Send request
 	if err := encoder.Encode(req); err != nil {

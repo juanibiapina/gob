@@ -42,6 +42,7 @@ type Job struct {
 	Running    bool
 	StdoutPath string
 	StderrPath string
+	ExitCode   *int
 }
 
 // logTickMsg is sent periodically to refresh log content
@@ -251,6 +252,7 @@ func (m Model) refreshJobs() tea.Cmd {
 				Running:    jr.Status == "running",
 				StdoutPath: jr.StdoutPath,
 				StderrPath: jr.StderrPath,
+				ExitCode:   jr.ExitCode,
 			}
 		}
 
@@ -393,6 +395,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			Running:    event.Job.Status == "running",
 			StdoutPath: event.Job.StdoutPath,
 			StderrPath: event.Job.StderrPath,
+			ExitCode:   event.Job.ExitCode,
 		}
 		// Only adjust cursor if there are existing jobs (keep selection on same job)
 		// When list was empty, cursor stays at 0 to select the new job
@@ -416,6 +419,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 		for i := range m.jobs {
 			if m.jobs[i].ID == event.JobID {
 				m.jobs[i].Running = false
+				m.jobs[i].ExitCode = event.Job.ExitCode
 				break
 			}
 		}
@@ -901,9 +905,17 @@ func (m Model) renderPanels() string {
 	var stdoutTitle, stderrTitle string
 	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
 		job := m.jobs[m.cursor]
-		status := "○"
+		var status string
 		if job.Running {
-			status = "●"
+			status = "◉"
+		} else if job.ExitCode != nil {
+			if *job.ExitCode == 0 {
+				status = "✓"
+			} else {
+				status = fmt.Sprintf("✗ %d", *job.ExitCode)
+			}
+		} else {
+			status = "◼"
 		}
 		stdoutTitle = fmt.Sprintf("2 stdout: %s %s", job.ID, status)
 		stderrTitle = "3 stderr"
@@ -1015,19 +1027,37 @@ func (m Model) renderJobList(width, height int) string {
 	for i, job := range m.jobs {
 		isSelected := i == m.cursor
 
-		// Status indicator
+		// Status indicator with semantic symbols
 		var status string
 		if job.Running {
+			// ◉ Running (green)
 			if isSelected {
-				status = "●" // No color when selected
+				status = "◉"
 			} else {
-				status = jobRunningStyle.Render("●")
+				status = jobRunningStyle.Render("◉")
+			}
+		} else if job.ExitCode != nil {
+			if *job.ExitCode == 0 {
+				// ✓ Success (green)
+				if isSelected {
+					status = "✓"
+				} else {
+					status = jobSuccessStyle.Render("✓")
+				}
+			} else {
+				// ✗ Failed (red)
+				if isSelected {
+					status = "✗"
+				} else {
+					status = jobFailedStyle.Render("✗")
+				}
 			}
 		} else {
+			// ◼ Stopped/killed (gray)
 			if isSelected {
-				status = "○"
+				status = "◼"
 			} else {
-				status = jobStoppedStyle.Render("○")
+				status = jobStoppedStyle.Render("◼")
 			}
 		}
 
@@ -1048,14 +1078,23 @@ func (m Model) renderJobList(width, height int) string {
 			pid = jobPIDStyle.Render(pidStr)
 		}
 
+		// Exit code (only for failures)
+		var exitInfo string
+		if job.ExitCode != nil && *job.ExitCode != 0 {
+			exitInfo = fmt.Sprintf("(%d) ", *job.ExitCode)
+			if !isSelected {
+				exitInfo = jobFailedStyle.Render(exitInfo)
+			}
+		}
+
 		// Command (truncated)
-		maxCmdLen := width - 25
+		maxCmdLen := width - 25 - len(exitInfo)
 		if maxCmdLen < 10 {
 			maxCmdLen = 10
 		}
 		cmd := m.truncate(job.Command, maxCmdLen)
 
-		line := fmt.Sprintf(" %s %s %s %s", status, id, pid, cmd)
+		line := fmt.Sprintf(" %s %s %s %s%s", status, id, pid, exitInfo, cmd)
 
 		// Pad to full width and apply selection style
 		if isSelected {

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Exit code tracking: jobs now capture and display exit codes
+  - `gob list` shows exit codes: `stopped (0): cmd` for success, `stopped (1): cmd` for failure
+  - `gob list --json` includes `exit_code` field
+  - `gob run` returns the job's exit code as its own exit code (useful for CI/scripts)
+  - `gob logs` shows exit code in "process stopped" message
+- TUI: Semantic status symbols with colors
+  - `◉` (green) - Running
+  - `✓` (green) - Success (exit code 0)
+  - `✗` (red) - Failed (non-zero exit code)
+  - `◼` (gray) - Stopped/killed (no exit code)
 - Daemon auto-shutdown: daemon exits after 5 minutes of inactivity (no jobs)
 - TUI: `f` key in jobs panel to toggle follow mode for log panels without switching focus
 
@@ -19,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - TUI: First job now appears selected when added to an empty job list
+- Client reconnection: Fixed broken pipe errors when making multiple requests (daemon closes connections after each response)
 
 ## [0.12.0] - 2025-12-05
 

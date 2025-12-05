@@ -21,6 +21,7 @@ type JobOutput struct {
 	ID        string   `json:"id"`
 	PID       int      `json:"pid"`
 	Status    string   `json:"status"`
+	ExitCode  *int     `json:"exit_code,omitempty"`
 	Command   []string `json:"command"`
 	Workdir   string   `json:"workdir"`
 	CreatedAt string   `json:"created_at"`
@@ -111,6 +112,7 @@ Exit codes:
 				ID:        job.ID,
 				PID:       job.PID,
 				Status:    job.Status,
+				ExitCode:  job.ExitCode,
 				Command:   job.Command,
 				Workdir:   job.Workdir,
 				CreatedAt: job.CreatedAt,
@@ -128,16 +130,22 @@ Exit codes:
 		for _, job := range jobOutputs {
 			commandStr := strings.Join(job.Command, " ")
 
+			// Format status with exit code if available
+			status := job.Status
+			if job.ExitCode != nil {
+				status = fmt.Sprintf("%s (%d)", job.Status, *job.ExitCode)
+			}
+
 			if showWorkdir {
 				workdir := job.Workdir
 				if workdir == "" {
 					workdir = "<unknown>"
 				}
 				fmt.Printf("%s: [%d] %s (%s): %s\n",
-					job.ID, job.PID, job.Status, workdir, commandStr)
+					job.ID, job.PID, status, workdir, commandStr)
 			} else {
 				fmt.Printf("%s: [%d] %s: %s\n",
-					job.ID, job.PID, job.Status, commandStr)
+					job.ID, job.PID, status, commandStr)
 			}
 		}
 

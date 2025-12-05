@@ -133,3 +133,21 @@ load 'test_helper'
   assert_output --partial "running: echo hello world"
   assert_output --partial "hello world"
 }
+
+@test "run command returns exit code 0 for successful command" {
+  run "$JOB_CLI" run true
+  assert_success
+  assert_output --partial "exit code 0"
+}
+
+@test "run command returns exit code of failed command" {
+  run "$JOB_CLI" run sh -c "exit 42"
+  assert_failure 42
+  assert_output --partial "exit code 42"
+}
+
+@test "run command returns exit code 1 for command that fails" {
+  run "$JOB_CLI" run false
+  assert_failure 1
+  assert_output --partial "exit code 1"
+}
