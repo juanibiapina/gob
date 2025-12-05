@@ -16,19 +16,6 @@ var (
 	listJSON    bool
 )
 
-// JobOutput represents a job in JSON output format
-type JobOutput struct {
-	ID        string   `json:"id"`
-	PID       int      `json:"pid"`
-	Status    string   `json:"status"`
-	ExitCode  *int     `json:"exit_code,omitempty"`
-	Command   []string `json:"command"`
-	Workdir   string   `json:"workdir"`
-	CreatedAt string   `json:"created_at"`
-	StartedAt string   `json:"started_at"`
-	StoppedAt string   `json:"stopped_at,omitempty"`
-}
-
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List background jobs",
@@ -107,31 +94,15 @@ Exit codes:
 			return nil
 		}
 
-		// Build job output list
-		var jobOutputs []JobOutput
-		for _, job := range jobs {
-			jobOutputs = append(jobOutputs, JobOutput{
-				ID:        job.ID,
-				PID:       job.PID,
-				Status:    job.Status,
-				ExitCode:  job.ExitCode,
-				Command:   job.Command,
-				Workdir:   job.Workdir,
-				CreatedAt: job.CreatedAt,
-				StartedAt: job.StartedAt,
-				StoppedAt: job.StoppedAt,
-			})
-		}
-
 		// Output as JSON or human-readable
 		if listJSON {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
-			return enc.Encode(jobOutputs)
+			return enc.Encode(jobs)
 		}
 
 		// Print each job in human-readable format
-		for _, job := range jobOutputs {
+		for _, job := range jobs {
 			commandStr := strings.Join(job.Command, " ")
 
 			// Format status with exit code if available
