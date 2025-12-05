@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TUI: First job now appears selected when added to an empty job list
 - Client reconnection: Fixed broken pipe errors when making multiple requests (daemon closes connections after each response)
+- TUI: Selection background now spans entire line while preserving element colors
 
 ## [0.12.0] - 2025-12-05
 
