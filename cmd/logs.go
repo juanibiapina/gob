@@ -20,8 +20,8 @@ Follows all jobs started in the current directory.
 
 OUTPUT FORMAT:
   Each line is prefixed with a tag in square brackets:
-  - [<job_id>] white prefix for stdout lines
-  - [<job_id>] orange prefix for stderr lines
+  - [<job_id>] default color prefix for stdout lines
+  - [<job_id>] yellow prefix for stderr lines
   - [gob] cyan prefix for system events (process started/stopped)
 
   For raw output without prefixes, use the stdout and stderr commands instead.
@@ -33,7 +33,7 @@ Example:
 Output:
   [gob] process started: ./my-server (pid:12345 id:abc)
   [V3x0QqI] Server listening on port 8080
-  [V3x0QqI] Error: connection refused (orange prefix)
+  [V3x0QqI] Error: connection refused (yellow prefix)
   [gob] process stopped: ./my-server (pid:12345 id:abc)
 
 Notes:
@@ -84,12 +84,12 @@ Exit codes:
 				return fmt.Errorf("stderr log file not found: %s", stderrPath)
 			}
 
-			// Orange ANSI color for stderr prefix
-			orangePrefix := fmt.Sprintf("\033[38;5;208m[%s]\033[0m ", job.ID)
+			// Yellow ANSI color for stderr prefix (uses terminal theme)
+			stderrPrefix := fmt.Sprintf("\033[33m[%s]\033[0m ", job.ID)
 			stdoutPrefix := fmt.Sprintf("[%s] ", job.ID)
 
 			follower.AddSource(tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix})
-			follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: orangePrefix})
+			follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: stderrPrefix})
 
 			runningJobs[job.ID] = runningJob{pid: job.PID, command: strings.Join(job.Command, " ")}
 			return nil

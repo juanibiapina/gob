@@ -2,67 +2,65 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// CharmTone-inspired color palette
+// Terminal theme colors (ANSI 0-15)
+// These adapt to the user's terminal color scheme
 var (
-	// Backgrounds (dark to light)
-	bgPepper   = lipgloss.Color("#201F26") // Darkest
-	bgBBQ      = lipgloss.Color("#2d2c35") // Dark
-	bgCharcoal = lipgloss.Color("#3A3943") // Base
-	bgIron     = lipgloss.Color("#4D4C57") // Lighter
+	// Basic colors (0-7)
+	colorBlack   = lipgloss.Color("0")
+	colorRed     = lipgloss.Color("1")
+	colorGreen   = lipgloss.Color("2")
+	colorYellow  = lipgloss.Color("3")
+	colorBlue    = lipgloss.Color("4")
+	colorMagenta = lipgloss.Color("5")
+	colorCyan    = lipgloss.Color("6")
+	colorWhite   = lipgloss.Color("7")
 
-	// Text (muted to bright)
-	fgOyster = lipgloss.Color("#605F6B") // Muted
-	fgSquid  = lipgloss.Color("#858392") // Subtle
-	fgSmoke  = lipgloss.Color("#BFBCC8") // Base
-	fgAsh    = lipgloss.Color("#DFDBDD") // Light
-	fgSalt   = lipgloss.Color("#F1EFEF") // Bright
-
-	// Accents
-	accentMalibu = lipgloss.Color("#00A4FF") // Blue (primary)
-	accentGuac   = lipgloss.Color("#12C78F") // Green (success)
-	accentCoral  = lipgloss.Color("#FF577D") // Pink (error)
-	accentViolet = lipgloss.Color("#C259FF") // Purple (highlight)
-	accentAmber  = lipgloss.Color("#FFAA33") // Orange (warning)
+	// Bright colors (8-15)
+	colorBrightBlack   = lipgloss.Color("8")
+	colorBrightRed     = lipgloss.Color("9")
+	colorBrightGreen   = lipgloss.Color("10")
+	colorBrightYellow  = lipgloss.Color("11")
+	colorBrightBlue    = lipgloss.Color("12")
+	colorBrightMagenta = lipgloss.Color("13")
+	colorBrightCyan    = lipgloss.Color("14")
+	colorBrightWhite   = lipgloss.Color("15")
 
 	// Semantic aliases
-	primaryColor   = accentMalibu
-	successColor   = accentGuac
-	dangerColor    = accentCoral
-	warningColor   = accentAmber
-	highlightColor = accentViolet
-	mutedColor     = fgOyster
-	bgColor        = bgBBQ
-	fgColor        = fgSmoke
+	primaryColor   = colorBlue
+	successColor   = colorGreen
+	dangerColor    = colorRed
+	warningColor   = colorYellow
+	highlightColor = colorMagenta
+	mutedColor     = colorBrightBlack
+	fgColor        = colorWhite
 
 	// Header bar
 	headerStyle = lipgloss.NewStyle().
 			Background(primaryColor).
-			Foreground(bgPepper).
+			Foreground(colorBlack).
 			Bold(true).
 			Padding(0, 1)
 
 	// Status bar (no background - uses terminal default)
 	statusBarStyle = lipgloss.NewStyle().
-			Foreground(fgSmoke)
+			Foreground(fgColor)
 
 	statusKeyStyle = lipgloss.NewStyle().
-			Background(bgIron).
 			Foreground(primaryColor).
+			Bold(true).
 			Padding(0, 1)
 
 	statusTextStyle = lipgloss.NewStyle().
-			Background(bgCharcoal).
-			Foreground(fgSquid).
+			Foreground(colorBrightBlack).
 			Padding(0, 1)
 
 	// Panel styles
 	panelStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(fgOyster)
+			BorderForeground(colorBrightBlack)
 
 	panelTitleStyle = lipgloss.NewStyle().
-			Background(bgIron).
-			Foreground(fgAsh).
+			Foreground(colorWhite).
 			Padding(0, 1).
 			Bold(true)
 
@@ -72,12 +70,12 @@ var (
 
 	activePanelTitleStyle = lipgloss.NewStyle().
 				Background(primaryColor).
-				Foreground(bgPepper).
+				Foreground(colorBlack).
 				Padding(0, 1).
 				Bold(true)
 
-	// Job list styles - selection background color
-	selectionBg = lipgloss.Color("#2d3f76")
+	// Job list styles - selection uses bright black background
+	selectionBg = colorBrightBlack
 
 	jobSelectedBgStyle = lipgloss.NewStyle().
 				Background(selectionBg)
@@ -106,10 +104,10 @@ var (
 				Background(selectionBg)
 
 	jobStoppedStyle = lipgloss.NewStyle().
-			Foreground(fgOyster) // Gray for manually stopped/killed
+			Foreground(colorBrightBlack)
 
 	jobStoppedSelectedStyle = lipgloss.NewStyle().
-				Foreground(fgOyster).
+				Foreground(colorWhite).
 				Background(selectionBg)
 
 	jobIDStyle = lipgloss.NewStyle().
@@ -120,22 +118,20 @@ var (
 				Background(selectionBg)
 
 	jobPIDStyle = lipgloss.NewStyle().
-			Foreground(fgSquid)
+			Foreground(colorCyan)
 
 	jobPIDSelectedStyle = lipgloss.NewStyle().
-				Foreground(fgSquid).
+				Foreground(colorCyan).
 				Background(selectionBg)
 
-	jobCommandStyle = lipgloss.NewStyle().
-			Foreground(fgSmoke)
+	jobCommandStyle = lipgloss.NewStyle()
 
 	jobCommandSelectedStyle = lipgloss.NewStyle().
-				Foreground(fgSmoke).
 				Background(selectionBg)
 
 	// Log styles
 	logPrefixStyle = lipgloss.NewStyle().
-			Foreground(fgSmoke)
+			Foreground(fgColor)
 
 	logStderrPrefixStyle = lipgloss.NewStyle().
 				Foreground(warningColor)
@@ -166,15 +162,15 @@ var (
 			Bold(true)
 
 	mutedStyle = lipgloss.NewStyle().
-			Foreground(fgSquid)
+			Foreground(colorBrightBlack)
 
 	// Workdir style
 	workdirStyle = lipgloss.NewStyle().
-			Foreground(fgSquid).
+			Foreground(colorBrightBlack).
 			Italic(true)
 
 	workdirSelectedStyle = lipgloss.NewStyle().
-				Foreground(fgSquid).
+				Foreground(colorWhite).
 				Background(selectionBg).
 				Italic(true)
 
@@ -183,5 +179,5 @@ var (
 			Foreground(primaryColor)
 
 	helpDescStyle = lipgloss.NewStyle().
-			Foreground(fgSquid)
+			Foreground(colorBrightBlack)
 )

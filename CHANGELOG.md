@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- UI colors now use terminal theme colors (ANSI 0-15) instead of hardcoded hex values, adapting to the user's color scheme
 - `gob list --json` now includes `stdout_path` and `stderr_path` fields (useful for `tail -f`)
 - Job IDs shortened from 7 characters to 3 characters (e.g., `abc` instead of `V3x0QqI`)
 - System log prefix changed from `[monitor]` to `[gob]` (matches new 3-char job ID length)

@@ -971,13 +971,13 @@ func (m Model) renderPanels() string {
 }
 
 func (m Model) renderPanel(title, content string, width, height int, active bool) string {
-	borderColor := fgOyster
-	titleBg := bgIron
-	titleFg := fgAsh
+	borderColor := colorBrightBlack
+	titleBg := colorBrightBlack
+	titleFg := colorWhite
 	if active {
 		borderColor = primaryColor
 		titleBg = primaryColor
-		titleFg = bgPepper
+		titleFg = colorBlack
 	}
 
 	// Border characters

@@ -40,12 +40,12 @@ func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
 	// Create follower
 	follower := tail.NewFollower(os.Stdout)
 
-	// Orange ANSI color for stderr prefix
-	orangePrefix := fmt.Sprintf("\033[38;5;208m[%s]\033[0m ", jobID)
+	// Yellow ANSI color for stderr prefix (uses terminal theme)
+	stderrPrefix := fmt.Sprintf("\033[33m[%s]\033[0m ", jobID)
 	stdoutPrefix := fmt.Sprintf("[%s] ", jobID)
 
 	follower.AddSource(tail.FileSource{Path: stdoutPath, Prefix: stdoutPrefix})
-	follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: orangePrefix})
+	follower.AddSource(tail.FileSource{Path: stderrPath, Prefix: stderrPrefix})
 
 	// Set up signal handling - on Ctrl+C, just exit (job continues in background)
 	sigCh := make(chan os.Signal, 1)
