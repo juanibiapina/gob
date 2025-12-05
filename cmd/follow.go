@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -85,11 +84,4 @@ func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
 	follower.Wait()
 
 	return completed, nil
-}
-
-// followJobByDir follows a job's output using storageDir to build paths
-// This is a convenience wrapper for commands that still use the old pattern
-func followJobByDir(jobID string, pid int, storageDir string) (bool, error) {
-	stdoutPath := filepath.Join(storageDir, fmt.Sprintf("%s.stdout.log", jobID))
-	return followJob(jobID, pid, stdoutPath)
 }

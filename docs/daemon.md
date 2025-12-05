@@ -85,9 +85,11 @@ All existing commands (`add`, `run`, `list`, `stop`, etc.) become clients that:
 - `gob cleanup`
 - `gob nuke` (auto-starts then immediately shuts down)
 - `gob remove`
+- `gob events` (subscribe to job events)
+- `gob ping` (test daemon connectivity)
 
 **Commands that don't auto-start:**
-- `gob overview` (doesn't need daemon)
+- `gob overview` (uses daemon but shows empty if unavailable)
 - `gob completion` (doesn't need daemon)
 
 ### 3. Communication Protocol
@@ -103,7 +105,7 @@ Unix socket: $XDG_RUNTIME_DIR/gob/daemon.sock
 Client → Daemon (Request):
 ```json
 {
-  "type": "add|run|list|stop|start|restart|remove|cleanup|nuke|subscribe|stream_output",
+  "type": "ping|add|run|list|stop|start|restart|remove|cleanup|nuke|signal|get_job|subscribe",
   "payload": {
     // Command-specific parameters
     "command": ["npm", "start"],
@@ -158,7 +160,9 @@ Daemon → Client (Event Stream - for subscriptions):
 | `cleanup` | Remove all stopped jobs | Count removed |
 | `nuke` | Stop all jobs, remove all metadata, shutdown daemon | Count removed |
 | `signal` | Send signal to job | Success/error |
+| `get_job` | Get single job by ID | Job metadata |
 | `subscribe` | Subscribe to job events (state changes only) | Event stream (long-lived connection) |
+| `ping` | Test daemon connectivity | Success/error |
 
 ### 4. Auto-start Mechanism
 
@@ -372,10 +376,31 @@ Notes:
 - Log content still polled from files (daemon writes logs, clients tail them)
 
 ### Phase 5: Polish
-- [ ] Handle client disconnection gracefully
+- [x] Socket permissions (0600 user-only)
+- [x] Signal handling (SIGTERM, SIGINT) for graceful daemon shutdown
+- [x] Stale socket cleanup on daemon start
+- [ ] Handle client disconnection gracefully (partial - subscribers removed on error)
 - [ ] Proper error handling and logging
 - [ ] Performance testing
 - [ ] Documentation updates
+
+### Phase 6: Testing & Robustness (Proposed)
+- [ ] Unit tests for daemon package (`internal/daemon/*_test.go`)
+- [ ] Integration tests for client-server communication
+- [ ] Test daemon auto-start behavior
+- [ ] Test event subscription/broadcasting
+- [ ] Test signal forwarding to jobs
+- [ ] Configure daemon process logging (TODO in `daemonize.go:23`)
+- [ ] Handle rapid client connect/disconnect
+- [ ] Stress test with many concurrent clients
+
+### Phase 7: Edge Cases & UX (Proposed)
+- [ ] Better error messages when daemon fails to start
+- [ ] Timeout handling for unresponsive jobs
+- [ ] Job output size limits / log rotation
+- [ ] Detect and handle orphaned log files
+- [ ] `gob status` command to show daemon health/stats
+- [ ] Structured logging with log levels
 
 ## Benefits
 
@@ -389,9 +414,9 @@ Notes:
 ## Drawbacks & Considerations
 
 1. **No crash recovery**: Daemon crash loses all job metadata (by design)
-2. **Orphaned processes**: Jobs may keep running if daemon crashes
-3. **Socket permissions**: Unix socket security considerations
-4. **Breaking change**: Not backward compatible with current implementation
+2. **Orphaned processes**: Jobs may keep running if daemon crashes (using Setpgid, not Setsid)
+3. ~~**Socket permissions**~~: Addressed - socket set to 0600 (user-only)
+4. **Breaking change**: Not backward compatible with previous file-based implementation
 5. **Testing**: Need integration tests for client-server communication
 6. **Unix-only**: Windows is not supported (Unix sockets, signals, setsid required)
 
@@ -417,10 +442,29 @@ Notes:
 - **Con**: Significant complexity, different IPC mechanisms, different process management
 - **Decision**: Not worth it - focus on Unix-like systems where gob is primarily used
 
+## Current Status
+
+**Phases 1-4 complete.** The daemon architecture is fully functional:
+
+- All CLI commands use the daemon client
+- TUI uses event subscriptions for real-time updates
+- Job state changes broadcast instantly to all clients
+- Log files written to `$XDG_RUNTIME_DIR/gob/`
+
+**Remaining work (Phase 5+):**
+
+| Task | Priority | Notes |
+|------|----------|-------|
+| Unit tests for daemon package | High | No tests exist for `internal/daemon/` |
+| Configure daemon logging | Medium | TODO in `daemonize.go:23` |
+| Client disconnection handling | Medium | Subscribers removed on error, but could be cleaner |
+| Performance/stress testing | Low | Not tested with many concurrent clients |
+| Log rotation / size limits | Low | Job logs can grow unbounded |
+
 ## Conclusion
 
 This daemon-based architecture provides a solid foundation for real-time job management while keeping complexity low. By avoiding output streaming through the daemon and not persisting metadata, we get a simpler implementation with clear failure modes.
 
 The auto-start mechanism ensures users don't need to think about the daemon - it's an invisible implementation detail. `gob nuke` provides a clear "reset everything" command that shuts down the daemon cleanly.
 
-The migration can be done incrementally over several phases, with each phase deliverable and testable independently.
+The core migration is complete. Remaining work focuses on testing, robustness, and polish.

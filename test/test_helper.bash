@@ -42,20 +42,14 @@ setup() {
   # Use BATS provided temporary directory (unique per test)
   cd "$BATS_TEST_TMPDIR"
 
-  # Override XDG directories to use temporary directory for tests
-  export XDG_DATA_HOME="$BATS_TEST_TMPDIR/.xdg-data"
+  # Override XDG runtime directory to use temporary directory for tests
   export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR/.xdg-runtime"
 
   JOB_CLI="$BATS_TEST_DIRNAME/../dist/gob"
 }
 
 teardown() {
-  # Cleanup strategy (Phase 1):
-  # 1. nuke: stops jobs and cleans up metadata/logs (currently file-based, doesn't need daemon)
-  # 2. kill_daemon: stops the daemon process
-  #
-  # In Phase 2+, nuke will be daemon-based and will handle daemon shutdown itself,
-  # so kill_daemon can be removed from here.
+  # Cleanup: nuke stops jobs and shuts down daemon, kill_daemon handles any orphaned daemon
   "$JOB_CLI" nuke >/dev/null 2>&1 || true
   kill_daemon
 }
