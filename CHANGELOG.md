@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Job duration tracking: jobs now track start and stop times
+  - TUI shows duration in stdout panel title (e.g., `2 stdout: ABC ◉ 5m30s`)
+  - Running jobs show live duration, stopped jobs show total run time
+  - `gob list --json` includes `started_at` and `stopped_at` fields
 - Exit code tracking: jobs now capture and display exit codes
   - `gob list` shows exit codes: `stopped (0): cmd` for success, `stopped (1): cmd` for failure
   - `gob list --json` includes `exit_code` field

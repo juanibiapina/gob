@@ -25,6 +25,8 @@ type JobOutput struct {
 	Command   []string `json:"command"`
 	Workdir   string   `json:"workdir"`
 	CreatedAt string   `json:"created_at"`
+	StartedAt string   `json:"started_at"`
+	StoppedAt string   `json:"stopped_at,omitempty"`
 }
 
 var listCmd = &cobra.Command{
@@ -116,6 +118,8 @@ Exit codes:
 				Command:   job.Command,
 				Workdir:   job.Workdir,
 				CreatedAt: job.CreatedAt,
+				StartedAt: job.StartedAt,
+				StoppedAt: job.StoppedAt,
 			})
 		}
 

@@ -64,6 +64,8 @@ type JobResponse struct {
 	Command    []string `json:"command"`
 	Workdir    string   `json:"workdir"`
 	CreatedAt  string   `json:"created_at"`
+	StartedAt  string   `json:"started_at"`
+	StoppedAt  string   `json:"stopped_at,omitempty"`
 	StdoutPath string   `json:"stdout_path"`
 	StderrPath string   `json:"stderr_path"`
 	ExitCode   *int     `json:"exit_code,omitempty"`

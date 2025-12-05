@@ -43,6 +43,8 @@ type Job struct {
 	StdoutPath string
 	StderrPath string
 	ExitCode   *int
+	StartedAt  time.Time
+	StoppedAt  time.Time
 }
 
 // logTickMsg is sent periodically to refresh log content
@@ -253,6 +255,8 @@ func (m Model) refreshJobs() tea.Cmd {
 				StdoutPath: jr.StdoutPath,
 				StderrPath: jr.StderrPath,
 				ExitCode:   jr.ExitCode,
+				StartedAt:  parseTime(jr.StartedAt),
+				StoppedAt:  parseTime(jr.StoppedAt),
 			}
 		}
 
@@ -396,6 +400,8 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			StdoutPath: event.Job.StdoutPath,
 			StderrPath: event.Job.StderrPath,
 			ExitCode:   event.Job.ExitCode,
+			StartedAt:  parseTime(event.Job.StartedAt),
+			StoppedAt:  parseTime(event.Job.StoppedAt),
 		}
 		// Only adjust cursor if there are existing jobs (keep selection on same job)
 		// When list was empty, cursor stays at 0 to select the new job
@@ -410,6 +416,8 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			if m.jobs[i].ID == event.JobID {
 				m.jobs[i].Running = true
 				m.jobs[i].PID = event.Job.PID
+				m.jobs[i].StartedAt = parseTime(event.Job.StartedAt)
+				m.jobs[i].StoppedAt = time.Time{}
 				break
 			}
 		}
@@ -420,6 +428,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			if m.jobs[i].ID == event.JobID {
 				m.jobs[i].Running = false
 				m.jobs[i].ExitCode = event.Job.ExitCode
+				m.jobs[i].StoppedAt = parseTime(event.Job.StoppedAt)
 				break
 			}
 		}
@@ -917,7 +926,22 @@ func (m Model) renderPanels() string {
 		} else {
 			status = "◼"
 		}
-		stdoutTitle = fmt.Sprintf("2 stdout: %s %s", job.ID, status)
+
+		// Calculate duration
+		var durationStr string
+		if !job.StartedAt.IsZero() {
+			var d time.Duration
+			if job.Running {
+				d = time.Since(job.StartedAt)
+			} else if !job.StoppedAt.IsZero() {
+				d = job.StoppedAt.Sub(job.StartedAt)
+			}
+			if d > 0 {
+				durationStr = " " + formatDuration(d)
+			}
+		}
+
+		stdoutTitle = fmt.Sprintf("2 stdout: %s %s%s", job.ID, status, durationStr)
 		stderrTitle = "3 stderr"
 		if m.followLogs {
 			stdoutTitle += " [following]"
@@ -1276,6 +1300,36 @@ func (m Model) shortenPath(path string) string {
 		return "~" + path[len(home):]
 	}
 	return path
+}
+
+// parseTime parses an RFC3339 time string, returning zero time on error
+func parseTime(s string) time.Time {
+	t, _ := time.Parse("2006-01-02T15:04:05Z07:00", s)
+	return t
+}
+
+// formatDuration formats a duration in a human-readable way
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return "<1s"
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		m := int(d.Minutes())
+		s := int(d.Seconds()) % 60
+		if s == 0 {
+			return fmt.Sprintf("%dm", m)
+		}
+		return fmt.Sprintf("%dm%ds", m, s)
+	}
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	if m == 0 {
+		return fmt.Sprintf("%dh", h)
+	}
+	return fmt.Sprintf("%dh%dm", h, m)
 }
 
 // Run starts the TUI

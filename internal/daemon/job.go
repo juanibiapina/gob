@@ -18,6 +18,8 @@ type Job struct {
 	PID        int       `json:"pid"`
 	Workdir    string    `json:"workdir"`
 	CreatedAt  time.Time `json:"created_at"`
+	StartedAt  time.Time `json:"started_at"`
+	StoppedAt  time.Time `json:"stopped_at,omitempty"`
 	StdoutPath string    `json:"stdout_path"`
 	StderrPath string    `json:"stderr_path"`
 	ExitCode   *int      `json:"exit_code,omitempty"` // nil while running, set when process exits
@@ -71,17 +73,22 @@ func (jm *JobManager) emitEvent(event Event) {
 
 // jobToResponse converts a Job to JobResponse
 func (jm *JobManager) jobToResponse(job *Job) JobResponse {
-	return JobResponse{
+	resp := JobResponse{
 		ID:         job.ID,
 		PID:        job.PID,
 		Status:     job.Status(),
 		Command:    job.Command,
 		Workdir:    job.Workdir,
 		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		StartedAt:  job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
 		StdoutPath: job.StdoutPath,
 		StderrPath: job.StderrPath,
 		ExitCode:   job.ExitCode,
 	}
+	if !job.StoppedAt.IsZero() {
+		resp.StoppedAt = job.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+	return resp
 }
 
 // IsRunning checks if the job's process is still running
@@ -148,12 +155,14 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 		return nil, err
 	}
 
+	now := time.Now()
 	job := &Job{
 		ID:         jobID,
 		Command:    command,
 		PID:        process.Pid(),
 		Workdir:    workdir,
-		CreatedAt:  time.Now(),
+		CreatedAt:  now,
+		StartedAt:  now,
 		StdoutPath: stdoutPath,
 		StderrPath: stderrPath,
 		process:    process,
@@ -183,6 +192,9 @@ func (jm *JobManager) waitForProcessExit(job *Job) {
 
 	// Wait for process to exit (this blocks until the process terminates)
 	err := job.process.Wait()
+
+	// Record stop time
+	job.StoppedAt = time.Now()
 
 	// Extract exit code from the error
 	if err != nil {
@@ -340,7 +352,9 @@ func (jm *JobManager) StartJob(jobID string) error {
 
 	job.process = process
 	job.PID = process.Pid()
-	job.ExitCode = nil // Clear previous exit code
+	job.ExitCode = nil     // Clear previous exit code
+	job.StartedAt = time.Now()
+	job.StoppedAt = time.Time{} // Clear previous stop time
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job)
@@ -413,7 +427,9 @@ func (jm *JobManager) RestartJob(jobID string) error {
 
 	job.process = process
 	job.PID = process.Pid()
-	job.ExitCode = nil // Clear previous exit code
+	job.ExitCode = nil     // Clear previous exit code
+	job.StartedAt = time.Now()
+	job.StoppedAt = time.Time{} // Clear previous stop time
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job)
@@ -664,7 +680,9 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 
 		existingJob.process = process
 		existingJob.PID = process.Pid()
-		existingJob.ExitCode = nil // Clear previous exit code
+		existingJob.ExitCode = nil     // Clear previous exit code
+		existingJob.StartedAt = time.Now()
+		existingJob.StoppedAt = time.Time{} // Clear previous stop time
 
 		// Start goroutine to wait for process exit
 		go jm.waitForProcessExit(existingJob)
@@ -697,12 +715,14 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 		return nil, false, err
 	}
 
+	now := time.Now()
 	job := &Job{
 		ID:         jobID,
 		Command:    command,
 		PID:        process.Pid(),
 		Workdir:    workdir,
-		CreatedAt:  time.Now(),
+		CreatedAt:  now,
+		StartedAt:  now,
 		StdoutPath: stdoutPath,
 		StderrPath: stderrPath,
 		process:    process,
