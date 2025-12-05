@@ -52,6 +52,13 @@ func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor 
 	}
 }
 
+// JobCount returns the number of jobs
+func (jm *JobManager) JobCount() int {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+	return len(jm.jobs)
+}
+
 // emitEvent sends an event if a callback is registered
 func (jm *JobManager) emitEvent(event Event) {
 	if jm.onEvent != nil {
@@ -137,9 +144,10 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 
 	// Emit job added event
 	jm.emitEvent(Event{
-		Type:  EventTypeJobAdded,
-		JobID: job.ID,
-		Job:   jm.jobToResponse(job),
+		Type:     EventTypeJobAdded,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		JobCount: len(jm.jobs),
 	})
 
 	return job, nil
@@ -154,11 +162,17 @@ func (jm *JobManager) waitForProcessExit(job *Job) {
 	// Wait for process to exit (this blocks until the process terminates)
 	job.process.Wait()
 
+	// Get job count while holding lock
+	jm.mu.RLock()
+	jobCount := len(jm.jobs)
+	jm.mu.RUnlock()
+
 	// Emit stopped event - this handles both explicit stops and natural exits
 	jm.emitEvent(Event{
-		Type:  EventTypeJobStopped,
-		JobID: job.ID,
-		Job:   jm.jobToResponse(job),
+		Type:     EventTypeJobStopped,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		JobCount: jobCount,
 	})
 }
 
@@ -291,9 +305,10 @@ func (jm *JobManager) StartJob(jobID string) error {
 
 	// Emit started event
 	jm.emitEvent(Event{
-		Type:  EventTypeJobStarted,
-		JobID: job.ID,
-		Job:   jm.jobToResponse(job),
+		Type:     EventTypeJobStarted,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		JobCount: len(jm.jobs),
 	})
 
 	return nil
@@ -362,9 +377,10 @@ func (jm *JobManager) RestartJob(jobID string) error {
 
 	// Emit started event
 	jm.emitEvent(Event{
-		Type:  EventTypeJobStarted,
-		JobID: job.ID,
-		Job:   jm.jobToResponse(job),
+		Type:     EventTypeJobStarted,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		JobCount: len(jm.jobs),
 	})
 
 	return nil
@@ -395,9 +411,10 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 
 	// Emit removed event
 	jm.emitEvent(Event{
-		Type:  EventTypeJobRemoved,
-		JobID: jobID,
-		Job:   jobResp,
+		Type:     EventTypeJobRemoved,
+		JobID:    jobID,
+		Job:      jobResp,
+		JobCount: len(jm.jobs),
 	})
 
 	return nil
@@ -429,10 +446,10 @@ func (jm *JobManager) Cleanup(workdirFilter string) int {
 		}
 	}
 
-	// Emit events after releasing lock would be safer, but we need to emit inside
-	// to ensure consistency. Events are sent asynchronously anyway.
-	for _, event := range removedJobs {
-		jm.emitEvent(event)
+	// Emit events with current job count
+	for i := range removedJobs {
+		removedJobs[i].JobCount = len(jm.jobs)
+		jm.emitEvent(removedJobs[i])
 	}
 
 	return count
@@ -509,9 +526,10 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 
 		// Emit removed event
 		jm.emitEvent(Event{
-			Type:  EventTypeJobRemoved,
-			JobID: job.ID,
-			Job:   jobResp,
+			Type:     EventTypeJobRemoved,
+			JobID:    job.ID,
+			Job:      jobResp,
+			JobCount: len(jm.jobs),
 		})
 	}
 
@@ -609,9 +627,10 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 
 		// Emit started event (restart of existing job)
 		jm.emitEvent(Event{
-			Type:  EventTypeJobStarted,
-			JobID: existingJob.ID,
-			Job:   jm.jobToResponse(existingJob),
+			Type:     EventTypeJobStarted,
+			JobID:    existingJob.ID,
+			Job:      jm.jobToResponse(existingJob),
+			JobCount: len(jm.jobs),
 		})
 
 		return existingJob, true, nil
@@ -648,9 +667,10 @@ func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, erro
 
 	// Emit added event (new job)
 	jm.emitEvent(Event{
-		Type:  EventTypeJobAdded,
-		JobID: job.ID,
-		Job:   jm.jobToResponse(job),
+		Type:     EventTypeJobAdded,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		JobCount: len(jm.jobs),
 	})
 
 	return job, false, nil

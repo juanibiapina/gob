@@ -13,6 +13,9 @@ import (
 	"time"
 )
 
+// IdleTimeout is the duration of inactivity (no jobs) before the daemon shuts down
+const IdleTimeout = 5 * time.Minute
+
 // Subscriber represents a client subscribed to events
 type Subscriber struct {
 	conn    net.Conn
@@ -31,6 +34,8 @@ type Daemon struct {
 	jobManager    *JobManager
 	subscribers   []*Subscriber
 	subscribersMu sync.RWMutex
+	idleTimer     *time.Timer
+	idleTimerMu   sync.Mutex
 }
 
 // New creates a new daemon instance
@@ -62,7 +67,7 @@ func New() (*Daemon, error) {
 	}
 
 	// Initialize job manager with event callback
-	d.jobManager = NewJobManager(runtimeDir, d.broadcastEvent)
+	d.jobManager = NewJobManager(runtimeDir, d.handleEvent)
 
 	return d, nil
 }
@@ -104,6 +109,9 @@ func (d *Daemon) Start() error {
 	d.setupSignalHandling()
 
 	Logger.Info("daemon started", "socket", d.socketPath)
+
+	// Start idle timer (will be cancelled when first job is added)
+	d.resetIdleTimer()
 
 	// Accept connections
 	go d.acceptConnections()
@@ -699,4 +707,49 @@ func (d *Daemon) removeSubscriber(sub *Subscriber) {
 			return
 		}
 	}
+}
+
+// handleEvent processes events from the job manager
+func (d *Daemon) handleEvent(event Event) {
+	// Broadcast to subscribers
+	d.broadcastEvent(event)
+
+	// Manage idle timer based on job count from the event
+	d.updateIdleTimer(event.JobCount)
+}
+
+// updateIdleTimer starts or stops the idle timer based on job count
+func (d *Daemon) updateIdleTimer(jobCount int) {
+	d.idleTimerMu.Lock()
+	defer d.idleTimerMu.Unlock()
+
+	if jobCount == 0 {
+		// No jobs - start/reset the idle timer
+		if d.idleTimer == nil {
+			d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
+			Logger.Info("idle timer started", "timeout", IdleTimeout)
+		}
+	} else {
+		// Jobs exist - cancel the idle timer
+		if d.idleTimer != nil {
+			d.idleTimer.Stop()
+			d.idleTimer = nil
+			Logger.Debug("idle timer cancelled")
+		}
+	}
+}
+
+// resetIdleTimer starts the idle timer (called on startup when no jobs exist)
+func (d *Daemon) resetIdleTimer() {
+	d.idleTimerMu.Lock()
+	defer d.idleTimerMu.Unlock()
+
+	d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
+	Logger.Info("idle timer started", "timeout", IdleTimeout)
+}
+
+// idleShutdown triggers daemon shutdown due to idle timeout
+func (d *Daemon) idleShutdown() {
+	Logger.Info("idle timeout reached, shutting down")
+	d.cancel()
 }

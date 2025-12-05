@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Daemon auto-shutdown: daemon exits after 5 minutes of inactivity (no jobs)
+
 ### Fixed
 
 - TUI: First job now appears selected when added to an empty job list
