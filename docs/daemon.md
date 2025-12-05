@@ -110,7 +110,7 @@ Client → Daemon (Request):
     // Command-specific parameters
     "command": ["npm", "start"],
     "workdir": "/path/to/project",
-    "job_id": "V3x0QqI",
+    "job_id": "V3x",
     "stream": "stdout|stderr|both",
     // ...
   }
@@ -124,7 +124,7 @@ Daemon → Client (Response):
   "error": "",
   "data": {
     // Command-specific response data
-    "job_id": "V3x0QqI",
+    "job_id": "V3x",
     "stdout_path": "/path/to/stdout.log",
     "stderr_path": "/path/to/stderr.log",
     "jobs": [...],
@@ -137,7 +137,7 @@ Daemon → Client (Event Stream - for subscriptions):
 ```json
 {
   "event": "job_added|job_started|job_stopped|job_removed",
-  "job_id": "V3x0QqI",
+  "job_id": "V3x",
   "data": {
     "status": "running|stopped",
     "pid": 12345,
