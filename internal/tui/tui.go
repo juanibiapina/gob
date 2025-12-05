@@ -604,6 +604,13 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.stdoutView.AtBottom() {
 			m.followLogs = true
 		}
+
+	case "f":
+		m.followLogs = !m.followLogs
+		if m.followLogs {
+			m.stdoutView.GotoBottom()
+			m.stderrView.GotoBottom()
+		}
 	}
 
 	return m, nil
