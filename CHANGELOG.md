@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- TUI: First job now appears selected when added to an empty job list
+
 ## [0.12.0] - 2025-12-05
 
 ### Changed

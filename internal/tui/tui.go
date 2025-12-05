@@ -394,11 +394,12 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			StdoutPath: event.Job.StdoutPath,
 			StderrPath: event.Job.StderrPath,
 		}
-		m.jobs = append([]Job{newJob}, m.jobs...)
-		// Adjust cursor if needed
-		if m.cursor >= 0 {
+		// Only adjust cursor if there are existing jobs (keep selection on same job)
+		// When list was empty, cursor stays at 0 to select the new job
+		if len(m.jobs) > 0 {
 			m.cursor++
 		}
+		m.jobs = append([]Job{newJob}, m.jobs...)
 
 	case daemon.EventTypeJobStarted:
 		// Update job status to running
