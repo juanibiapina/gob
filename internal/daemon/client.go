@@ -373,6 +373,51 @@ func (c *Client) GetJob(jobID string) (*JobResponse, error) {
 	return &job, nil
 }
 
+// RunResult contains the result of a Run request
+type RunResult struct {
+	Job       *JobResponse
+	Restarted bool
+}
+
+// Run finds or creates a job and starts it
+func (c *Client) Run(command []string, workdir string) (*RunResult, error) {
+	req := NewRequest(RequestTypeRun)
+	req.Payload["command"] = command
+	req.Payload["workdir"] = workdir
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
+	if !ok {
+		return nil, fmt.Errorf("no job in response")
+	}
+
+	jobJSON, err := json.Marshal(jobRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	restarted, _ := resp.Data["restarted"].(bool)
+
+	return &RunResult{
+		Job:       &job,
+		Restarted: restarted,
+	}, nil
+}
+
 // Close closes the connection to the daemon
 func (c *Client) Close() error {
 	if c.conn != nil {

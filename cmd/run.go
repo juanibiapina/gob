@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/juanibiapina/gob/internal/process"
-	"github.com/juanibiapina/gob/internal/storage"
+	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -65,111 +65,52 @@ Exit codes:
 		if len(args) == 1 && strings.Contains(args[0], " ") {
 			args = strings.Fields(args[0])
 		}
-		// Check if a job with the same command exists
-		existingJob, err := storage.FindJobByCommand(args)
+
+		// Get current working directory
+		cwd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("failed to search for existing job: %w", err)
+			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		var jobID string
-		var pid int
-		var storageDir string
+		// Connect to daemon
+		client, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
 
-		if existingJob != nil {
-			// Found existing job
-			jobID = existingJob.ID
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
+		}
 
-			// Check if it's running
-			if process.IsProcessRunning(existingJob.PID) {
-				return fmt.Errorf("job %s is already running with the same command", jobID)
-			}
+		// Run the job (finds existing or creates new)
+		result, err := client.Run(args, cwd)
+		if err != nil {
+			return fmt.Errorf("failed to add job: %w", err)
+		}
 
-			// Clear previous logs before restarting
-			if err := storage.ClearJobLogs(jobID); err != nil {
-				return fmt.Errorf("failed to clear previous logs: %w", err)
-			}
+		job := result.Job
+		commandStr := strings.Join(job.Command, " ")
 
-			// Restart the stopped job
-			command := existingJob.Command[0]
-			commandArgs := []string{}
-			if len(existingJob.Command) > 1 {
-				commandArgs = existingJob.Command[1:]
-			}
-
-			storageDir, err = storage.EnsureJobDir()
-			if err != nil {
-				return fmt.Errorf("failed to create job directory: %w", err)
-			}
-
-			pid, err = process.StartDetached(command, commandArgs, existingJob.ID, storageDir)
-			if err != nil {
-				return fmt.Errorf("failed to restart job: %w", err)
-			}
-
-			// Update the PID in metadata
-			existingJob.PID = pid
-			_, err = storage.SaveJobMetadata(existingJob)
-			if err != nil {
-				return fmt.Errorf("failed to update job metadata: %w", err)
-			}
-
-			commandStr := strings.Join(existingJob.Command, " ")
-			fmt.Printf("Restarted job %s running: %s\n", jobID, commandStr)
+		if result.Restarted {
+			fmt.Printf("Restarted job %s running: %s\n", job.ID, commandStr)
 		} else {
-			// Create new job
-			command := args[0]
-			commandArgs := []string{}
-			if len(args) > 1 {
-				commandArgs = args[1:]
-			}
-
-			jobID = storage.GenerateJobID()
-
-			cwd, err := storage.GetCurrentWorkdir()
-			if err != nil {
-				return fmt.Errorf("failed to get current directory: %w", err)
-			}
-
-			storageDir, err = storage.EnsureJobDir()
-			if err != nil {
-				return fmt.Errorf("failed to create job directory: %w", err)
-			}
-
-			pid, err = process.StartDetached(command, commandArgs, jobID, storageDir)
-			if err != nil {
-				return fmt.Errorf("failed to add job: %w", err)
-			}
-
-			metadata := &storage.JobMetadata{
-				ID:        jobID,
-				Command:   args,
-				PID:       pid,
-				Workdir:   cwd,
-				CreatedAt: time.Now(),
-			}
-
-			_, err = storage.SaveJobMetadata(metadata)
-			if err != nil {
-				return fmt.Errorf("failed to save job metadata: %w", err)
-			}
-
-			commandStr := strings.Join(args, " ")
-			fmt.Printf("Added job %s running: %s\n", jobID, commandStr)
+			fmt.Printf("Added job %s running: %s\n", job.ID, commandStr)
 		}
 
 		// Small delay to let process start
 		time.Sleep(50 * time.Millisecond)
 
 		// Follow the output
-		completed, err := followJob(jobID, pid, storageDir)
+		completed, err := followJob(job.ID, job.PID, job.StdoutPath)
 		if err != nil {
 			return err
 		}
 
 		if completed {
-			fmt.Printf("\nJob %s completed\n", jobID)
+			fmt.Printf("\nJob %s completed\n", job.ID)
 		} else {
-			fmt.Printf("\nJob %s continues running in background\n", jobID)
+			fmt.Printf("\nJob %s continues running in background\n", job.ID)
 		}
 
 		return nil

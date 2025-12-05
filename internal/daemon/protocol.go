@@ -21,6 +21,7 @@ const (
 	RequestTypeNuke     RequestType = "nuke"
 	RequestTypeSignal   RequestType = "signal"
 	RequestTypeGetJob   RequestType = "get_job"
+	RequestTypeRun      RequestType = "run"
 )
 
 // Request represents a client request to the daemon

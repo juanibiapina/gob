@@ -340,10 +340,10 @@ logs are cleared by checking the old output is gone rather than modifying comman
 - `run` command - requires special handling for job reuse logic
 - `tui` command - requires event subscription (Phase 3)
 
-### Phase 2d: Run Command
-- [ ] Implement `FindJobByCommand` in daemon for job reuse logic
-- [ ] Migrate `run` command to client-server
-- [ ] Handle restart existing vs create new job
+### Phase 2d: Run Command ✅
+- [x] Implement `FindJobByCommand` in daemon for job reuse logic
+- [x] Migrate `run` command to client-server
+- [x] Handle restart existing vs create new job
 
 ### Phase 3: Event Subscription
 - [ ] Implement event subscription mechanism

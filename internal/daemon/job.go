@@ -495,3 +495,70 @@ func commandsEqual(a, b []string) bool {
 	}
 	return true
 }
+
+// RunJob finds or creates a job and starts it
+// Returns the job, whether it was a restart (vs new), and any error
+func (jm *JobManager) RunJob(command []string, workdir string) (*Job, bool, error) {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+
+	// Find existing job with same command
+	var existingJob *Job
+	for _, job := range jm.jobs {
+		if job.Workdir == workdir && commandsEqual(job.Command, command) {
+			existingJob = job
+			break
+		}
+	}
+
+	if existingJob != nil {
+		// Check if running
+		if existingJob.IsRunning() {
+			return nil, false, fmt.Errorf("job %s is already running with the same command", existingJob.ID)
+		}
+
+		// Restart the stopped job
+		// Clear logs before restart
+		if err := os.Truncate(existingJob.StdoutPath, 0); err != nil && !os.IsNotExist(err) {
+			return nil, false, fmt.Errorf("failed to clear stdout log: %w", err)
+		}
+		if err := os.Truncate(existingJob.StderrPath, 0); err != nil && !os.IsNotExist(err) {
+			return nil, false, fmt.Errorf("failed to clear stderr log: %w", err)
+		}
+
+		// Start the process
+		pid, err := jm.startProcess(existingJob.Command, existingJob.Workdir, existingJob.StdoutPath, existingJob.StderrPath)
+		if err != nil {
+			return nil, false, err
+		}
+
+		existingJob.PID = pid
+		return existingJob, true, nil
+	}
+
+	// Create new job (same logic as AddJob but without re-locking)
+	jobID := generateJobID()
+
+	// Create log file paths
+	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", jm.runtimeDir, jobID)
+	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, jobID)
+
+	// Start the process
+	pid, err := jm.startProcess(command, workdir, stdoutPath, stderrPath)
+	if err != nil {
+		return nil, false, err
+	}
+
+	job := &Job{
+		ID:         jobID,
+		Command:    command,
+		PID:        pid,
+		Workdir:    workdir,
+		CreatedAt:  time.Now(),
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+	}
+
+	jm.jobs[jobID] = job
+	return job, false, nil
+}
