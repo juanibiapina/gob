@@ -12,11 +12,11 @@ var version = "dev"
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gob",
-	Short: "Start and manage background jobs",
-	Long: `A CLI application to start and manage background jobs.
+	Short: "Process manager for AI agents (and humans)",
+	Long: `A CLI to manage background processes with a shared interface for you and your AI coding agent.
 
-You can use this tool to add jobs in the background, monitor their status,
-and manage their lifecycle.`,
+Start a dev server with Claude Code, check its logs yourself. Or vice-versa.
+Everyone has the same view. No more copy-pasting logs through chat.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// When called without subcommands, show overview
 		return overviewCmd.RunE(cmd, args)

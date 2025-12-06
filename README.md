@@ -8,7 +8,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/juanibiapina/gob)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/juanibiapina/gob)
 
-> Background job management for humans and AI agents.
+> Process manager for AI agents (and humans).
 
 `gob` (pronounced job, of course) is a CLI for managing background processes with a shared interface for you and your AI coding agent.
 

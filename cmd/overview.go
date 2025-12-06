@@ -11,7 +11,7 @@ var overviewCmd = &cobra.Command{
 	Short: "Show overview and common usage patterns",
 	Long:  `Display an overview of job management and common workflow patterns.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println(`gob - Background Job Manager
+		fmt.Println(`gob - Process Manager for AI agents (and humans)
 
 RUNNING COMMANDS
   gob run <command>       Run and wait (reuses stopped job with same command)
