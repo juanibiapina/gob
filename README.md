@@ -159,6 +159,7 @@ Use `gob` to manage background processes.
 **Commands:**
 - `gob run <command>` - Run and wait for completion (reuses existing stopped job)
 - `gob add <command>` - Add a background job (always creates new)
+- `gob await <job_id>` - Wait for job completion, show output and summary
 - `gob list` - List jobs with IDs and status
 - `gob stdout <job_id>` - View stdout output
 - `gob stderr <job_id>` - View stderr output
@@ -198,6 +199,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 |---------|-------------|
 | `run <cmd>` | Run command, wait for completion (reuses stopped jobs) |
 | `add <cmd>` | Start background job (use `--` before flags: `add -- cmd --flag`) |
+| `await <id>` | Wait for job, stream output, show summary |
 | `list` | List jobs (`--all` for all directories) |
 | `stdout <id>` | View stdout (`--follow` for real-time) |
 | `stderr <id>` | View stderr (`--follow` for real-time) |

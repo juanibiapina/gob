@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `await` command to wait for a job to complete, streaming output in real-time and showing a summary with command, duration, and exit code
+  - For running jobs: streams stdout/stderr until completion
+  - For stopped jobs: displays existing output then shows summary
+  - Exits with the job's exit code
+
 ## [0.13.0] - 2025-12-05
 
 ### Added
