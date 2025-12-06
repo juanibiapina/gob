@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `await-any` command to wait for any running job to complete
+  - Shows list of jobs being watched, then waits for first to finish
+  - Displays completion summary (command, duration, exit code) and remaining jobs
+  - `--timeout` flag to give up after N seconds (exits with code 124)
+  - Exits with the completed job's exit code
+
 ### Changed
 
 - `add` command now shows follow-up hints (`gob await` and `gob stop`) after adding a job
