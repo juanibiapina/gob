@@ -87,7 +87,7 @@ load 'test_helper'
   assert_equal "$job_id" "$new_job_id"
 }
 
-@test "restart command updates PID in metadata" {
+@test "restart command updates PID" {
   # Add a job
   "$JOB_CLI" add sleep 300
 
@@ -109,7 +109,7 @@ load 'test_helper'
   assert kill -0 "$new_pid"
 }
 
-@test "restart command preserves command in metadata" {
+@test "restart command preserves command" {
   # Add a job with multiple arguments
   "$JOB_CLI" add sleep 300
 

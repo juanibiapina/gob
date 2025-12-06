@@ -13,7 +13,7 @@ var nukeAll bool
 var nukeCmd = &cobra.Command{
 	Use:   "nuke",
 	Short: "Stop all running jobs and remove all job data",
-	Long: `Stop all running jobs and remove all job data including logs and metadata.
+	Long: `Stop all running jobs and remove all job data including logs.
 
 ⚠️  DESTRUCTIVE COMMAND - stops ALL jobs and removes ALL data.
 
@@ -23,7 +23,7 @@ Use --all to nuke jobs from all directories.
 Workflow:
   1. Sends SIGTERM to all running jobs
   2. Removes all log files (stdout and stderr)
-  3. Removes all metadata files (both running and stopped)
+  3. Removes all jobs (both running and stopped)
 
 Example:
   # Stop everything in current directory and start fresh
@@ -46,7 +46,7 @@ Notes:
   - Uses SIGTERM (graceful) not SIGKILL
   - If jobs don't respond to SIGTERM, use 'job stop --force' individually first
   - Useful for cleaning up test environments or complete resets
-  - Cannot be undone - all job metadata will be lost
+  - Cannot be undone - all job data will be lost
 
 Exit codes:
   0: Nuke completed successfully

@@ -15,7 +15,7 @@ var overviewCmd = &cobra.Command{
 
 JOB MANAGEMENT
   gob add <command>       Create and start a new job
-  gob remove <job_id>     Remove job metadata
+  gob remove <job_id>     Remove a stopped job
   gob cleanup             Remove all stopped jobs
   gob nuke                Stop all + remove all
 

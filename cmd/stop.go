@@ -36,7 +36,7 @@ Or with --force:
 Notes:
   - Stopping an already-stopped job is not an error (idempotent)
   - Use --force if the job doesn't respond to SIGTERM
-  - Job metadata is NOT removed (use 'job cleanup' or 'job remove')
+  - Job is NOT removed (use 'gob cleanup' or 'gob remove')
 
 Exit codes:
   0: Job stopped successfully (or already stopped)

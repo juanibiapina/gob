@@ -165,7 +165,7 @@ Use `gob` to manage background processes.
 - `gob stop <job_id>` - Stop a job (use `--force` for SIGKILL)
 - `gob start <job_id>` - Start a stopped job
 - `gob restart <job_id>` - Restart a job (stop + start)
-- `gob cleanup` - Remove metadata for stopped jobs
+- `gob cleanup` - Remove stopped jobs
 ```
 
 ## Interactive TUI
@@ -234,7 +234,7 @@ gob add -f make build
 
 #### `gob remove <job_id>`
 
-Remove metadata for a single stopped job. Job must be stopped first.
+Remove a single stopped job. Job must be stopped first.
 
 ```bash
 gob remove V3x0QqI
@@ -242,7 +242,7 @@ gob remove V3x0QqI
 
 #### `gob cleanup`
 
-Remove metadata for all stopped jobs.
+Remove all stopped jobs.
 
 ```bash
 gob cleanup
@@ -250,7 +250,7 @@ gob cleanup
 
 #### `gob nuke`
 
-Stop all running jobs and remove all metadata. Use with caution.
+Stop all running jobs and remove all job data. Use with caution.
 
 ```bash
 gob nuke

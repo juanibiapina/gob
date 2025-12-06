@@ -56,7 +56,7 @@ load 'test_helper'
   assert_output --partial "job not found: 9999999999"
 }
 
-@test "start command updates PID in metadata" {
+@test "start command updates PID" {
   # Add a job
   "$JOB_CLI" add sleep 300
 

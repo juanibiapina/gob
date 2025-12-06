@@ -12,20 +12,19 @@ var cleanupAll bool
 
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
-	Short: "Remove metadata for stopped jobs",
-	Long: `Remove metadata for all stopped jobs.
+	Short: "Remove stopped jobs",
+	Long: `Remove all stopped jobs.
 
-By default, only removes metadata for stopped jobs in the current directory.
+By default, only removes stopped jobs in the current directory.
 Use --all to cleanup stopped jobs from all directories.
 
-Scans all job metadata files and removes entries for stopped processes.
 Leaves running jobs untouched.
 
 Example:
-  # Remove stopped job metadata from current directory
+  # Remove stopped jobs from current directory
   gob cleanup
 
-  # Remove stopped job metadata from all directories
+  # Remove stopped jobs from all directories
   gob cleanup --all
 
 Output:
@@ -38,7 +37,7 @@ Examples:
   Cleaned up 0 stopped job(s)
 
 Notes:
-  - Only removes metadata for processes that are no longer running
+  - Only removes jobs that are no longer running
   - Does NOT stop any running jobs
   - Safe to run at any time
   - For removing a single job, use 'job remove <job_id>'

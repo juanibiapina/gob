@@ -9,9 +9,9 @@ import (
 
 var removeCmd = &cobra.Command{
 	Use:               "remove <job_id>",
-	Short:             "Remove metadata for a stopped job",
+	Short:             "Remove a stopped job",
 	ValidArgsFunction: completeJobIDs,
-	Long: `Remove metadata for a single stopped job.
+	Long: `Remove a single stopped job.
 
 Only works on stopped jobs - returns an error if the job is still running.
 Use 'job stop' first if needed.
@@ -31,7 +31,7 @@ Notes:
   - Unlike 'cleanup', removing a non-existent job returns an error
 
 Exit codes:
-  0: Job metadata removed successfully
+  0: Job removed successfully
   1: Error (job not found, job still running, failed to remove)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
