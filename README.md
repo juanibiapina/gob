@@ -1,5 +1,11 @@
 # gob
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/juanibiapina/gob)](https://goreportcard.com/report/github.com/juanibiapina/gob)
+![Go](https://img.shields.io/github/languages/top/juanibiapina/gob)
+![Languages](https://img.shields.io/github/languages/count/juanibiapina/gob)
+[![Contributors](https://img.shields.io/github/contributors/juanibiapina/gob)](https://github.com/juanibiapina/gob/graphs/contributors)
+![Last Commit](https://img.shields.io/github/last-commit/juanibiapina/gob)
+
 > Background job management for humans and AI agents.
 
 `gob` (pronounced job, of course) is a CLI for managing background processes with a shared interface for you and your AI coding agent.
@@ -220,3 +226,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 ## Contributing
 
 Interested in contributing? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing instructions, and contribution guidelines.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=juanibiapina/gob&type=Date)](https://star-history.com/#juanibiapina/gob&Date)
