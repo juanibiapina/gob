@@ -144,40 +144,174 @@ gob cleanup
 
 To make `gob` available to AI coding agents, add the following instructions to your agent's configuration file (`CLAUDE.md`, `AGENTS.md`, etc).
 
-```markdown
+<details>
+<summary>General instructions for AI agents</summary>
+
+````markdown
 ## Background Jobs with `gob`
 
 Use `gob` to manage background processes.
 
-**When to use `run` (blocks until complete):**
-- Running tests: `gob run make test`
-- Build commands: `gob run make build`
-- Linting/formatting: `gob run npm run lint`
-- Commands with flags work directly: `gob run pnpm --filter web typecheck`
-- Any command where you need to see the result before proceeding
+### Running Commands
 
-**When to use `add` (returns immediately):**
-- Dev servers: `gob add npm run dev`
-- Watch modes: `gob add npm run watch`
-- Long-running services: `gob add -- python -m http.server`
-- Any command that runs indefinitely
+- `gob add -- <cmd>` - Starts command, returns job ID immediately
+  - IMPORTANT: Always use `--` before the command
+- `gob await <job_id>` - Wait for job to finish, stream output, return exit code
 
-**Note:** `add` requires `--` before commands with flags (e.g., `gob add -- cmd --flag`). `run` does not need this.
+### Sequential Execution
 
-**Commands:**
-- `gob run <command>` - Run and wait for completion (reuses existing stopped job)
-- `gob add <command>` - Add a background job (always creates new)
-- `gob await <job_id>` - Wait for job completion, show output and summary
-- `gob await-any` - Wait for any job to complete (first one wins)
-- `gob await-all` - Wait for all jobs to complete
-- `gob list` - List jobs with IDs and status
-- `gob stdout <job_id>` - View stdout output
-- `gob stderr <job_id>` - View stderr output
-- `gob stop <job_id>` - Stop a job (use `--force` for SIGKILL)
-- `gob start <job_id>` - Start a stopped job
-- `gob restart <job_id>` - Restart a job (stop + start)
-- `gob cleanup` - Remove stopped jobs
+For commands that must complete before proceeding:
+
 ```
+gob add -- make build
+```
+
+Then immediately:
+
+```
+gob await <job_id>
+```
+
+Use for: builds, installs, any command where you need the result.
+
+### Parallel Execution
+
+For independent commands, start all jobs first:
+
+```
+gob add -- npm run lint
+gob add -- npm run typecheck
+gob add -- npm test
+```
+
+Then collect results using either:
+
+- `gob await <job_id>` - Wait for a specific job by ID
+- `gob await-any` - Wait for whichever job finishes first
+
+Example with await-any:
+
+```
+gob await-any   # Returns when first job finishes
+gob await-any   # Returns when second job finishes
+gob await-any   # Returns when third job finishes
+```
+
+Use for: linting + typechecking, running tests across packages, independent build steps.
+
+### Job Monitoring
+
+**Status:**
+- `gob list` - List jobs with IDs and status
+
+**Output:**
+- `gob await <job_id>` - Wait for completion, stream output (preferred)
+
+**Control:**
+- `gob stop <job_id>` - Graceful stop
+- `gob stop --force <job_id>` - Force kill
+- `gob restart <job_id>` - Stop + start
+- `gob cleanup` - Remove stopped jobs
+
+### Examples
+
+Good:
+  gob add -- make test
+  gob await <job_id>
+  gob add -- npm run dev
+
+Bad:
+  make test                 # Missing gob prefix
+  npm run dev &             # Never use & - use gob add
+  gob add npm run --flag    # Missing -- before flags
+````
+
+</details>
+
+<details>
+<summary>Instructions for Crush (AI assistant)</summary>
+
+```
+<shell_commands>
+ALWAYS use `gob add` to run shell commands through the Bash tool.
+
+- `gob add -- <cmd>` - Starts command, returns job ID immediately
+  - IMPORTANT: Always use `--` before the command
+- `gob await <job_id>` - Wait for job to finish, stream output, return exit code
+</shell_commands>
+
+<sequential_execution>
+For commands that must complete before proceeding:
+
+gob add -- make build
+
+Then immediately:
+
+gob await <job_id>
+
+Use for: builds, installs, any command where you need the result.
+</sequential_execution>
+
+<parallel_execution>
+For independent commands, start all jobs first:
+
+gob add -- npm run lint
+gob add -- npm run typecheck
+gob add -- npm test
+
+Then collect results using either:
+
+- `gob await <job_id>` - Wait for a specific job by ID
+- `gob await-any` - Wait for whichever job finishes first
+
+Example with await-any:
+
+gob await-any   # Returns when first job finishes
+gob await-any   # Returns when second job finishes
+gob await-any   # Returns when third job finishes
+
+Use for: linting + typechecking, running tests across packages, independent build steps.
+</parallel_execution>
+
+<job_monitoring>
+**Status:**
+- `gob list` - List jobs with IDs and status
+
+**Output:**
+- `gob await <job_id>` - Wait for completion, stream output (preferred)
+
+**Control:**
+- `gob stop <job_id>` - Graceful stop
+- `gob stop --force <job_id>` - Force kill
+- `gob restart <job_id>` - Stop + start
+- `gob cleanup` - Remove stopped jobs
+</job_monitoring>
+
+<auto_background_handling>
+The Bash tool automatically backgrounds commands that exceed 1 minute.
+
+When this happens, IGNORE the shell ID returned by the Bash tool. Instead:
+
+1. Use `gob await <job_id>` to wait for completion again
+2. Do NOT use Crush's job_output or job_kill tools
+</auto_background_handling>
+
+<examples>
+Good:
+  gob add -- make test
+  gob await V3x
+  gob add -- npm run dev
+  gob add -- timeout 30 make build
+
+Bad:
+  make test                 # Missing gob prefix
+  gob run make test         # Don't use run, use add + await
+  npm run dev &             # Never use & - use gob add
+  gob add npm run --flag    # Missing -- before flags
+</examples>
+```
+
+</details>
 
 ## Interactive TUI
 
