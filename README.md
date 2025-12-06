@@ -161,6 +161,7 @@ Use `gob` to manage background processes.
 - `gob add <command>` - Add a background job (always creates new)
 - `gob await <job_id>` - Wait for job completion, show output and summary
 - `gob await-any` - Wait for any job to complete (first one wins)
+- `gob await-all` - Wait for all jobs to complete
 - `gob list` - List jobs with IDs and status
 - `gob stdout <job_id>` - View stdout output
 - `gob stderr <job_id>` - View stderr output
@@ -202,6 +203,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `add <cmd>` | Start background job (use `--` before flags: `add -- cmd --flag`) |
 | `await <id>` | Wait for job, stream output, show summary |
 | `await-any` | Wait for any job to complete (`--timeout`) |
+| `await-all` | Wait for all jobs to complete (`--timeout`) |
 | `list` | List jobs (`--all` for all directories) |
 | `stdout <id>` | View stdout (`--follow` for real-time) |
 | `stderr <id>` | View stderr (`--follow` for real-time) |

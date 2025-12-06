@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Displays completion summary (command, duration, exit code) and remaining jobs
   - `--timeout` flag to give up after N seconds (exits with code 124)
   - Exits with the completed job's exit code
+- `await-all` command to wait for all running jobs to complete
+  - Shows list of jobs being watched, then waits for all to finish
+  - Displays brief status for each job as it completes
+  - Shows final summary with succeeded/failed counts
+  - `--timeout` flag to give up after N seconds (exits with code 124)
+  - Exits with the first non-zero exit code, or 0 if all succeeded
 
 ### Changed
 
