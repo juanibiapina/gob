@@ -180,4 +180,19 @@ var (
 
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(colorBrightBlack)
+
+	// Job detail line styles (for expanded view)
+	jobDetailStyle = lipgloss.NewStyle().
+			Foreground(colorBrightBlack)
+
+	jobDetailSelectedStyle = lipgloss.NewStyle().
+				Foreground(colorWhite).
+				Background(selectionBg)
+
+	jobTimeStyle = lipgloss.NewStyle().
+			Foreground(colorCyan)
+
+	jobTimeSelectedStyle = lipgloss.NewStyle().
+				Foreground(colorCyan).
+				Background(selectionBg)
 )

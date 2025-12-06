@@ -90,14 +90,15 @@ type reconnectMsg struct{}
 // Model is the main TUI model
 type Model struct {
 	// State
-	jobs        []Job
-	cursor      int
-	showAll     bool
-	activePanel panel
-	modal       modalMode
-	width       int
-	height      int
-	ready       bool
+	jobs         []Job
+	cursor       int
+	showAll      bool
+	expandedView bool
+	activePanel  panel
+	modal        modalMode
+	width        int
+	height       int
+	ready        bool
 	message     string
 	messageTime time.Time
 	isError     bool
@@ -537,6 +538,9 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eventChan = nil
 		m.errChan = nil
 		return m, tea.Batch(m.refreshJobs(), m.startSubscription())
+
+	case "i":
+		m.expandedView = !m.expandedView
 	}
 
 	// Panel-specific keys
@@ -1081,23 +1085,6 @@ func (m Model) renderJobList(width, height int) string {
 			}
 		}
 
-		// Job ID
-		var id string
-		if isSelected {
-			id = jobIDSelectedStyle.Render(job.ID)
-		} else {
-			id = jobIDStyle.Render(job.ID)
-		}
-
-		// PID
-		pidStr := fmt.Sprintf("[%d]", job.PID)
-		var pid string
-		if isSelected {
-			pid = jobPIDSelectedStyle.Render(pidStr)
-		} else {
-			pid = jobPIDStyle.Render(pidStr)
-		}
-
 		// Exit code (only for failures)
 		var exitInfo string
 		if job.ExitCode != nil && *job.ExitCode != 0 {
@@ -1110,7 +1097,7 @@ func (m Model) renderJobList(width, height int) string {
 		}
 
 		// Command (truncated)
-		maxCmdLen := width - 25 - len(exitInfo)
+		maxCmdLen := width - 5 - len(exitInfo)
 		if maxCmdLen < 10 {
 			maxCmdLen = 10
 		}
@@ -1122,40 +1109,85 @@ func (m Model) renderJobList(width, height int) string {
 			cmdStyled = cmd
 		}
 
-		// Build line with spaces also styled for selection
+		// Build line 1: symbol + command
 		var line string
 		if isSelected {
 			sp := jobSelectedBgStyle.Render(" ")
-			line = sp + status + sp + id + sp + pid + sp + exitInfo + cmdStyled
+			line = sp + status + sp + exitInfo + cmdStyled
 			// Pad with styled spaces to fill width
 			padding := width - lipgloss.Width(line)
 			if padding > 0 {
 				line = line + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
 			}
 		} else {
-			line = fmt.Sprintf(" %s %s %s %s%s", status, id, pid, exitInfo, cmd)
+			line = fmt.Sprintf(" %s %s%s", status, exitInfo, cmd)
 		}
 
 		lines = append(lines, line)
 
-		// Show workdir if showing all
-		if m.showAll && job.Workdir != "" {
+		// Expanded view: add detail lines
+		if m.expandedView {
+			// Line 2: ID + PID + workdir
 			wdStr := m.shortenPath(job.Workdir)
-			var wd string
+
+			var detail2 string
 			if isSelected {
-				wd = jobSelectedBgStyle.Render("   ") + workdirSelectedStyle.Render(wdStr)
-				padding := width - lipgloss.Width(wd)
+				sp := jobSelectedBgStyle.Render("   ")
+				idStyled := jobIDSelectedStyle.Render(job.ID)
+				pidStyled := jobPIDSelectedStyle.Render(fmt.Sprintf("PID %d", job.PID))
+				wdStyled := workdirSelectedStyle.Render(wdStr)
+				detail2 = sp + idStyled + jobSelectedBgStyle.Render("  ") + pidStyled + jobSelectedBgStyle.Render("  ") + wdStyled
+				padding := width - lipgloss.Width(detail2)
 				if padding > 0 {
-					wd = wd + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
+					detail2 = detail2 + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
 				}
 			} else {
-				wd = "   " + workdirStyle.Render(wdStr)
+				idStyled := jobIDStyle.Render(job.ID)
+				pidStyled := jobPIDStyle.Render(fmt.Sprintf("PID %d", job.PID))
+				wdStyled := workdirStyle.Render(wdStr)
+				detail2 = "   " + idStyled + "  " + pidStyled + "  " + wdStyled
 			}
-			lines = append(lines, wd)
+			lines = append(lines, detail2)
+
+			// Line 3: timing info
+			timeLine := m.formatJobTiming(job)
+			var detail3 string
+			if isSelected {
+				sp := jobSelectedBgStyle.Render("   ")
+				timeStyled := jobTimeSelectedStyle.Render(timeLine)
+				detail3 = sp + timeStyled
+				padding := width - lipgloss.Width(detail3)
+				if padding > 0 {
+					detail3 = detail3 + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
+				}
+			} else {
+				detail3 = "   " + jobTimeStyle.Render(timeLine)
+			}
+			lines = append(lines, detail3)
+
+			// Empty line between jobs (except for last job)
+			if i < len(m.jobs)-1 {
+				lines = append(lines, "")
+			}
 		}
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// formatJobTiming returns a formatted timing string based on job status
+func (m Model) formatJobTiming(job Job) string {
+	const timeFmt = "2006-01-02 15:04:05"
+	startTime := job.StartedAt.Format(timeFmt)
+
+	if job.Running {
+		// Running: "2025-06-12 14:32:05 (2m 30s)" - duration so far
+		duration := formatDuration(time.Since(job.StartedAt))
+		return fmt.Sprintf("%s (%s)", startTime, duration)
+	}
+	// Completed or stopped: "2025-06-12 14:30:00 (1m 23s)" - total duration
+	duration := formatDuration(job.StoppedAt.Sub(job.StartedAt))
+	return fmt.Sprintf("%s (%s)", startTime, duration)
 }
 
 func (m Model) renderStatusBar() string {
@@ -1272,6 +1304,7 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("f", "toggle follow"),
 		"",
 		helpKeyStyle.Render("Other"),
+		"  " + m.renderKey("i", "toggle details"),
 		"  " + m.renderKey("a", "toggle all dirs"),
 		"  " + m.renderKey("?", "this help"),
 		"  " + m.renderKey("q", "quit"),

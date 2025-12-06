@@ -20,10 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Shows final summary with succeeded/failed counts
   - `--timeout` flag to give up after N seconds (exits with code 124)
   - Exits with the first non-zero exit code, or 0 if all succeeded
+- TUI: `i` key to toggle expanded job details view
+  - Default view shows just status symbol and command
+  - Expanded view adds job ID, PID, workdir, and timing info
 
 ### Changed
 
 - `add` command now shows follow-up hints (`gob await` and `gob stop`) after adding a job
+- TUI: Simplified default job list to show only status symbol and command
 
 ## [0.14.0] - 2025-12-06
 
