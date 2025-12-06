@@ -1,3 +1,25 @@
+// Package daemon implements the gob daemon and client-server protocol.
+//
+// # Communication Protocol
+//
+// The daemon and clients communicate over a Unix domain socket using JSON-encoded messages.
+// Each connection handles one request-response cycle, except for subscriptions which
+// stream events over a long-lived connection.
+//
+// Socket location: $XDG_RUNTIME_DIR/gob/daemon.sock (see paths.go)
+//
+// # Message Format
+//
+// Request (client to daemon):
+//
+//	{"type": "<RequestType>", "payload": {...}}
+//
+// Response (daemon to client):
+//
+//	{"success": true, "data": {...}}
+//	{"success": false, "error": "message"}
+//
+// See [RequestType] constants for available request types and [EventType] for subscription events.
 package daemon
 
 import (

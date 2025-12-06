@@ -188,199 +188,28 @@ The TUI has three panels:
 
 ### Key Bindings
 
-**Panel Navigation:**
-- `1` / `2` / `3` - Jump to specific panel
-- `Tab` - Cycle through panels
-
-**Jobs Panel (1):**
-- `↑` / `k` - Move selection up
-- `↓` / `j` - Move selection down
-- `s` - Stop selected job (SIGTERM)
-- `S` - Force kill selected job (SIGKILL)
-- `r` - Restart selected job
-- `d` - Delete stopped job
-- `n` - Start new job (opens input prompt)
-- `a` - Toggle show all directories
-
-**Log Panels (2/3):**
-- `↑` / `k` - Scroll up
-- `↓` / `j` - Scroll down
-- `g` - Go to top
-- `G` - Go to bottom
-- `f` - Toggle follow mode (auto-scroll)
-
-**Global:**
-- `?` - Show help
-- `q` - Quit
+Press `?` in the TUI to see all keyboard shortcuts.
 
 ## CLI Reference
 
-### Job Management
+Run `gob <command> --help` for detailed usage, examples, and flags.
 
-#### `gob add <command> [args...]`
-
-Create and start a new background job. The job continues running after the CLI exits.
-
-```bash
-# Add a long-running server
-gob add python -m http.server 8000
-
-# Add with follow flag to watch output
-gob add -f make build
-```
-
-**Flags:**
-- `-f, --follow` - Follow output until job completes
-
-#### `gob remove <job_id>`
-
-Remove a single stopped job. Job must be stopped first.
-
-```bash
-gob remove V3x0QqI
-```
-
-#### `gob cleanup`
-
-Remove all stopped jobs.
-
-```bash
-gob cleanup
-```
-
-#### `gob nuke`
-
-Stop all running jobs and remove all job data. Use with caution.
-
-```bash
-gob nuke
-```
-
-### Process Control
-
-#### `gob start <job_id>`
-
-Start a stopped job. Fails if job is already running (use `restart` instead).
-
-```bash
-gob start V3x0QqI
-
-# Start and follow output
-gob start -f V3x0QqI
-```
-
-**Flags:**
-- `-f, --follow` - Follow output until job completes
-
-#### `gob stop <job_id>`
-
-Stop a running job. Uses SIGTERM by default; use `--force` for SIGKILL.
-
-```bash
-# Graceful shutdown
-gob stop V3x0QqI
-
-# Force kill
-gob stop V3x0QqI --force
-```
-
-#### `gob restart <job_id>`
-
-Stop (if running) and start a job. Works on both running and stopped jobs.
-
-```bash
-gob restart V3x0QqI
-
-# Restart and follow output
-gob restart -f V3x0QqI
-```
-
-**Flags:**
-- `-f, --follow` - Follow output until job completes
-
-#### `gob signal <job_id> <signal>`
-
-Send a custom signal to a job.
-
-```bash
-# Send SIGHUP (reload configuration)
-gob signal V3x0QqI HUP
-
-# Send SIGUSR1
-gob signal V3x0QqI USR1
-```
-
-**Supported signals**: TERM, KILL, HUP, INT, QUIT, USR1, USR2, and more
-
-### Convenience
-
-#### `gob run <command> [args...]`
-
-Run a command and follow its output until completion. Reuses existing stopped job with the same command instead of creating a new one. When reusing a job, previous logs are cleared so you only see output from the current run.
-
-```bash
-# Simple commands
-gob run make test
-
-# Commands with flags work directly
-gob run pnpm --filter web typecheck
-gob run ls -la
-```
-
-### Output
-
-#### `gob logs`
-
-Follow stdout and stderr for all jobs in the current directory.
-
-```bash
-gob logs
-```
-
-#### `gob stdout <job_id>`
-
-Display stdout output for a job.
-
-```bash
-# View stdout
-gob stdout V3x0QqI
-
-# Tail stdout in real-time
-gob stdout V3x0QqI --follow
-```
-
-#### `gob stderr <job_id>`
-
-Display stderr output for a job.
-
-```bash
-# View stderr
-gob stderr V3x0QqI
-
-# Tail stderr in real-time
-gob stderr V3x0QqI --follow
-```
-
-### Other
-
-#### `gob list`
-
-Display all jobs with their status (running/stopped), PID, and command.
-
-```bash
-gob list
-
-# Show jobs from all directories
-gob list --all
-```
-
-#### `gob overview`
-
-Display usage patterns and common workflows. Also shown when running `gob` without arguments.
-
-```bash
-gob overview
-```
+| Command | Description |
+|---------|-------------|
+| `run <cmd>` | Run command, wait for completion (reuses stopped jobs) |
+| `add <cmd>` | Start background job (use `--` before flags: `add -- cmd --flag`) |
+| `list` | List jobs (`--all` for all directories) |
+| `stdout <id>` | View stdout (`--follow` for real-time) |
+| `stderr <id>` | View stderr (`--follow` for real-time) |
+| `logs` | Follow all output for current directory |
+| `stop <id>` | Stop job (`--force` for SIGKILL) |
+| `start <id>` | Start stopped job |
+| `restart <id>` | Stop + start job |
+| `signal <id> <sig>` | Send signal (HUP, USR1, etc.) |
+| `remove <id>` | Remove stopped job |
+| `cleanup` | Remove all stopped jobs |
+| `nuke` | Stop all, remove all, shutdown daemon |
+| `tui` | Launch interactive TUI |
 
 ## Contributing
 
