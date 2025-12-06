@@ -1,10 +1,12 @@
 # gob
 
+[![GitHub Release](https://img.shields.io/github/release/juanibiapina/gob.svg)](https://github.com/juanibiapina/gob/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/juanibiapina/gob)](https://goreportcard.com/report/github.com/juanibiapina/gob)
 ![Go](https://img.shields.io/github/languages/top/juanibiapina/gob)
 ![Languages](https://img.shields.io/github/languages/count/juanibiapina/gob)
 [![Contributors](https://img.shields.io/github/contributors/juanibiapina/gob)](https://github.com/juanibiapina/gob/graphs/contributors)
 ![Last Commit](https://img.shields.io/github/last-commit/juanibiapina/gob)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/juanibiapina/gob)
 
 > Background job management for humans and AI agents.
 
