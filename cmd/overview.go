@@ -13,11 +13,14 @@ var overviewCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println(`gob - Background Job Manager
 
-JOB MANAGEMENT
-  gob add <command>       Create and start a new job
-  gob remove <job_id>     Remove a stopped job
-  gob cleanup             Remove all stopped jobs
-  gob nuke                Stop all + remove all
+RUNNING COMMANDS
+  gob run <command>       Run and wait (reuses stopped job with same command)
+  gob add -- <command>    Start a background job
+
+WAITING
+  gob await <job_id>      Wait for completion, stream output
+  gob await-any           Wait for any job to complete
+  gob await-all           Wait for all jobs to complete
 
 PROCESS CONTROL
   gob start <job_id>      Start a stopped job
@@ -25,21 +28,21 @@ PROCESS CONTROL
   gob restart <job_id>    Restart a job (stop + start)
   gob signal <job_id> <sig>  Send signal to job
 
-CONVENIENCE
-  gob run <command>       Run and wait (reuses stopped job with same command)
-    gob run make test
-    gob run pnpm --filter web typecheck
-
 OUTPUT
   gob logs                Follow stdout+stderr for all jobs
-  gob stdout <job_id>     View raw stdout
-  gob stderr <job_id>     View raw stderr
+  gob stdout <job_id>     View stdout (--follow for real-time)
+  gob stderr <job_id>     View stderr (--follow for real-time)
+
+CLEANUP
+  gob remove <job_id>     Remove a stopped job
+  gob cleanup             Remove all stopped jobs
+  gob nuke                Stop all + remove all
 
 INTERACTIVE
   gob tui                 Launch interactive TUI
+  gob list                List jobs with IDs and status
 
-Use -f/--follow with add/start/restart to follow output.
-Job IDs are shown by 'gob list'.
+Job IDs are 3 characters (e.g. abc, x7f).
 Use 'gob <command> --help' for details.`)
 		return nil
 	},
