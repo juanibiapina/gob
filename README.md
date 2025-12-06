@@ -123,10 +123,10 @@ gob add python -m http.server 8000
 gob list
 
 # View stdout output
-gob stdout V3x0QqI
+gob stdout abc
 
 # Stop a job
-gob stop V3x0QqI
+gob stop abc
 
 # Clean up all stopped jobs
 gob cleanup
