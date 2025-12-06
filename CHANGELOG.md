@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2025-12-06
+
 ### Added
 
 - `await` command to wait for a job to complete, streaming output in real-time and showing a summary with command, duration, and exit code
