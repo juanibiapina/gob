@@ -69,6 +69,8 @@ Exit codes:
 		// Print confirmation message
 		commandStr := strings.Join(args, " ")
 		fmt.Printf("Added job %s running: %s\n", job.ID, commandStr)
+		fmt.Printf("  gob await %s   # wait for completion with live output\n", job.ID)
+		fmt.Printf("  gob stop %s    # stop the job\n", job.ID)
 
 		// If follow flag is set, follow the output
 		if addFollow {
