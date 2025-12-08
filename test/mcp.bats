@@ -39,14 +39,14 @@ load 'test_helper.bash'
     wait $MCP_PID 2>/dev/null || true
     
     # Verify all tools are listed
-    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_add")'
-    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_list")'
-    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_stop")'
-    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_start")'
-    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_remove")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "gob_add")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "gob_list")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "gob_stop")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "gob_start")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "gob_remove")'
 }
 
-@test "mcp job_add tool creates a job" {
+@test "mcp gob_add tool creates a job" {
     # Create a coprocess for the MCP server
     coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
     
@@ -57,8 +57,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_add tool
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job_add","arguments":{"command":["sleep","60"]}}}' >&${MCP[1]}
+    # Call gob_add tool
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_add","arguments":{"command":["sleep","60"]}}}' >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -77,7 +77,7 @@ load 'test_helper.bash'
     "$JOB_CLI" stop "$job_id"
 }
 
-@test "mcp job_list tool lists jobs" {
+@test "mcp gob_list tool lists jobs" {
     # Create a job first
     run "$JOB_CLI" add -- sleep 60
     assert_success
@@ -93,8 +93,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_list tool
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job_list","arguments":{}}}' >&${MCP[1]}
+    # Call gob_list tool
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_list","arguments":{}}}' >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -108,7 +108,7 @@ load 'test_helper.bash'
     "$JOB_CLI" stop "$job_id"
 }
 
-@test "mcp job_stop tool stops a running job" {
+@test "mcp gob_stop tool stops a running job" {
     # Create a job first
     run "$JOB_CLI" add -- sleep 60
     assert_success
@@ -124,8 +124,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_stop tool
-    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_stop\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    # Call gob_stop tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_stop\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -140,7 +140,7 @@ load 'test_helper.bash'
     echo "$output" | jq -e ".[] | select(.id == \"$job_id\") | .status == \"stopped\""
 }
 
-@test "mcp job_start tool starts a stopped job" {
+@test "mcp gob_start tool starts a stopped job" {
     # Create and stop a job first
     run "$JOB_CLI" add -- sleep 60
     assert_success
@@ -157,8 +157,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_start tool
-    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_start\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    # Call gob_start tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_start\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -172,7 +172,7 @@ load 'test_helper.bash'
     "$JOB_CLI" stop "$job_id"
 }
 
-@test "mcp job_remove tool removes a stopped job" {
+@test "mcp gob_remove tool removes a stopped job" {
     # Create and stop a job first
     run "$JOB_CLI" add -- echo test
     assert_success
@@ -191,8 +191,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_remove tool
-    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_remove\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    # Call gob_remove tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_remove\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -209,7 +209,7 @@ load 'test_helper.bash'
     fi
 }
 
-@test "mcp job_await tool waits for stopped job and returns output" {
+@test "mcp gob_await tool waits for stopped job and returns output" {
     # Create a job that completes quickly
     run "$JOB_CLI" add -- sh -c "echo 'hello from job'; echo 'error output' >&2"
     assert_success
@@ -228,8 +228,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_await tool
-    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_await\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    # Call gob_await tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_await\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -242,7 +242,7 @@ load 'test_helper.bash'
     echo "$call_response" | jq -e ".result.content[0].text | fromjson | .exit_code == 0"
 }
 
-@test "mcp job_await tool waits for running job to complete" {
+@test "mcp gob_await tool waits for running job to complete" {
     # Create a job that takes a moment to complete
     run "$JOB_CLI" add -- sh -c "sleep 1; echo 'completed'"
     assert_success
@@ -258,8 +258,8 @@ load 'test_helper.bash'
     # Send initialized notification
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
-    # Call job_await tool (should wait for job to complete)
-    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_await\",\"arguments\":{\"job_id\":\"$job_id\",\"timeout\":10}}}" >&${MCP[1]}
+    # Call gob_await tool (should wait for job to complete)
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_await\",\"arguments\":{\"job_id\":\"$job_id\",\"timeout\":10}}}" >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server

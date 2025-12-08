@@ -86,9 +86,9 @@ func jsonResult(result any) (*mcp.CallToolResult, error) {
 	return mcp.NewToolResultText(string(resultJSON)), nil
 }
 
-// registerJobAdd registers the job_add tool.
+// registerJobAdd registers the gob_add tool.
 func (s *Server) registerJobAdd() {
-	tool := mcp.NewTool("job_add",
+	tool := mcp.NewTool("gob_add",
 		mcp.WithDescription("Create a new background job in the current directory"),
 		mcp.WithArray("command",
 			mcp.Required(),
@@ -130,9 +130,9 @@ func (s *Server) registerJobAdd() {
 	})
 }
 
-// registerJobList registers the job_list tool.
+// registerJobList registers the gob_list tool.
 func (s *Server) registerJobList() {
-	tool := mcp.NewTool("job_list",
+	tool := mcp.NewTool("gob_list",
 		mcp.WithDescription("List jobs in current directory"),
 		mcp.WithBoolean("all",
 			mcp.Description("Include jobs from all directories (default: false)"),
@@ -182,9 +182,9 @@ func (s *Server) registerJobList() {
 	})
 }
 
-// registerJobStop registers the job_stop tool.
+// registerJobStop registers the gob_stop tool.
 func (s *Server) registerJobStop() {
-	tool := mcp.NewTool("job_stop",
+	tool := mcp.NewTool("gob_stop",
 		mcp.WithDescription("Stop a running job"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -232,9 +232,9 @@ func (s *Server) registerJobStop() {
 	})
 }
 
-// registerJobStart registers the job_start tool.
+// registerJobStart registers the gob_start tool.
 func (s *Server) registerJobStart() {
-	tool := mcp.NewTool("job_start",
+	tool := mcp.NewTool("gob_start",
 		mcp.WithDescription("Start a stopped job"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -267,9 +267,9 @@ func (s *Server) registerJobStart() {
 	})
 }
 
-// registerJobRemove registers the job_remove tool.
+// registerJobRemove registers the gob_remove tool.
 func (s *Server) registerJobRemove() {
-	tool := mcp.NewTool("job_remove",
+	tool := mcp.NewTool("gob_remove",
 		mcp.WithDescription("Remove a stopped job"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -328,9 +328,9 @@ func readJobOutput(job *daemon.JobResponse) (stdout, stderr string) {
 	return stdout, stderr
 }
 
-// registerJobAwait registers the job_await tool.
+// registerJobAwait registers the gob_await tool.
 func (s *Server) registerJobAwait() {
-	tool := mcp.NewTool("job_await",
+	tool := mcp.NewTool("gob_await",
 		mcp.WithDescription("Wait for a job to complete and return its output"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -419,9 +419,9 @@ func (s *Server) registerJobAwait() {
 	})
 }
 
-// registerJobAwaitAny registers the job_await_any tool.
+// registerJobAwaitAny registers the gob_await_any tool.
 func (s *Server) registerJobAwaitAny() {
-	tool := mcp.NewTool("job_await_any",
+	tool := mcp.NewTool("gob_await_any",
 		mcp.WithDescription("Wait for any job in current directory to complete"),
 		mcp.WithNumber("timeout",
 			mcp.Description("Timeout in seconds (0 = no timeout, default: 300)"),
@@ -505,9 +505,9 @@ func (s *Server) registerJobAwaitAny() {
 	})
 }
 
-// registerJobAwaitAll registers the job_await_all tool.
+// registerJobAwaitAll registers the gob_await_all tool.
 func (s *Server) registerJobAwaitAll() {
-	tool := mcp.NewTool("job_await_all",
+	tool := mcp.NewTool("gob_await_all",
 		mcp.WithDescription("Wait for all jobs in current directory to complete"),
 		mcp.WithNumber("timeout",
 			mcp.Description("Timeout in seconds (0 = no timeout, default: 300)"),
@@ -604,9 +604,9 @@ func (s *Server) registerJobAwaitAll() {
 	})
 }
 
-// registerJobRestart registers the job_restart tool.
+// registerJobRestart registers the gob_restart tool.
 func (s *Server) registerJobRestart() {
-	tool := mcp.NewTool("job_restart",
+	tool := mcp.NewTool("gob_restart",
 		mcp.WithDescription("Stop and start a job"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -675,9 +675,9 @@ func parseSignal(signalStr string) (syscall.Signal, error) {
 	return 0, fmt.Errorf("invalid signal: %s", signalStr)
 }
 
-// registerJobSignal registers the job_signal tool.
+// registerJobSignal registers the gob_signal tool.
 func (s *Server) registerJobSignal() {
-	tool := mcp.NewTool("job_signal",
+	tool := mcp.NewTool("gob_signal",
 		mcp.WithDescription("Send a signal to a running job"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -726,9 +726,9 @@ func (s *Server) registerJobSignal() {
 	})
 }
 
-// registerJobsCleanup registers the jobs_cleanup tool.
+// registerJobsCleanup registers the gob_cleanup tool.
 func (s *Server) registerJobsCleanup() {
-	tool := mcp.NewTool("jobs_cleanup",
+	tool := mcp.NewTool("gob_cleanup",
 		mcp.WithDescription("Remove all stopped jobs in current directory"),
 		mcp.WithBoolean("all",
 			mcp.Description("Remove from all directories (default: false)"),
@@ -764,9 +764,9 @@ func (s *Server) registerJobsCleanup() {
 	})
 }
 
-// registerJobsNuke registers the jobs_nuke tool.
+// registerJobsNuke registers the gob_nuke tool.
 func (s *Server) registerJobsNuke() {
-	tool := mcp.NewTool("jobs_nuke",
+	tool := mcp.NewTool("gob_nuke",
 		mcp.WithDescription("Stop all jobs, remove all jobs and log files in current directory"),
 		mcp.WithBoolean("all",
 			mcp.Description("Nuke all directories (default: false)"),
@@ -804,9 +804,9 @@ func (s *Server) registerJobsNuke() {
 	})
 }
 
-// registerJobStdout registers the job_stdout tool.
+// registerJobStdout registers the gob_stdout tool.
 func (s *Server) registerJobStdout() {
-	tool := mcp.NewTool("job_stdout",
+	tool := mcp.NewTool("gob_stdout",
 		mcp.WithDescription("Read stdout from a job"),
 		mcp.WithString("job_id",
 			mcp.Required(),
@@ -848,9 +848,9 @@ func (s *Server) registerJobStdout() {
 	})
 }
 
-// registerJobStderr registers the job_stderr tool.
+// registerJobStderr registers the gob_stderr tool.
 func (s *Server) registerJobStderr() {
-	tool := mcp.NewTool("job_stderr",
+	tool := mcp.NewTool("gob_stderr",
 		mcp.WithDescription("Read stderr from a job"),
 		mcp.WithString("job_id",
 			mcp.Required(),

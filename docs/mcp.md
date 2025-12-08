@@ -28,7 +28,7 @@ Create `.mcp.json` in your project:
 
 ### Job Creation
 
-#### `job_add`
+#### `gob_add`
 
 Create a new background job in the current directory.
 
@@ -43,7 +43,7 @@ Create a new background job in the current directory.
 
 ### Job Listing
 
-#### `job_list`
+#### `gob_list`
 
 List jobs in current directory.
 
@@ -58,7 +58,7 @@ List jobs in current directory.
 
 ### Job Control
 
-#### `job_stop`
+#### `gob_stop`
 
 Stop a running job.
 
@@ -67,7 +67,7 @@ Stop a running job.
 | `job_id` | `string` | Yes | Job ID |
 | `force` | `boolean` | No | Use SIGKILL instead of SIGTERM |
 
-#### `job_start`
+#### `gob_start`
 
 Start a stopped job.
 
@@ -75,7 +75,7 @@ Start a stopped job.
 |-----------|------|----------|-------------|
 | `job_id` | `string` | Yes | Job ID |
 
-#### `job_restart`
+#### `gob_restart`
 
 Stop and start a job.
 
@@ -83,7 +83,7 @@ Stop and start a job.
 |-----------|------|----------|-------------|
 | `job_id` | `string` | Yes | Job ID |
 
-#### `job_signal`
+#### `gob_signal`
 
 Send a signal to a running job.
 
@@ -92,7 +92,7 @@ Send a signal to a running job.
 | `job_id` | `string` | Yes | Job ID |
 | `signal` | `string` | Yes | Signal name (HUP, SIGTERM) or number (1, 15) |
 
-#### `job_remove`
+#### `gob_remove`
 
 Remove a stopped job.
 
@@ -102,7 +102,7 @@ Remove a stopped job.
 
 ### Awaiting Completion
 
-#### `job_await`
+#### `gob_await`
 
 Wait for a job to complete and return its output.
 
@@ -118,7 +118,7 @@ Wait for a job to complete and return its output.
 
 Output is truncated at 100KB per stream.
 
-#### `job_await_any`
+#### `gob_await_any`
 
 Wait for any job in current directory to complete.
 
@@ -126,7 +126,7 @@ Wait for any job in current directory to complete.
 |-----------|------|----------|---------|
 | `timeout` | `integer` | No | Timeout in seconds (default: 300) |
 
-#### `job_await_all`
+#### `gob_await_all`
 
 Wait for all jobs in current directory to complete.
 
@@ -141,7 +141,7 @@ Wait for all jobs in current directory to complete.
 
 ### Reading Output
 
-#### `job_stdout`
+#### `gob_stdout`
 
 Read stdout from a job (running or completed).
 
@@ -154,7 +154,7 @@ Read stdout from a job (running or completed).
 {"job_id": "V3x", "content": "..."}
 ```
 
-#### `job_stderr`
+#### `gob_stderr`
 
 Read stderr from a job (running or completed).
 
@@ -164,7 +164,7 @@ Read stderr from a job (running or completed).
 
 ### Bulk Operations
 
-#### `jobs_cleanup`
+#### `gob_cleanup`
 
 Remove all stopped jobs in current directory.
 
@@ -172,7 +172,7 @@ Remove all stopped jobs in current directory.
 |-----------|------|----------|---------|
 | `all` | `boolean` | No | Remove from all directories (default: false) |
 
-#### `jobs_nuke`
+#### `gob_nuke`
 
 Stop all jobs, remove all jobs and delete log files in current directory.
 

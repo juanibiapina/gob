@@ -322,20 +322,20 @@ gob includes a native MCP (Model Context Protocol) server, allowing AI agents to
 
 | Tool | Description |
 |------|-------------|
-| `job_add` | Create a new background job |
-| `job_list` | List jobs in current directory |
-| `job_stop` | Stop a running job |
-| `job_start` | Start a stopped job |
-| `job_remove` | Remove a stopped job |
-| `job_restart` | Stop and start a job |
-| `job_signal` | Send a signal to a job |
-| `job_await` | Wait for a job to complete |
-| `job_await_any` | Wait for any job to complete |
-| `job_await_all` | Wait for all jobs to complete |
-| `job_stdout` | Read stdout from a job |
-| `job_stderr` | Read stderr from a job |
-| `jobs_cleanup` | Remove all stopped jobs |
-| `jobs_nuke` | Stop and remove all jobs |
+| `gob_add` | Create a new background job |
+| `gob_list` | List jobs in current directory |
+| `gob_stop` | Stop a running job |
+| `gob_start` | Start a stopped job |
+| `gob_remove` | Remove a stopped job |
+| `gob_restart` | Stop and start a job |
+| `gob_signal` | Send a signal to a job |
+| `gob_await` | Wait for a job to complete |
+| `gob_await_any` | Wait for any job to complete |
+| `gob_await_all` | Wait for all jobs to complete |
+| `gob_stdout` | Read stdout from a job |
+| `gob_stderr` | Read stderr from a job |
+| `gob_cleanup` | Remove all stopped jobs |
+| `gob_nuke` | Stop and remove all jobs |
 
 ### Configuration
 
