@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/juanibiapina/gob/internal/mcp"
+	"github.com/juanibiapina/gob/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -22,7 +23,7 @@ Example configuration for .mcp.json:
     }
   }`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		server := mcp.NewServer(version)
+		server := mcp.NewServer(version.Version)
 		return server.Serve()
 	},
 }

@@ -23,7 +23,7 @@ builds:
     # Inject version into the binary
     ldflags:
       - -s -w
-      - -X github.com/juanibiapina/gob/cmd.version={{.Version}}
+      - -X github.com/juanibiapina/gob/internal/version.Version={{.Version}}
 
 archives:
   - id: gob

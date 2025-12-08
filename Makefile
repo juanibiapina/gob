@@ -13,4 +13,4 @@ integration-test: build
 
 .PHONY: build
 build:
-	@go build -ldflags "-X github.com/juanibiapina/gob/cmd.version=$(VERSION)" -o dist/gob
+	@go build -ldflags "-X github.com/juanibiapina/gob/internal/version.Version=$(VERSION)" -o dist/gob
