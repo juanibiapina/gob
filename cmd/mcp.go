@@ -28,5 +28,5 @@ Example configuration for .mcp.json:
 }
 
 func init() {
-	rootCmd.AddCommand(mcpCmd)
+	RootCmd.AddCommand(mcpCmd)
 }

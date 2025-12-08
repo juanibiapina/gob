@@ -76,5 +76,5 @@ Exit codes:
 
 func init() {
 	startCmd.Flags().BoolVarP(&startFollow, "follow", "f", false, "Follow output until job completes")
-	rootCmd.AddCommand(startCmd)
+	RootCmd.AddCommand(startCmd)
 }

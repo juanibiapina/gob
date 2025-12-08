@@ -62,5 +62,5 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(removeCmd)
+	RootCmd.AddCommand(removeCmd)
 }

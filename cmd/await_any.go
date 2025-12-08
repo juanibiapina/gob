@@ -175,7 +175,7 @@ func printRemainingJobs(jobs []daemon.JobResponse, excludeID string) {
 }
 
 func init() {
-	rootCmd.AddCommand(awaitAnyCmd)
+	RootCmd.AddCommand(awaitAnyCmd)
 	awaitAnyCmd.Flags().IntVarP(&awaitAnyTimeout, "timeout", "t", 0,
 		"Timeout in seconds (exit 124 if reached)")
 }

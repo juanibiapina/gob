@@ -49,5 +49,5 @@ Use 'gob <command> --help' for details.`)
 }
 
 func init() {
-	rootCmd.AddCommand(overviewCmd)
+	RootCmd.AddCommand(overviewCmd)
 }

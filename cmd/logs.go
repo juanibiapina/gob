@@ -182,5 +182,5 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(logsCmd)
+	RootCmd.AddCommand(logsCmd)
 }

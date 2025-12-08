@@ -89,7 +89,7 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(nukeCmd)
+	RootCmd.AddCommand(nukeCmd)
 	nukeCmd.Flags().BoolVarP(&nukeAll, "all", "a", false,
 		"Nuke jobs from all directories")
 }

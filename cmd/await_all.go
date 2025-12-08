@@ -210,7 +210,7 @@ func printAllJobsSummary(jobs []daemon.JobResponse) {
 }
 
 func init() {
-	rootCmd.AddCommand(awaitAllCmd)
+	RootCmd.AddCommand(awaitAllCmd)
 	awaitAllCmd.Flags().IntVarP(&awaitAllTimeout, "timeout", "t", 0,
 		"Timeout in seconds (exit 124 if reached)")
 }

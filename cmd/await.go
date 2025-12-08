@@ -172,5 +172,5 @@ func formatDuration(d time.Duration) string {
 }
 
 func init() {
-	rootCmd.AddCommand(awaitCmd)
+	RootCmd.AddCommand(awaitCmd)
 }

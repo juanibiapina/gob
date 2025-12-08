@@ -74,6 +74,6 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(stopCmd)
+	RootCmd.AddCommand(stopCmd)
 	stopCmd.Flags().BoolVarP(&forceStop, "force", "f", false, "Send SIGKILL instead of SIGTERM for forceful termination")
 }

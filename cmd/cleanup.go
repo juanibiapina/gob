@@ -81,7 +81,7 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(cleanupCmd)
+	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.Flags().BoolVarP(&cleanupAll, "all", "a", false,
 		"Cleanup stopped jobs from all directories")
 }

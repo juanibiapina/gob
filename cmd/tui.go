@@ -52,5 +52,5 @@ Example:
 }
 
 func init() {
-	rootCmd.AddCommand(tuiCmd)
+	RootCmd.AddCommand(tuiCmd)
 }

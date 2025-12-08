@@ -68,7 +68,7 @@ Press Ctrl+C to stop.`,
 }
 
 func init() {
-	rootCmd.AddCommand(eventsCmd)
+	RootCmd.AddCommand(eventsCmd)
 	eventsCmd.Flags().BoolVarP(&eventsAll, "all", "a", false,
 		"Show events from all directories")
 }

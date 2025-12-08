@@ -83,6 +83,6 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(stderrCmd)
+	RootCmd.AddCommand(stderrCmd)
 	stderrCmd.Flags().BoolVarP(&followStderr, "follow", "f", false, "Follow log output in real-time")
 }

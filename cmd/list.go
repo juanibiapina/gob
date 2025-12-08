@@ -129,7 +129,7 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(listCmd)
+	RootCmd.AddCommand(listCmd)
 	listCmd.Flags().BoolVarP(&listAll, "all", "a", false,
 		"Show jobs from all directories (implies --workdir)")
 	listCmd.Flags().BoolVar(&showWorkdir, "workdir", false,

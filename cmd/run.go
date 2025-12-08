@@ -136,5 +136,5 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(runCmd)
+	RootCmd.AddCommand(runCmd)
 }

@@ -91,5 +91,5 @@ Exit codes:
 
 func init() {
 	addCmd.Flags().BoolVarP(&addFollow, "follow", "f", false, "Follow output until job completes")
-	rootCmd.AddCommand(addCmd)
+	RootCmd.AddCommand(addCmd)
 }

@@ -128,5 +128,5 @@ Exit codes:
 }
 
 func init() {
-	rootCmd.AddCommand(signalCmd)
+	RootCmd.AddCommand(signalCmd)
 }

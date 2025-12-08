@@ -44,6 +44,15 @@ func (s *Server) Serve() error {
 	return server.ServeStdio(s.mcpServer)
 }
 
+// ListToolNames returns the names of all registered MCP tools.
+func (s *Server) ListToolNames() []string {
+	var names []string
+	for name := range s.mcpServer.ListTools() {
+		names = append(names, name)
+	}
+	return names
+}
+
 // registerTools registers all MCP tools.
 func (s *Server) registerTools() {
 	s.registerJobAdd()

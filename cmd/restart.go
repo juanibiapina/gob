@@ -87,5 +87,5 @@ Exit codes:
 
 func init() {
 	restartCmd.Flags().BoolVarP(&restartFollow, "follow", "f", false, "Follow output until job completes")
-	rootCmd.AddCommand(restartCmd)
+	RootCmd.AddCommand(restartCmd)
 }
