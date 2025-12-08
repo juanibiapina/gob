@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MCP (Model Context Protocol) server for AI agent integration (`gob mcp`)
+  - 14 tools: `job_add`, `job_list`, `job_stop`, `job_start`, `job_remove`, `job_restart`, `job_signal`, `job_await`, `job_await_any`, `job_await_all`, `job_stdout`, `job_stderr`, `jobs_cleanup`, `jobs_nuke`
+  - All tools filter by current directory by default
+  - Compatible with Claude Code and other MCP clients
+
 ## [1.0.0] - 2025-12-06
 
 ### Added

@@ -23,6 +23,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 ## Features
 
 - **Interactive TUI** - Full-screen terminal interface with real-time job status and log streaming
+- **MCP server** - Native Model Context Protocol support for AI agents like Claude Code
 - **AI agent friendly** - Shared view of all processes for you and your coding agent
 - **Real-time sync** - Changes from CLI instantly appear in TUI, and vice-versa
 - **Per-directory jobs** - Jobs are scoped to directories, keeping projects organized
@@ -142,7 +143,7 @@ gob cleanup
 
 ## Using with AI Coding Agents
 
-To make `gob` available to AI coding agents, add the following instructions to your agent's configuration file (`CLAUDE.md`, `AGENTS.md`, etc).
+For AI agents that don't support MCP, add the following instructions to your agent's configuration file (`CLAUDE.md`, `AGENTS.md`, etc).
 
 <details>
 <summary>General instructions for AI agents</summary>
@@ -313,6 +314,103 @@ Bad:
 
 </details>
 
+## MCP Server
+
+gob includes a native MCP (Model Context Protocol) server, allowing AI agents to manage background jobs directly through tool calls instead of CLI commands.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `job_add` | Create a new background job |
+| `job_list` | List jobs in current directory |
+| `job_stop` | Stop a running job |
+| `job_start` | Start a stopped job |
+| `job_remove` | Remove a stopped job |
+| `job_restart` | Stop and start a job |
+| `job_signal` | Send a signal to a job |
+| `job_await` | Wait for a job to complete |
+| `job_await_any` | Wait for any job to complete |
+| `job_await_all` | Wait for all jobs to complete |
+| `job_stdout` | Read stdout from a job |
+| `job_stderr` | Read stderr from a job |
+| `jobs_cleanup` | Remove all stopped jobs |
+| `jobs_nuke` | Stop and remove all jobs |
+
+### Configuration
+
+<details>
+<summary>Claude Code</summary>
+
+Create `.mcp.json` in your project directory:
+
+```json
+{
+  "mcpServers": {
+    "gob": {
+      "command": "gob",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Or add to `~/.claude.json` for global availability.
+
+</details>
+
+<details>
+<summary>Crush</summary>
+
+Create `crush.json` in your project directory:
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "mcp": {
+    "gob": {
+      "type": "stdio",
+      "command": "gob",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>Codex</summary>
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.gob]
+command = "gob"
+args = ["mcp"]
+```
+
+</details>
+
+<details>
+<summary>OpenCode</summary>
+
+Create `opencode.json` in your project directory:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "gob": {
+      "type": "local",
+      "command": ["gob", "mcp"]
+    }
+  }
+}
+```
+
+</details>
+
 ## Interactive TUI
 
 Launch a full-screen terminal interface for managing jobs:
@@ -358,6 +456,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `cleanup` | Remove all stopped jobs |
 | `nuke` | Stop all, remove all, shutdown daemon |
 | `tui` | Launch interactive TUI |
+| `mcp` | Start MCP server for AI agents |
 
 ## Contributing
 

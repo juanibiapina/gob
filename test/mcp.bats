@@ -1,0 +1,272 @@
+#!/usr/bin/env bats
+
+load 'test_helper/bats-support/load'
+load 'test_helper/bats-assert/load'
+load 'test_helper.bash'
+
+@test "mcp command shows help" {
+    run "$JOB_CLI" mcp --help
+    assert_success
+    assert_output --partial "Start an MCP (Model Context Protocol) server"
+}
+
+@test "mcp server responds to initialize request" {
+    # Send initialize request and capture response
+    response=$(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' \
+        | timeout 5 "$JOB_CLI" mcp 2>/dev/null | head -1)
+    
+    # Verify it's a valid JSON-RPC response
+    echo "$response" | jq -e '.result.serverInfo.name == "gob"'
+}
+
+@test "mcp server lists all tools" {
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # List tools
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' >&${MCP[1]}
+    read -r tools_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify all tools are listed
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_add")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_list")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_stop")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_start")'
+    echo "$tools_response" | jq -e '.result.tools[] | select(.name == "job_remove")'
+}
+
+@test "mcp job_add tool creates a job" {
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_add tool
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job_add","arguments":{"command":["sleep","60"]}}}' >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Extract job_id from response
+    job_id=$(echo "$call_response" | jq -r '.result.content[0].text | fromjson | .job_id')
+    
+    # Verify job was created by checking with gob list
+    run "$JOB_CLI" list --json
+    assert_success
+    echo "$output" | jq -e ".[].id == \"$job_id\""
+    
+    # Stop the job
+    "$JOB_CLI" stop "$job_id"
+}
+
+@test "mcp job_list tool lists jobs" {
+    # Create a job first
+    run "$JOB_CLI" add -- sleep 60
+    assert_success
+    job_id=$(echo "$output" | head -1 | awk '{print $3}')
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_list tool
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job_list","arguments":{}}}' >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify job is in the list
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .jobs[] | select(.job_id == \"$job_id\")"
+    
+    # Cleanup
+    "$JOB_CLI" stop "$job_id"
+}
+
+@test "mcp job_stop tool stops a running job" {
+    # Create a job first
+    run "$JOB_CLI" add -- sleep 60
+    assert_success
+    job_id=$(echo "$output" | head -1 | awk '{print $3}')
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_stop tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_stop\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .status == \"stopped\""
+    
+    # Verify job is stopped
+    run "$JOB_CLI" list --json
+    echo "$output" | jq -e ".[] | select(.id == \"$job_id\") | .status == \"stopped\""
+}
+
+@test "mcp job_start tool starts a stopped job" {
+    # Create and stop a job first
+    run "$JOB_CLI" add -- sleep 60
+    assert_success
+    job_id=$(echo "$output" | head -1 | awk '{print $3}')
+    "$JOB_CLI" stop "$job_id"
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_start tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_start\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .status == \"running\""
+    
+    # Cleanup
+    "$JOB_CLI" stop "$job_id"
+}
+
+@test "mcp job_remove tool removes a stopped job" {
+    # Create and stop a job first
+    run "$JOB_CLI" add -- echo test
+    assert_success
+    job_id=$(echo "$output" | head -1 | awk '{print $3}')
+    
+    # Wait for it to complete
+    sleep 1
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_remove tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_remove\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .success == true"
+    
+    # Verify job is gone
+    run "$JOB_CLI" list --json
+    if [ "$output" != "[]" ]; then
+        ! echo "$output" | jq -e ".[] | select(.id == \"$job_id\")"
+    fi
+}
+
+@test "mcp job_await tool waits for stopped job and returns output" {
+    # Create a job that completes quickly
+    run "$JOB_CLI" add -- sh -c "echo 'hello from job'; echo 'error output' >&2"
+    assert_success
+    job_id=$(echo "$output" | head -1 | awk '{print $3}')
+    
+    # Wait for it to complete
+    sleep 1
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_await tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_await\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response contains stdout and stderr
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .stdout | contains(\"hello from job\")"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .stderr | contains(\"error output\")"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .exit_code == 0"
+}
+
+@test "mcp job_await tool waits for running job to complete" {
+    # Create a job that takes a moment to complete
+    run "$JOB_CLI" add -- sh -c "sleep 1; echo 'completed'"
+    assert_success
+    job_id=$(echo "$output" | head -1 | awk '{print $3}')
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call job_await tool (should wait for job to complete)
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"job_await\",\"arguments\":{\"job_id\":\"$job_id\",\"timeout\":10}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response contains output
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .stdout | contains(\"completed\")"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .status == \"stopped\""
+}
