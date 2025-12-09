@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/juanibiapina/gob/internal/telemetry"
 	"github.com/juanibiapina/gob/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -15,8 +16,16 @@ var RootCmd = &cobra.Command{
 
 Start a dev server with Claude Code, check its logs yourself. Or vice-versa.
 Everyone has the same view. No more copy-pasting logs through chat.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Track CLI command usage (skip for mcp which has its own telemetry)
+		name := cmd.Name()
+		if name != "mcp" && name != "gob" {
+			telemetry.CLICommandRun(name)
+		}
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// When called without subcommands, show overview
+		telemetry.CLICommandRun("overview")
 		return overviewCmd.RunE(cmd, args)
 	},
 }
@@ -24,6 +33,9 @@ Everyone has the same view. No more copy-pasting logs through chat.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the RootCmd.
 func Execute() {
+	telemetry.Init()
+	defer telemetry.Flush()
+
 	err := RootCmd.Execute()
 	if err != nil {
 		os.Exit(1)

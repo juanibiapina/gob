@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/juanibiapina/gob/internal/daemon"
+	"github.com/juanibiapina/gob/internal/telemetry"
 )
 
 // Panel focus
@@ -463,6 +464,7 @@ func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmd := m.textInput.Value()
 			if cmd != "" {
 				m.modal = modalNone
+				telemetry.TUIActionExecute("new_job")
 				return m, m.addJob(cmd)
 			}
 		case "ctrl+c":
@@ -500,12 +502,15 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "1":
 		m.activePanel = panelJobs
+		telemetry.TUIActionExecute("switch_panel")
 
 	case "2":
 		m.activePanel = panelStdout
+		telemetry.TUIActionExecute("switch_panel")
 
 	case "3":
 		m.activePanel = panelStderr
+		telemetry.TUIActionExecute("switch_panel")
 
 	case "tab":
 		switch m.activePanel {
@@ -516,6 +521,7 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case panelStderr:
 			m.activePanel = panelJobs
 		}
+		telemetry.TUIActionExecute("switch_panel")
 
 	case "?":
 		m.modal = modalHelp
@@ -529,6 +535,7 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.showAll = !m.showAll
 		m.cursor = 0
+		telemetry.TUIActionExecute("toggle_all_dirs")
 		// Restart subscription with new filter
 		if m.subClient != nil {
 			m.subClient.Close()
@@ -541,6 +548,7 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "i":
 		m.expandedView = !m.expandedView
+		telemetry.TUIActionExecute("toggle_details")
 	}
 
 	// Panel-specific keys
@@ -580,26 +588,31 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "s":
 		if len(m.jobs) > 0 && m.jobs[m.cursor].Running {
+			telemetry.TUIActionExecute("stop_job")
 			return m, m.stopJob(m.jobs[m.cursor].ID, false)
 		}
 
 	case "S":
 		if len(m.jobs) > 0 && m.jobs[m.cursor].Running {
+			telemetry.TUIActionExecute("kill_job")
 			return m, m.stopJob(m.jobs[m.cursor].ID, true)
 		}
 
 	case "r":
 		if len(m.jobs) > 0 {
+			telemetry.TUIActionExecute("restart_job")
 			return m, m.restartJob(m.jobs[m.cursor].ID)
 		}
 
 	case "d":
 		if len(m.jobs) > 0 && !m.jobs[m.cursor].Running {
+			telemetry.TUIActionExecute("remove_job")
 			return m, m.removeJob(m.jobs[m.cursor].ID)
 		}
 
 	case "c":
 		if len(m.jobs) > 0 {
+			telemetry.TUIActionExecute("copy_command")
 			err := clipboard.WriteAll(m.jobs[m.cursor].Command)
 			if err != nil {
 				m.message = fmt.Sprintf("Failed to copy: %v", err)
@@ -624,6 +637,7 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "f":
 		m.followLogs = !m.followLogs
+		telemetry.TUIActionExecute("toggle_follow")
 		if m.followLogs {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
@@ -671,6 +685,7 @@ func (m Model) updateLogsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "f":
 		m.followLogs = !m.followLogs
+		telemetry.TUIActionExecute("toggle_follow")
 		if m.followLogs {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
@@ -1372,6 +1387,9 @@ func formatDuration(d time.Duration) string {
 
 // Run starts the TUI
 func Run() error {
+	telemetry.TUISessionStart()
+	defer telemetry.TUISessionEnd()
+
 	p := tea.NewProgram(New(), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err

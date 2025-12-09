@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Anonymous telemetry to understand usage patterns
+  - Tracks CLI commands, MCP tool calls, and TUI actions
+  - Disabled with `GOB_TELEMETRY_DISABLED=1` or `DO_NOT_TRACK=1`
+  - See `docs/telemetry.md` for details
+
 ## [1.1.0] - 2025-12-08
 
 ### Added

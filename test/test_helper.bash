@@ -45,6 +45,9 @@ setup() {
   # Override XDG runtime directory to use temporary directory for tests
   export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR/.xdg-runtime"
 
+  # Disable telemetry during tests
+  export GOB_TELEMETRY_DISABLED=1
+
   JOB_CLI="$BATS_TEST_DIRNAME/../dist/gob"
 }
 

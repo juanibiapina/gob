@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/juanibiapina/gob/internal/daemon"
+	"github.com/juanibiapina/gob/internal/telemetry"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -95,6 +96,17 @@ func jsonResult(result any) (*mcp.CallToolResult, error) {
 	return mcp.NewToolResultText(string(resultJSON)), nil
 }
 
+// toolHandler is the type for MCP tool handlers.
+type toolHandler func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+
+// addTool registers a tool with telemetry tracking.
+func (s *Server) addTool(tool mcp.Tool, handler toolHandler) {
+	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		telemetry.MCPToolCall(tool.Name)
+		return handler(ctx, request)
+	})
+}
+
 // registerJobAdd registers the gob_add tool.
 func (s *Server) registerJobAdd() {
 	tool := mcp.NewTool("gob_add",
@@ -105,7 +117,7 @@ func (s *Server) registerJobAdd() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		command, err := request.RequireStringSlice("command")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -148,7 +160,7 @@ func (s *Server) registerJobList() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		all := request.GetBool("all", false)
 
 		var workdir string
@@ -204,7 +216,7 @@ func (s *Server) registerJobStop() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -251,7 +263,7 @@ func (s *Server) registerJobStart() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -286,7 +298,7 @@ func (s *Server) registerJobRemove() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -350,7 +362,7 @@ func (s *Server) registerJobAwait() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -437,7 +449,7 @@ func (s *Server) registerJobAwaitAny() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		timeout := request.GetInt("timeout", 300)
 		if timeout == 0 {
 			timeout = 3600
@@ -523,7 +535,7 @@ func (s *Server) registerJobAwaitAll() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		timeout := request.GetInt("timeout", 300)
 		if timeout == 0 {
 			timeout = 3600
@@ -623,7 +635,7 @@ func (s *Server) registerJobRestart() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -698,7 +710,7 @@ func (s *Server) registerJobSignal() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -744,7 +756,7 @@ func (s *Server) registerJobsCleanup() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		all := request.GetBool("all", false)
 
 		var workdir string
@@ -782,7 +794,7 @@ func (s *Server) registerJobsNuke() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		all := request.GetBool("all", false)
 
 		var workdir string
@@ -823,7 +835,7 @@ func (s *Server) registerJobStdout() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -867,7 +879,7 @@ func (s *Server) registerJobStderr() {
 		),
 	)
 
-	s.mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		jobID, err := request.RequireString("job_id")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
