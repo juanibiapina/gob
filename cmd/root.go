@@ -17,11 +17,16 @@ var RootCmd = &cobra.Command{
 Start a dev server with Claude Code, check its logs yourself. Or vice-versa.
 Everyone has the same view. No more copy-pasting logs through chat.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Track CLI command usage (skip for mcp which has its own telemetry)
+		// Track CLI command usage
+		// Skip: mcp (has own telemetry), gob (root), completion and its children
 		name := cmd.Name()
-		if name != "mcp" && name != "gob" {
-			telemetry.CLICommandRun(name)
+		if name == "mcp" || name == "gob" || name == "completion" {
+			return
 		}
+		if parent := cmd.Parent(); parent != nil && parent.Name() == "completion" {
+			return
+		}
+		telemetry.CLICommandRun(name)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// When called without subcommands, show overview
