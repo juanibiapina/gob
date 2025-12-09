@@ -8,6 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// skipTelemetry lists commands that handle their own telemetry or shouldn't be tracked
+var skipTelemetry = map[string]bool{
+	"gob":        true, // root command
+	"mcp":        true, // has own telemetry
+	"tui":        true, // has own telemetry
+	"completion": true, // shell completion
+	"__complete": true, // internal completion
+}
+
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "gob",
@@ -17,10 +26,9 @@ var RootCmd = &cobra.Command{
 Start a dev server with Claude Code, check its logs yourself. Or vice-versa.
 Everyone has the same view. No more copy-pasting logs through chat.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Track CLI command usage
-		// Skip: mcp (has own telemetry), gob (root), completion and its children
+		// Track CLI command usage (skip commands with own telemetry or completion)
 		name := cmd.Name()
-		if name == "mcp" || name == "gob" || name == "completion" || name == "__complete" {
+		if skipTelemetry[name] {
 			return
 		}
 		if parent := cmd.Parent(); parent != nil && parent.Name() == "completion" {
