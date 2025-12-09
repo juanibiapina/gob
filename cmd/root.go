@@ -10,7 +10,6 @@ import (
 
 // skipTelemetry lists commands that handle their own telemetry or shouldn't be tracked
 var skipTelemetry = map[string]bool{
-	"gob":        true, // root command
 	"mcp":        true, // has own telemetry
 	"tui":        true, // has own telemetry
 	"completion": true, // shell completion
@@ -34,11 +33,13 @@ Everyone has the same view. No more copy-pasting logs through chat.`,
 		if parent := cmd.Parent(); parent != nil && parent.Name() == "completion" {
 			return
 		}
-		telemetry.CLICommandRun(name)
+		telemetry.CLICommandStart(name)
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		telemetry.CLICommandEnd()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// When called without subcommands, show overview
-		telemetry.CLICommandRun("overview")
 		return overviewCmd.RunE(cmd, args)
 	},
 }

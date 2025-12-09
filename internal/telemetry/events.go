@@ -4,8 +4,20 @@ import "time"
 
 // CLI
 
-func CLICommandRun(commandName string) {
-	send("cli:command_run", "command_name", commandName)
+var cliCommandName string
+var cliStartTime time.Time
+
+func CLICommandStart(commandName string) {
+	cliCommandName = commandName
+	cliStartTime = time.Now()
+}
+
+func CLICommandEnd() {
+	if cliCommandName == "" {
+		return
+	}
+	durationMs := time.Since(cliStartTime).Milliseconds()
+	send("cli:command_run", "command_name", cliCommandName, "duration_ms", durationMs)
 }
 
 // MCP

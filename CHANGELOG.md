@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CLI telemetry now includes command duration (`duration_ms`)
+
+### Fixed
+
+- Exclude `tui` command from CLI telemetry (has its own session/action telemetry)
+
 ## [1.2.2] - 2025-12-09
 
 ### Fixed
