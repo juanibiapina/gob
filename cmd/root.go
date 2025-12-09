@@ -20,7 +20,7 @@ Everyone has the same view. No more copy-pasting logs through chat.`,
 		// Track CLI command usage
 		// Skip: mcp (has own telemetry), gob (root), completion and its children
 		name := cmd.Name()
-		if name == "mcp" || name == "gob" || name == "completion" {
+		if name == "mcp" || name == "gob" || name == "completion" || name == "__complete" {
 			return
 		}
 		if parent := cmd.Parent(); parent != nil && parent.Name() == "completion" {
