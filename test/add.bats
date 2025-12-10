@@ -166,3 +166,25 @@ load 'test_helper'
   # Should be the same job ID (job was reused)
   assert_equal "$job1_id" "$job2_id"
 }
+
+@test "add command shows stats for job with previous runs" {
+  # Add a quick job (true exits immediately with success)
+  run "$JOB_CLI" add true
+  assert_success
+  local job_id=$(get_job_field id)
+
+  # First add should NOT show stats (no previous completed runs)
+  refute_output --partial "Previous runs:"
+
+  # Wait for job to complete
+  "$JOB_CLI" await "$job_id"
+
+  # Add same command again - should show stats from previous run
+  run "$JOB_CLI" add true
+  assert_success
+
+  # Should show stats
+  assert_output --partial "Previous runs: 1"
+  assert_output --partial "100% success rate"
+  assert_output --partial "Expected duration:"
+}

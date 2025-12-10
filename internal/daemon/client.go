@@ -174,7 +174,7 @@ func (c *Client) List(workdir string) ([]JobResponse, error) {
 }
 
 // Add creates and starts a new job
-func (c *Client) Add(command []string, workdir string) (*JobResponse, error) {
+func (c *Client) Add(command []string, workdir string) (*AddResponse, error) {
 	req := NewRequest(RequestTypeAdd)
 	req.Payload["command"] = command
 	req.Payload["workdir"] = workdir
@@ -204,7 +204,23 @@ func (c *Client) Add(command []string, workdir string) (*JobResponse, error) {
 		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
 	}
 
-	return &job, nil
+	result := &AddResponse{Job: job}
+
+	// Parse stats if present (job has previous completed runs)
+	if statsRaw, ok := resp.Data["stats"]; ok {
+		statsJSON, err := json.Marshal(statsRaw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal stats: %w", err)
+		}
+
+		var stats StatsResponse
+		if err := json.Unmarshal(statsJSON, &stats); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal stats: %w", err)
+		}
+		result.Stats = &stats
+	}
+
+	return result, nil
 }
 
 // Stop stops a running job

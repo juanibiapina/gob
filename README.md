@@ -422,11 +422,12 @@ gob tui
 
 ### Layout
 
-The TUI has three panels:
+The TUI has four panels:
 
-- **Panel 1 (Jobs)**: List of all jobs with status (● running, ○ stopped)
-- **Panel 2 (stdout)**: Standard output of selected job (80% height)
-- **Panel 3 (stderr)**: Standard error of selected job (20% height)
+- **Panel 1 (Jobs)**: List of all jobs with status (◉ running, ✓ success, ✗ failed)
+- **Panel 2 (Runs)**: Run history for the selected job
+- **Panel 3 (stdout)**: Standard output of selected run
+- **Panel 4 (stderr)**: Standard error of selected run
 
 ### Key Bindings
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
@@ -77,16 +78,25 @@ Exit codes:
 		}
 
 		// Add job via daemon
-		job, err := client.Add(args, cwd)
+		result, err := client.Add(args, cwd)
 		if err != nil {
 			return fmt.Errorf("failed to add job: %w", err)
 		}
 
 		// Print confirmation message
 		commandStr := strings.Join(args, " ")
-		fmt.Printf("Added job %s running: %s\n", job.ID, commandStr)
-		fmt.Printf("  gob await %s   # wait for completion with live output\n", job.ID)
-		fmt.Printf("  gob stop %s    # stop the job\n", job.ID)
+		fmt.Printf("Added job %s running: %s\n", result.Job.ID, commandStr)
+
+		// Show stats if job has previous runs
+		if result.Stats != nil && result.Stats.RunCount > 0 {
+			fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
+				result.Stats.RunCount, result.Stats.SuccessRate)
+			fmt.Printf("  Expected duration: ~%s\n",
+				formatDuration(time.Duration(result.Stats.AvgDurationMs)*time.Millisecond))
+		}
+
+		fmt.Printf("  gob await %s   # wait for completion with live output\n", result.Job.ID)
+		fmt.Printf("  gob stop %s    # stop the job\n", result.Job.ID)
 
 		return nil
 	},

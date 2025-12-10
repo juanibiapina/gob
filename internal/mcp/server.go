@@ -138,16 +138,25 @@ func (s *Server) registerJobAdd() {
 		}
 		defer client.Close()
 
-		job, err := client.Add(command, workdir)
+		result, err := client.Add(command, workdir)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to add job: %v", err)), nil
 		}
 
-		return jsonResult(map[string]any{
-			"job_id": job.ID,
-			"status": job.Status,
-			"pid":    job.PID,
-		})
+		response := map[string]any{
+			"job_id": result.Job.ID,
+			"status": result.Job.Status,
+			"pid":    result.Job.PID,
+		}
+
+		// Include stats if job has previous runs
+		if result.Stats != nil && result.Stats.RunCount > 0 {
+			response["previous_runs"] = result.Stats.RunCount
+			response["success_rate"] = result.Stats.SuccessRate
+			response["expected_duration_ms"] = result.Stats.AvgDurationMs
+		}
+
+		return jsonResult(response)
 	})
 }
 

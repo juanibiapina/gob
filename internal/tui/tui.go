@@ -1024,13 +1024,13 @@ func (m Model) addJob(command string) tea.Cmd {
 		}
 		defer client.Close()
 
-		job, err := client.Add(parts, m.cwd)
+		result, err := client.Add(parts, m.cwd)
 		if err != nil {
 			return actionResultMsg{message: fmt.Sprintf("Failed to add: %v", err), isError: true}
 		}
 
 		return actionResultMsg{
-			message: fmt.Sprintf("Started %s (PID %d)", job.ID, job.PID),
+			message: fmt.Sprintf("Started %s (PID %d)", result.Job.ID, result.Job.PID),
 			isError: false,
 		}
 	}

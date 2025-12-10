@@ -11,12 +11,10 @@ var removeCmd = &cobra.Command{
 	Use:               "remove <job_id>",
 	Short:             "Remove a stopped job",
 	ValidArgsFunction: completeJobIDs,
-	Long: `Remove a single stopped job.
+	Long: `Remove a single stopped job and all its run history.
 
 Only works on stopped jobs - returns an error if the job is still running.
-Use 'job stop' first if needed.
-
-For removing multiple stopped jobs at once, use 'job cleanup' instead.
+Use 'gob stop' first if needed.
 
 Example:
   # Remove a specific stopped job
@@ -26,9 +24,9 @@ Output:
   Removed job <job_id> (PID <pid>)
 
 Notes:
-  - Only works on stopped jobs (use 'job stop' first if needed)
-  - For batch removal of stopped jobs, use 'job cleanup'
-  - Unlike 'cleanup', removing a non-existent job returns an error
+  - Only works on stopped jobs (use 'gob stop' first if needed)
+  - Removes the job and all its run history (stats, logs)
+  - Use 'gob nuke' to remove all jobs and shutdown the daemon
 
 Exit codes:
   0: Job removed successfully

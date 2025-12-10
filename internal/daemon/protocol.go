@@ -125,6 +125,12 @@ type StatsResponse struct {
 	MaxDurationMs   int64    `json:"max_duration_ms"`
 }
 
+// AddResponse represents the response from adding a job
+type AddResponse struct {
+	Job   JobResponse    `json:"job"`
+	Stats *StatsResponse `json:"stats,omitempty"` // nil if no previous runs
+}
+
 // NewRequest creates a new request with the given type
 func NewRequest(reqType RequestType) *Request {
 	return &Request{

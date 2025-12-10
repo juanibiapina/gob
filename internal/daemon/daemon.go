@@ -367,6 +367,14 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 
 	resp := NewSuccessResponse()
 	resp.Data["job"] = d.jobManager.jobToResponse(job)
+
+	// Include stats if job has previous completed runs
+	// RunCount is updated on completion, so check if > 0
+	if job.RunCount > 0 {
+		stats := jobToStats(job)
+		resp.Data["stats"] = stats
+	}
+
 	return resp
 }
 
