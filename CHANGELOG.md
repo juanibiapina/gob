@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Jobs are now persistent entities, not ephemeral processes.**
+
+Previously, each `gob add make test` created a new, independent job. Now, gob recognizes that you're running the same command repeatedly and tracks it as a single job with multiple runs. This unlocks:
+
+- **Execution history**: See all previous runs of a command with `gob runs <id>`
+- **Statistics**: Success rates, average duration, time estimates with `gob stats <id>`
+- **Smarter feedback**: `gob add` tells you what to expect based on history
+- **Historical logs**: Browse and compare output from previous runs in the TUI
+
+The mental model shift: a "job" is now "a command you run repeatedly" rather than "a process running in the background". Each execution is a "run" of that job.
+
 ### Added
 
+- `runs <job_id>` command - show run history for a job
+- `stats <job_id>` command - show statistics (success rate, avg/min/max duration)
+- `add` shows previous run count, success rate, and expected duration for repeat jobs
+- `gob_runs` and `gob_stats` MCP tools
+- TUI: Dedicated Runs panel showing run history for selected job
+  - Panel navigation: 1=Jobs, 2=Runs, 3=Stdout, 4=Stderr
+  - Select historical runs to view their logs
 - Version negotiation: daemon auto-restarts when CLI version changes
   - If no running jobs, restart happens automatically
   - If jobs are running, commands are blocked with guidance to run `gob nuke`
@@ -16,21 +34,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `add` command no longer requires `--` separator for commands with flags (e.g., `gob add npm run --flag`)
-- `add` command now supports quoted command strings (e.g., `gob add "make test"`)
-- Removed `-f/--follow` flag from `add` command (use `gob add` + `gob await` instead)
-- `nuke` command now always operates on all jobs from all directories (removed `--all` flag)
+- `add` reuses existing job for same command in same directory (creates new run)
+- `add` errors if same command is already running (no parallel runs of same job)
+- `add` no longer requires `--` separator for commands with flags
+- `add` supports quoted command strings (e.g., `gob add "make test"`)
+- `signal` requires job to be running (returns error for stopped jobs)
+- `nuke` always operates on all jobs (removed `--all` flag)
+- Removed `-f/--follow` flag from `add` (use `gob add` + `gob await`)
 
 ### Removed
 
-- `cleanup` command - use `gob remove <id>` to remove individual jobs, or `gob nuke` to remove all
-- `run` command - use `gob add` + `gob await` instead
-- `gob_cleanup` MCP tool - use `gob_remove` to remove individual jobs
-- `gob_nuke` MCP tool - use `gob_stop` + `gob_remove` instead
+- `cleanup` command - use `gob remove <id>` or `gob nuke`
+- `run` command - use `gob add` + `gob await`
+- `gob_cleanup` and `gob_nuke` MCP tools
 
 ### Fixed
 
-- `nuke` command now properly shuts down the daemon after stopping and removing all jobs
+- `nuke` now properly shuts down the daemon after removing all jobs
 
 ## [1.2.3] - 2025-12-09
 
