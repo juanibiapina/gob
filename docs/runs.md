@@ -199,72 +199,54 @@ gob remove abc           # Remove Job and all its run history
 
 ### TUI Interface
 
-#### Default View: Unchanged
+#### Layout: Jobs + Runs Panels
 
-The default view looks and works exactly like today:
-
-```
-┌─ Jobs ─────────────────────────────────────────────────────────────┐
-│ ◉ abc  make test                                                   │
-│ ✓ def  make build                                                  │
-│ ✗ ghi  npm test                                                    │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-Log panels show the current/latest run's output. All existing key bindings work unchanged.
-
-#### Expanded View with `i`: Run History
-
-The `i` toggle shows **run history** for the selected job:
+The TUI has a dedicated Runs panel showing run history for the selected job:
 
 ```
-┌─ Jobs ─────────────────────────────────────────────────────────────┐
-│ ◉ abc  make test                                                   │
-│   5 runs | 80% success | avg: 2m30s | est: ~2m30s                  │
-│   > abc-5  2min ago   running  ◉                                   │
-│     abc-4  1hr ago    2m15s    ✓ (0)                               │
-│     abc-3  2hr ago    2m45s    ✗ (1)                               │
-│     abc-2  3hr ago    2m30s    ✓ (0)                               │
-│ ✓ def  make build                                                  │
-│ ✗ ghi  npm test                                                    │
-└────────────────────────────────────────────────────────────────────┘
+┌─ Jobs ─────────────────────────────────────────┬─ stdout ────────────────────┐
+│ ◉ abc  make test                               │ Running tests...            │
+│ ✓ def  make build                              │ ✓ test_login                │
+│ ✗ ghi  npm test                                │ ✗ test_logout - FAILED      │
+├─ Runs: abc ────────────────────────────────────┼─ stderr ────────────────────┤
+│ > abc-5  2min ago   running  ◉                 │ Error: connection refused   │
+│   abc-4  1hr ago    2m15s    ✓ (0)             │                             │
+│   abc-3  2hr ago    2m45s    ✗ (1)             │                             │
+└────────────────────────────────────────────────┴─────────────────────────────┘
 ```
 
-When expanded:
-- Navigate runs with `j/k`
-- Select a run to view its logs in the log panels
-- Stats shown inline (success rate, avg duration, estimate)
+- Left side split: Jobs panel (60%) + Runs panel (40%)
+- Runs panel always shows run history for the selected job
+- Log panels show the selected run's output
 
 #### Key Bindings
 
 | Key | Action |
 |-----|--------|
-| `i` | Toggle expanded view (shows run history for selected job) |
-| `j/k` | Navigate jobs (or runs when expanded) |
-| `s` | Start new run (error if already running) |
-| `x` | Stop current run |
+| `1-4` | Switch to panel (1=Jobs, 2=Runs, 3=Stdout, 4=Stderr) |
+| `Tab/Shift+Tab` | Cycle through panels |
+| `j/k` | Navigate items in current panel |
+| `s` | Stop job (SIGTERM) |
+| `S` | Kill job (SIGKILL) |
 | `r` | Restart (stop + start new run) |
-| `d` | Remove Job and all its run history |
+| `d` | Remove stopped job and all its run history |
+| `c` | Copy command to clipboard |
+| `n` | New job |
 
 #### Viewing Historical Run Logs
 
-With expanded view (`i`), select a historical run to view its logs:
+Select a historical run in the Runs panel to view its logs:
 
 ```
-┌─ Jobs ─────────────────────────────────────────────────────────────┐
-│ ◉ abc  make test                                                   │
-│   5 runs | 80% success | avg: 2m30s                                │
-│     abc-5  2min ago   running  ◉                                   │
-│     abc-4  1hr ago    2m15s    ✓ (0)                               │
-│   > abc-3  2hr ago    2m45s    ✗ (1)    <-- selected               │
-│     abc-2  3hr ago    2m30s    ✓ (0)                               │
-│ ✓ def  make build                                                  │
-├─ stdout: abc-3 (historical) ───────────────────────────────────────┤
-│ Running tests...                                                    │
-│ ✓ test_login                                                        │
-│ ✗ test_logout - FAILED                                              │
-│   Expected: 200, Got: 500                                           │
-└─────────────────────────────────────────────────────────────────────┘
+┌─ Jobs ─────────────────────────────────────────┬─ stdout: abc-3 (historical) ┐
+│ ◉ abc  make test                               │ Running tests...            │
+│ ✓ def  make build                              │ ✓ test_login                │
+│ ✗ ghi  npm test                                │ ✗ test_logout - FAILED      │
+├─ Runs: abc ────────────────────────────────────┼─ stderr: abc-3 (historical) ┤
+│   abc-5  2min ago   running  ◉                 │ Error: connection refused   │
+│ > abc-4  1hr ago    2m15s    ✓ (0)   <-- sel   │                             │
+│   abc-3  2hr ago    2m45s    ✗ (1)             │                             │
+└────────────────────────────────────────────────┴─────────────────────────────┘
 ```
 
 ### MCP Tools
@@ -399,12 +381,22 @@ For now, this is marked as "to be figured out" - the 2.0 release will document t
 - `stats` output shows: run count, success rate, avg/min/max duration, estimated next run
 
 ### Phase 4: TUI Updates
-- [ ] Default view unchanged (shows jobs with current/latest run status)
-- [ ] Repurpose `i` toggle: show run history instead of job details
-- [ ] Navigate runs within expanded view
-- [ ] Log panels show selected run's output
-- [ ] Update status indicators for historical runs
-- [ ] Update tests, CI must pass
+- [x] Default view unchanged (shows jobs with current/latest run status)
+- [x] Dedicated Runs panel shows run history for selected job
+- [x] Navigate runs with j/k in Runs panel
+- [x] Log panels show selected run's output
+- [x] Update status indicators for historical runs
+- [x] Update tests, CI must pass
+
+**Implementation notes:**
+- Redesigned from inline expansion to dedicated Runs panel (bottom-left, below Jobs panel)
+- Left side split: Jobs panel (60%) + Runs panel (40%)
+- Panel navigation: 1=Jobs, 2=Runs, 3=Stdout, 4=Stderr (Tab/Shift+Tab cycles through)
+- Daemon emits `run_started` and `run_stopped` events for real-time updates (push model)
+- Events include `Stats` field for real-time stats updates without separate fetch
+- Renamed `tui.Run()` to `tui.Start()` to allow `Run` struct for run data
+- Runs panel shows: run ID, relative time, duration, status indicator (◉/✓/✗)
+- Known limitation: Jobs and Runs panels don't scroll if content exceeds panel height
 
 ### Phase 5: MCP Updates
 - [x] Update all tools for Job/Run model (done in Phase 1)

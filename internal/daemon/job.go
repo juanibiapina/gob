@@ -235,7 +235,18 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 			JobCount: len(jm.jobs),
 		})
 
-		_ = run // run is stored, job's CurrentRunID is updated
+		// Emit run started event
+		runResp := runToResponse(run)
+		stats := jobToStats(job)
+		jm.emitEvent(Event{
+			Type:     EventTypeRunStarted,
+			JobID:    job.ID,
+			Job:      jm.jobToResponse(job),
+			Run:      &runResp,
+			Stats:    &stats,
+			JobCount: len(jm.jobs),
+		})
+
 		return job, nil
 	}
 
@@ -276,7 +287,18 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 		JobCount: len(jm.jobs),
 	})
 
-	_ = run // run is stored
+	// Emit run started event
+	runResp := runToResponse(run)
+	stats := jobToStats(job)
+	jm.emitEvent(Event{
+		Type:     EventTypeRunStarted,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		Run:      &runResp,
+		Stats:    &stats,
+		JobCount: len(jm.jobs),
+	})
+
 	return job, nil
 }
 
@@ -378,10 +400,22 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 
 	jobCount := len(jm.jobs)
 	jobResp := jm.jobToResponse(job)
+	runResp := runToResponse(run)
+	stats := jobToStats(job)
 
 	jm.mu.Unlock()
 
-	// Emit stopped event
+	// Emit run stopped event
+	jm.emitEvent(Event{
+		Type:     EventTypeRunStopped,
+		JobID:    job.ID,
+		Job:      jobResp,
+		Run:      &runResp,
+		Stats:    &stats,
+		JobCount: jobCount,
+	})
+
+	// Emit job stopped event (for backward compatibility)
 	jm.emitEvent(Event{
 		Type:     EventTypeJobStopped,
 		JobID:    job.ID,
@@ -535,7 +569,7 @@ func (jm *JobManager) StartJob(jobID string) error {
 	}
 
 	// Start new run
-	_, err := jm.startRunLocked(job)
+	run, err := jm.startRunLocked(job)
 	if err != nil {
 		return err
 	}
@@ -545,6 +579,18 @@ func (jm *JobManager) StartJob(jobID string) error {
 		Type:     EventTypeJobStarted,
 		JobID:    job.ID,
 		Job:      jm.jobToResponse(job),
+		JobCount: len(jm.jobs),
+	})
+
+	// Emit run started event
+	runResp := runToResponse(run)
+	stats := jobToStats(job)
+	jm.emitEvent(Event{
+		Type:     EventTypeRunStarted,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		Run:      &runResp,
+		Stats:    &stats,
 		JobCount: len(jm.jobs),
 	})
 
@@ -608,7 +654,7 @@ func (jm *JobManager) RestartJob(jobID string) error {
 	}
 
 	// Start new run
-	_, err := jm.startRunLocked(job)
+	run, err := jm.startRunLocked(job)
 	if err != nil {
 		jm.mu.Unlock()
 		return err
@@ -619,6 +665,18 @@ func (jm *JobManager) RestartJob(jobID string) error {
 		Type:     EventTypeJobStarted,
 		JobID:    job.ID,
 		Job:      jm.jobToResponse(job),
+		JobCount: len(jm.jobs),
+	})
+
+	// Emit run started event
+	runResp := runToResponse(run)
+	stats := jobToStats(job)
+	jm.emitEvent(Event{
+		Type:     EventTypeRunStarted,
+		JobID:    job.ID,
+		Job:      jm.jobToResponse(job),
+		Run:      &runResp,
+		Stats:    &stats,
 		JobCount: len(jm.jobs),
 	})
 

@@ -21,6 +21,7 @@ type panel int
 
 const (
 	panelJobs panel = iota
+	panelRuns
 	panelStdout
 	panelStderr
 )
@@ -48,6 +49,20 @@ type Job struct {
 	StoppedAt  time.Time
 }
 
+// Run represents a single execution of a job
+type Run struct {
+	ID         string
+	JobID      string
+	PID        int
+	Status     string
+	ExitCode   *int
+	StdoutPath string
+	StderrPath string
+	StartedAt  time.Time
+	StoppedAt  time.Time
+	DurationMs int64
+}
+
 // logTickMsg is sent periodically to refresh log content
 type logTickMsg time.Time
 
@@ -66,6 +81,13 @@ type logUpdateMsg struct {
 type actionResultMsg struct {
 	message string
 	isError bool
+}
+
+// runsUpdatedMsg is sent when runs are fetched for a job
+type runsUpdatedMsg struct {
+	jobID string
+	runs  []Run
+	stats *daemon.StatsResponse
 }
 
 // subscriptionStartedMsg is sent when subscription is established
@@ -91,15 +113,14 @@ type reconnectMsg struct{}
 // Model is the main TUI model
 type Model struct {
 	// State
-	jobs         []Job
-	cursor       int
-	showAll      bool
-	expandedView bool
-	activePanel  panel
-	modal        modalMode
-	width        int
-	height       int
-	ready        bool
+	jobs        []Job
+	cursor      int
+	showAll     bool
+	activePanel panel
+	modal       modalMode
+	width       int
+	height      int
+	ready       bool
 	message     string
 	messageTime time.Time
 	isError     bool
@@ -116,6 +137,12 @@ type Model struct {
 	followLogs    bool
 	stdoutContent string
 	stderrContent string
+
+	// Run history state
+	runs          []Run
+	stats         *daemon.StatsResponse
+	runCursor     int
+	runsForJobID  string // tracks which job the runs are for
 
 	// Subscription state
 	subscribed bool
@@ -266,21 +293,70 @@ func (m Model) refreshJobs() tea.Cmd {
 	}
 }
 
-// readLogs reads the log files for the selected job
+// readLogs reads the log files for the selected job or run
 func (m Model) readLogs() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
 			return logUpdateMsg{stdout: "", stderr: ""}
 		}
 
-		job := m.jobs[m.cursor]
-		stdout, _ := os.ReadFile(job.StdoutPath)
-		stderr, _ := os.ReadFile(job.StderrPath)
+		// Use the selected run's log paths if available
+		var stdoutPath, stderrPath string
+		if len(m.runs) > 0 && m.runCursor >= 0 && m.runCursor < len(m.runs) {
+			run := m.runs[m.runCursor]
+			stdoutPath = run.StdoutPath
+			stderrPath = run.StderrPath
+		} else {
+			job := m.jobs[m.cursor]
+			stdoutPath = job.StdoutPath
+			stderrPath = job.StderrPath
+		}
+
+		stdout, _ := os.ReadFile(stdoutPath)
+		stderr, _ := os.ReadFile(stderrPath)
 
 		return logUpdateMsg{
 			stdout: string(stdout),
 			stderr: string(stderr),
 		}
+	}
+}
+
+// fetchRuns fetches runs and stats for a job
+func (m Model) fetchRuns(jobID string) tea.Cmd {
+	return func() tea.Msg {
+		client, err := connectClient()
+		if err != nil {
+			return runsUpdatedMsg{jobID: jobID, runs: nil, stats: nil}
+		}
+		defer client.Close()
+
+		// Fetch runs
+		runsResp, err := client.Runs(jobID)
+		if err != nil {
+			return runsUpdatedMsg{jobID: jobID, runs: nil, stats: nil}
+		}
+
+		runs := make([]Run, len(runsResp))
+		for i, r := range runsResp {
+			runs[i] = Run{
+				ID:         r.ID,
+				JobID:      r.JobID,
+				PID:        r.PID,
+				Status:     r.Status,
+				ExitCode:   r.ExitCode,
+				StdoutPath: r.StdoutPath,
+				StderrPath: r.StderrPath,
+				StartedAt:  parseTime(r.StartedAt),
+				StoppedAt:  parseTime(r.StoppedAt),
+				DurationMs: r.DurationMs,
+			}
+		}
+
+		// Fetch stats
+		stats, _ := client.Stats(jobID)
+
+		return runsUpdatedMsg{jobID: jobID, runs: runs, stats: stats}
 	}
 }
 
@@ -323,8 +399,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
 
 	case daemonEventMsg:
-		// Handle the event by updating the job list
+		// Handle the event by updating the job list and runs
 		m.handleDaemonEvent(msg.event)
+		// Fetch runs if the selected job changed (e.g., first job added)
+		if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
+			jobID := m.jobs[m.cursor].ID
+			if jobID != m.runsForJobID {
+				m.runsForJobID = jobID
+				m.runCursor = 0
+				cmds = append(cmds, m.fetchRuns(jobID))
+			}
+		}
 		// Continue waiting for more events
 		if m.subscribed && m.eventChan != nil {
 			cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
@@ -353,6 +438,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.cursor < 0 {
 			m.cursor = 0
+		}
+		// Fetch runs for the selected job
+		if len(m.jobs) > 0 {
+			jobID := m.jobs[m.cursor].ID
+			if jobID != m.runsForJobID {
+				m.runsForJobID = jobID
+				m.runCursor = 0
+				cmds = append(cmds, m.fetchRuns(jobID))
+			}
+		}
+
+	case runsUpdatedMsg:
+		// Only update if this is for the currently selected job
+		if msg.jobID == m.runsForJobID {
+			m.runs = msg.runs
+			m.stats = msg.stats
+			if m.runCursor >= len(m.runs) {
+				m.runCursor = len(m.runs) - 1
+			}
+			if m.runCursor < 0 {
+				m.runCursor = 0
+			}
 		}
 
 	case logUpdateMsg:
@@ -447,7 +554,54 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 				if m.cursor < 0 {
 					m.cursor = 0
 				}
+				// Clear runs if this was the selected job
+				if event.JobID == m.runsForJobID {
+					m.runs = nil
+					m.stats = nil
+					m.runsForJobID = ""
+				}
 				break
+			}
+		}
+
+	case daemon.EventTypeRunStarted:
+		// Add new run to the runs list if it's for the selected job
+		if event.Run != nil && event.JobID == m.runsForJobID {
+			newRun := Run{
+				ID:         event.Run.ID,
+				JobID:      event.Run.JobID,
+				PID:        event.Run.PID,
+				Status:     event.Run.Status,
+				ExitCode:   event.Run.ExitCode,
+				StdoutPath: event.Run.StdoutPath,
+				StderrPath: event.Run.StderrPath,
+				StartedAt:  parseTime(event.Run.StartedAt),
+				StoppedAt:  parseTime(event.Run.StoppedAt),
+				DurationMs: event.Run.DurationMs,
+			}
+			// Prepend new run to the list (newest first)
+			m.runs = append([]Run{newRun}, m.runs...)
+			// Update stats from event
+			if event.Stats != nil {
+				m.stats = event.Stats
+			}
+		}
+
+	case daemon.EventTypeRunStopped:
+		// Update run status in the runs list if it's for the selected job
+		if event.Run != nil && event.JobID == m.runsForJobID {
+			for i := range m.runs {
+				if m.runs[i].ID == event.Run.ID {
+					m.runs[i].Status = event.Run.Status
+					m.runs[i].ExitCode = event.Run.ExitCode
+					m.runs[i].StoppedAt = parseTime(event.Run.StoppedAt)
+					m.runs[i].DurationMs = event.Run.DurationMs
+					break
+				}
+			}
+			// Update stats from event
+			if event.Stats != nil {
+				m.stats = event.Stats
 			}
 		}
 	}
@@ -505,21 +659,40 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "2":
-		m.activePanel = panelStdout
+		m.activePanel = panelRuns
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "3":
+		m.activePanel = panelStdout
+		telemetry.TUIActionExecute("switch_panel")
+
+	case "4":
 		m.activePanel = panelStderr
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "tab":
 		switch m.activePanel {
 		case panelJobs:
+			m.activePanel = panelRuns
+		case panelRuns:
 			m.activePanel = panelStdout
 		case panelStdout:
 			m.activePanel = panelStderr
 		case panelStderr:
 			m.activePanel = panelJobs
+		}
+		telemetry.TUIActionExecute("switch_panel")
+
+	case "shift+tab":
+		switch m.activePanel {
+		case panelJobs:
+			m.activePanel = panelStderr
+		case panelRuns:
+			m.activePanel = panelJobs
+		case panelStdout:
+			m.activePanel = panelRuns
+		case panelStderr:
+			m.activePanel = panelStdout
 		}
 		telemetry.TUIActionExecute("switch_panel")
 
@@ -545,17 +718,17 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eventChan = nil
 		m.errChan = nil
 		return m, tea.Batch(m.refreshJobs(), m.startSubscription())
-
-	case "i":
-		m.expandedView = !m.expandedView
-		telemetry.TUIActionExecute("toggle_details")
 	}
 
 	// Panel-specific keys
-	if m.activePanel == panelJobs {
+	switch m.activePanel {
+	case panelJobs:
 		return m.updateJobsPanel(msg)
+	case panelRuns:
+		return m.updateRunsPanel(msg)
+	default:
+		return m.updateLogsPanel(msg)
 	}
-	return m.updateLogsPanel(msg)
 }
 
 func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -564,26 +737,48 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor > 0 {
 			m.cursor--
 			m.followLogs = true
-			return m, m.readLogs()
+			m.runCursor = 0
+			m.runs = nil
+			m.stats = nil
+			if len(m.jobs) > 0 {
+				m.runsForJobID = m.jobs[m.cursor].ID
+			}
+			return m, m.fetchRunsForSelectedJob()
 		}
 
 	case "down", "j":
 		if m.cursor < len(m.jobs)-1 {
 			m.cursor++
 			m.followLogs = true
-			return m, m.readLogs()
+			m.runCursor = 0
+			m.runs = nil
+			m.stats = nil
+			if len(m.jobs) > 0 {
+				m.runsForJobID = m.jobs[m.cursor].ID
+			}
+			return m, m.fetchRunsForSelectedJob()
 		}
 
 	case "g":
 		m.cursor = 0
 		m.followLogs = true
-		return m, m.readLogs()
+		m.runCursor = 0
+		m.runs = nil
+		m.stats = nil
+		if len(m.jobs) > 0 {
+			m.runsForJobID = m.jobs[m.cursor].ID
+		}
+		return m, m.fetchRunsForSelectedJob()
 
 	case "G":
 		if len(m.jobs) > 0 {
 			m.cursor = len(m.jobs) - 1
 			m.followLogs = true
-			return m, m.readLogs()
+			m.runCursor = 0
+			m.runs = nil
+			m.stats = nil
+			m.runsForJobID = m.jobs[m.cursor].ID
+			return m, m.fetchRunsForSelectedJob()
 		}
 
 	case "s":
@@ -633,6 +828,56 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.stdoutView.LineDown(1)
 		if m.stdoutView.AtBottom() {
 			m.followLogs = true
+		}
+
+	case "f":
+		m.followLogs = !m.followLogs
+		telemetry.TUIActionExecute("toggle_follow")
+		if m.followLogs {
+			m.stdoutView.GotoBottom()
+			m.stderrView.GotoBottom()
+		}
+	}
+
+	return m, nil
+}
+
+// fetchRunsForSelectedJob returns commands to read logs and fetch runs for the selected job
+// Note: caller must set m.runsForJobID before calling this
+func (m Model) fetchRunsForSelectedJob() tea.Cmd {
+	if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
+		return m.readLogs()
+	}
+	jobID := m.jobs[m.cursor].ID
+	return tea.Batch(m.readLogs(), m.fetchRuns(jobID))
+}
+
+func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.runCursor > 0 {
+			m.runCursor--
+			m.followLogs = true
+			return m, m.readLogs()
+		}
+
+	case "down", "j":
+		if m.runCursor < len(m.runs)-1 {
+			m.runCursor++
+			m.followLogs = true
+			return m, m.readLogs()
+		}
+
+	case "g":
+		m.runCursor = 0
+		m.followLogs = true
+		return m, m.readLogs()
+
+	case "G":
+		if len(m.runs) > 0 {
+			m.runCursor = len(m.runs) - 1
+			m.followLogs = true
+			return m, m.readLogs()
 		}
 
 	case "f":
@@ -909,8 +1154,8 @@ func (m Model) renderHeader() string {
 }
 
 func (m Model) renderPanels() string {
-	jobPanelW := m.jobPanelWidth()
-	logPanelW := m.width - jobPanelW
+	leftPanelW := m.jobPanelWidth()
+	rightPanelW := m.width - leftPanelW
 	totalH := m.height - 2 // height - header - status bar
 
 	// Ensure minimum height
@@ -918,75 +1163,212 @@ func (m Model) renderPanels() string {
 		totalH = 8
 	}
 
-	// Stderr gets 20% of height, stdout gets 80%
+	// Left side: Jobs (60%) + Runs (40%)
+	runsH := totalH * 40 / 100
+	if runsH < 5 {
+		runsH = 5
+	}
+	jobsH := totalH - runsH
+
+	// Right side: Stdout (80%) + Stderr (20%)
 	stderrH := totalH * 20 / 100
 	if stderrH < 4 {
 		stderrH = 4
 	}
 	stdoutH := totalH - stderrH
 
-	// Job panel (full height)
-	jobContent := m.renderJobList(jobPanelW-4, totalH-2)
-	jobPanel := m.renderPanel("1 Jobs", jobContent, jobPanelW, totalH, m.activePanel == panelJobs)
+	// Jobs panel
+	jobContent := m.renderJobList(leftPanelW-4, jobsH-2)
+	jobPanel := m.renderPanel("1 Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
+
+	// Runs panel
+	runsTitle := "2 Runs"
+	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
+		runsTitle = fmt.Sprintf("2 Runs: %s", m.jobs[m.cursor].ID)
+	}
+	runsContent := m.renderRunsList(leftPanelW-4, runsH-2)
+	runsPanel := m.renderPanel(runsTitle, runsContent, leftPanelW, runsH, m.activePanel == panelRuns)
 
 	// Build titles for log panels
 	var stdoutTitle, stderrTitle string
 	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
 		job := m.jobs[m.cursor]
-		var status string
-		if job.Running {
-			status = "◉"
-		} else if job.ExitCode != nil {
-			if *job.ExitCode == 0 {
-				status = "✓"
+		
+		// Check if showing a specific run
+		var showingRunID string
+		var runStatus string
+		var durationStr string
+		
+		if len(m.runs) > 0 && m.runCursor >= 0 && m.runCursor < len(m.runs) {
+			// Showing a specific run
+			run := m.runs[m.runCursor]
+			showingRunID = run.ID
+			
+			if run.Status == "running" {
+				runStatus = "◉"
+				if !run.StartedAt.IsZero() {
+					durationStr = " " + formatDuration(time.Since(run.StartedAt))
+				}
+			} else if run.ExitCode != nil {
+				if *run.ExitCode == 0 {
+					runStatus = "✓"
+				} else {
+					runStatus = fmt.Sprintf("✗ %d", *run.ExitCode)
+				}
+				durationStr = " " + formatDuration(time.Duration(run.DurationMs)*time.Millisecond)
 			} else {
-				status = fmt.Sprintf("✗ %d", *job.ExitCode)
+				runStatus = "◼"
 			}
 		} else {
-			status = "◼"
-		}
-
-		// Calculate duration
-		var durationStr string
-		if !job.StartedAt.IsZero() {
-			var d time.Duration
+			// Showing current/latest run (the job's current state)
+			showingRunID = job.ID
+			
 			if job.Running {
-				d = time.Since(job.StartedAt)
-			} else if !job.StoppedAt.IsZero() {
-				d = job.StoppedAt.Sub(job.StartedAt)
+				runStatus = "◉"
+			} else if job.ExitCode != nil {
+				if *job.ExitCode == 0 {
+					runStatus = "✓"
+				} else {
+					runStatus = fmt.Sprintf("✗ %d", *job.ExitCode)
+				}
+			} else {
+				runStatus = "◼"
 			}
-			if d > 0 {
-				durationStr = " " + formatDuration(d)
+
+			// Calculate duration
+			if !job.StartedAt.IsZero() {
+				var d time.Duration
+				if job.Running {
+					d = time.Since(job.StartedAt)
+				} else if !job.StoppedAt.IsZero() {
+					d = job.StoppedAt.Sub(job.StartedAt)
+				}
+				if d > 0 {
+					durationStr = " " + formatDuration(d)
+				}
 			}
 		}
 
-		stdoutTitle = fmt.Sprintf("2 stdout: %s %s%s", job.ID, status, durationStr)
-		stderrTitle = "3 stderr"
+		stdoutTitle = fmt.Sprintf("3 stdout: %s %s%s", showingRunID, runStatus, durationStr)
+		stderrTitle = "4 stderr"
 		if m.followLogs {
 			stdoutTitle += " [following]"
 			stderrTitle += " [following]"
 		}
 	} else {
-		stdoutTitle = "2 stdout"
-		stderrTitle = "3 stderr"
+		stdoutTitle = "3 stdout"
+		stderrTitle = "4 stderr"
 	}
 
 	// Stdout panel
-	m.stdoutView.Width = logPanelW - 4
+	m.stdoutView.Width = rightPanelW - 4
 	m.stdoutView.Height = stdoutH - 3
 	stdoutContent := m.stdoutView.View()
-	stdoutPanel := m.renderPanel(stdoutTitle, stdoutContent, logPanelW, stdoutH, m.activePanel == panelStdout)
+	stdoutPanel := m.renderPanel(stdoutTitle, stdoutContent, rightPanelW, stdoutH, m.activePanel == panelStdout)
 
 	// Stderr panel
-	m.stderrView.Width = logPanelW - 4
+	m.stderrView.Width = rightPanelW - 4
 	m.stderrView.Height = stderrH - 3
 	stderrContent := m.stderrView.View()
-	stderrPanel := m.renderPanel(stderrTitle, stderrContent, logPanelW, stderrH, m.activePanel == panelStderr)
+	stderrPanel := m.renderPanel(stderrTitle, stderrContent, rightPanelW, stderrH, m.activePanel == panelStderr)
 
-	// Stack stdout and stderr vertically
-	logPanels := lipgloss.JoinVertical(lipgloss.Left, stdoutPanel, stderrPanel)
+	// Stack panels
+	leftPanels := lipgloss.JoinVertical(lipgloss.Left, jobPanel, runsPanel)
+	rightPanels := lipgloss.JoinVertical(lipgloss.Left, stdoutPanel, stderrPanel)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, jobPanel, logPanels)
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanels, rightPanels)
+}
+
+// renderRunsList renders the runs list for the selected job
+func (m Model) renderRunsList(width, height int) string {
+	if len(m.jobs) == 0 {
+		return mutedStyle.Render("No job selected")
+	}
+
+	if m.stats == nil {
+		return mutedStyle.Render("Loading...")
+	}
+
+	if len(m.runs) == 0 {
+		return mutedStyle.Render("No runs yet")
+	}
+
+	var lines []string
+
+	// Stats summary line
+	statsLine := m.formatStatsLine()
+	lines = append(lines, mutedStyle.Render(statsLine))
+	lines = append(lines, "")
+
+	// Run list
+	for i, run := range m.runs {
+		isSelected := i == m.runCursor && m.activePanel == panelRuns
+		runLine := m.formatRunListLine(run, isSelected, width)
+		lines = append(lines, runLine)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// formatRunListLine formats a single run line for the runs panel
+func (m Model) formatRunListLine(run Run, isSelected bool, width int) string {
+	// Status indicator
+	var status string
+	if run.Status == "running" {
+		if isSelected {
+			status = jobRunningSelectedStyle.Render("◉")
+		} else {
+			status = jobRunningStyle.Render("◉")
+		}
+	} else if run.ExitCode != nil {
+		if *run.ExitCode == 0 {
+			if isSelected {
+				status = jobSuccessSelectedStyle.Render("✓")
+			} else {
+				status = jobSuccessStyle.Render("✓")
+			}
+		} else {
+			exitStr := fmt.Sprintf("✗ (%d)", *run.ExitCode)
+			if isSelected {
+				status = jobFailedSelectedStyle.Render(exitStr)
+			} else {
+				status = jobFailedStyle.Render(exitStr)
+			}
+		}
+	} else {
+		if isSelected {
+			status = jobStoppedSelectedStyle.Render("◼")
+		} else {
+			status = jobStoppedStyle.Render("◼")
+		}
+	}
+
+	// Relative time
+	relTime := formatRelativeTime(run.StartedAt)
+
+	// Duration
+	var duration string
+	if run.Status == "running" {
+		duration = formatDuration(time.Since(run.StartedAt))
+	} else {
+		duration = formatDuration(time.Duration(run.DurationMs) * time.Millisecond)
+	}
+
+	// Build the line
+	if isSelected {
+		sp := jobSelectedBgStyle.Render(" ")
+		idStyled := jobIDSelectedStyle.Render(run.ID)
+		timeStyled := jobTimeSelectedStyle.Render(relTime)
+		durationStyled := jobTimeSelectedStyle.Render(duration)
+		line := sp + status + sp + idStyled + jobSelectedBgStyle.Render("  ") + timeStyled + jobSelectedBgStyle.Render("  ") + durationStyled
+		padding := width - lipgloss.Width(line)
+		if padding > 0 {
+			line = line + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
+		}
+		return line
+	}
+
+	return fmt.Sprintf(" %s %s  %s  %s", status, jobIDStyle.Render(run.ID), jobTimeStyle.Render(relTime), jobTimeStyle.Render(duration))
 }
 
 func (m Model) renderPanel(title, content string, width, height int, active bool) string {
@@ -1139,52 +1521,6 @@ func (m Model) renderJobList(width, height int) string {
 		}
 
 		lines = append(lines, line)
-
-		// Expanded view: add detail lines
-		if m.expandedView {
-			// Line 2: ID + PID + workdir
-			wdStr := m.shortenPath(job.Workdir)
-
-			var detail2 string
-			if isSelected {
-				sp := jobSelectedBgStyle.Render("   ")
-				idStyled := jobIDSelectedStyle.Render(job.ID)
-				pidStyled := jobPIDSelectedStyle.Render(fmt.Sprintf("PID %d", job.PID))
-				wdStyled := workdirSelectedStyle.Render(wdStr)
-				detail2 = sp + idStyled + jobSelectedBgStyle.Render("  ") + pidStyled + jobSelectedBgStyle.Render("  ") + wdStyled
-				padding := width - lipgloss.Width(detail2)
-				if padding > 0 {
-					detail2 = detail2 + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
-				}
-			} else {
-				idStyled := jobIDStyle.Render(job.ID)
-				pidStyled := jobPIDStyle.Render(fmt.Sprintf("PID %d", job.PID))
-				wdStyled := workdirStyle.Render(wdStr)
-				detail2 = "   " + idStyled + "  " + pidStyled + "  " + wdStyled
-			}
-			lines = append(lines, detail2)
-
-			// Line 3: timing info
-			timeLine := m.formatJobTiming(job)
-			var detail3 string
-			if isSelected {
-				sp := jobSelectedBgStyle.Render("   ")
-				timeStyled := jobTimeSelectedStyle.Render(timeLine)
-				detail3 = sp + timeStyled
-				padding := width - lipgloss.Width(detail3)
-				if padding > 0 {
-					detail3 = detail3 + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
-				}
-			} else {
-				detail3 = "   " + jobTimeStyle.Render(timeLine)
-			}
-			lines = append(lines, detail3)
-
-			// Empty line between jobs (except for last job)
-			if i < len(m.jobs)-1 {
-				lines = append(lines, "")
-			}
-		}
 	}
 
 	return strings.Join(lines, "\n")
@@ -1203,6 +1539,46 @@ func (m Model) formatJobTiming(job Job) string {
 	// Completed or stopped: "2025-06-12 14:30:00 (1m 23s)" - total duration
 	duration := formatDuration(job.StoppedAt.Sub(job.StartedAt))
 	return fmt.Sprintf("%s (%s)", startTime, duration)
+}
+
+// formatStatsLine returns a formatted stats summary for the expanded view
+func (m Model) formatStatsLine() string {
+	if m.stats == nil {
+		return "loading..."
+	}
+	// Format: "5 runs | 80% success | avg: 2m30s"
+	avgDuration := formatDuration(time.Duration(m.stats.AvgDurationMs) * time.Millisecond)
+	return fmt.Sprintf("%d runs | %.0f%% success | avg: %s",
+		m.stats.RunCount,
+		m.stats.SuccessRate,
+		avgDuration)
+}
+
+// formatRelativeTime formats a time as a relative duration from now
+func formatRelativeTime(t time.Time) string {
+	d := time.Since(t)
+	if d < time.Minute {
+		return "just now"
+	}
+	if d < time.Hour {
+		m := int(d.Minutes())
+		if m == 1 {
+			return "1 min ago"
+		}
+		return fmt.Sprintf("%d min ago", m)
+	}
+	if d < 24*time.Hour {
+		h := int(d.Hours())
+		if h == 1 {
+			return "1 hr ago"
+		}
+		return fmt.Sprintf("%d hr ago", h)
+	}
+	days := int(d.Hours() / 24)
+	if days == 1 {
+		return "1 day ago"
+	}
+	return fmt.Sprintf("%d days ago", days)
 }
 
 func (m Model) renderStatusBar() string {
@@ -1236,21 +1612,28 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("c", "copy"),
 				m.renderKey("n", "new"),
 				m.renderKey("a", "all dirs"),
-				m.renderKey("1/2/3", "panels"),
+				m.renderKey("1/2/3/4", "panels"),
+			)
+		case panelRuns:
+			parts = append(parts,
+				m.renderKey("↑↓", "select run"),
+				m.renderKey("g/G", "first/last"),
+				m.renderKey("f", "follow"),
+				m.renderKey("1/2/3/4", "panels"),
 			)
 		case panelStdout:
 			parts = append(parts,
 				m.renderKey("↑↓", "scroll"),
 				m.renderKey("g/G", "top/bottom"),
 				m.renderKey("f", "follow"),
-				m.renderKey("1/2/3", "panels"),
+				m.renderKey("1/2/3/4", "panels"),
 			)
 		case panelStderr:
 			parts = append(parts,
 				m.renderKey("↑↓", "scroll"),
 				m.renderKey("g/G", "top/bottom"),
 				m.renderKey("f", "follow"),
-				m.renderKey("1/2/3", "panels"),
+				m.renderKey("1/2/3/4", "panels"),
 			)
 		}
 		parts = append(parts, m.renderKey("?", "help"), m.renderKey("q", "quit"))
@@ -1303,6 +1686,7 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("↑/k ↓/j", "move cursor"),
 		"  " + m.renderKey("g/G", "first/last"),
 		"  " + m.renderKey("tab", "switch panel"),
+		"  " + m.renderKey("1/2/3/4", "panels"),
 		"",
 		helpKeyStyle.Render("Job Actions"),
 		"  " + m.renderKey("s", "stop (SIGTERM)"),
@@ -1319,7 +1703,6 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("f", "toggle follow"),
 		"",
 		helpKeyStyle.Render("Other"),
-		"  " + m.renderKey("i", "toggle details"),
 		"  " + m.renderKey("a", "toggle all dirs"),
 		"  " + m.renderKey("?", "this help"),
 		"  " + m.renderKey("q", "quit"),
@@ -1385,8 +1768,8 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", h, m)
 }
 
-// Run starts the TUI
-func Run() error {
+// Start starts the TUI
+func Start() error {
 	telemetry.TUISessionStart()
 	defer telemetry.TUISessionEnd()
 

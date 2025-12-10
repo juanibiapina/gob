@@ -56,27 +56,31 @@ const (
 	EventTypeJobStarted EventType = "job_started"
 	EventTypeJobStopped EventType = "job_stopped"
 	EventTypeJobRemoved EventType = "job_removed"
+	EventTypeRunStarted EventType = "run_started"
+	EventTypeRunStopped EventType = "run_stopped"
 )
 
-// Event represents a job state change event
+// Event represents a job/run state change event
 type Event struct {
-	Type     EventType   `json:"type"`
-	JobID    string      `json:"job_id"`
-	Job      JobResponse `json:"job,omitempty"`
-	JobCount int         `json:"job_count"`
+	Type     EventType      `json:"type"`
+	JobID    string         `json:"job_id"`
+	Job      JobResponse    `json:"job"`
+	Run      *RunResponse   `json:"run,omitempty"`
+	Stats    *StatsResponse `json:"stats,omitempty"`
+	JobCount int            `json:"job_count"`
 }
 
 // Request represents a client request to the daemon
 type Request struct {
-	Type    RequestType            `json:"type"`
-	Payload map[string]interface{} `json:"payload,omitempty"`
+	Type    RequestType    `json:"type"`
+	Payload map[string]any `json:"payload,omitempty"`
 }
 
 // Response represents a daemon response to a client request
 type Response struct {
-	Success bool                   `json:"success"`
-	Error   string                 `json:"error,omitempty"`
-	Data    map[string]interface{} `json:"data,omitempty"`
+	Success bool           `json:"success"`
+	Error   string         `json:"error,omitempty"`
+	Data    map[string]any `json:"data,omitempty"`
 }
 
 // JobResponse represents a job in API responses

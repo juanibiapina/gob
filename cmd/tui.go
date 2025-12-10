@@ -47,7 +47,7 @@ KEYBINDINGS:
 Example:
   gob tui`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return tui.Run()
+		return tui.Start()
 	},
 }
 

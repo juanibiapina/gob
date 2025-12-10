@@ -19,11 +19,11 @@ The daemon is a long-running background process that:
 - **Broadcasts events**: Notifies subscribed clients of job state changes
 - **Manages job output**: Writes stdout/stderr to log files
 
-The daemon is an internal implementation detail—users interact only with regular commands (`add`, `run`, `list`, etc.), which handle daemon lifecycle transparently.
+The daemon is an internal implementation detail—users interact only with regular commands (`add`, `list`, etc.), which handle daemon lifecycle transparently.
 
 ### Client Commands
 
-All commands (`add`, `run`, `list`, `stop`, etc.) are clients that:
+All commands (`add`, `list`, `stop`, etc.) are clients that:
 
 1. Check if daemon is running (probe the socket)
 2. Auto-start daemon if not running
@@ -40,8 +40,8 @@ All files are stored under `$XDG_RUNTIME_DIR/gob/`. Path resolution uses the [ad
 | Unix socket | `daemon.sock` |
 | PID file | `daemon.pid` |
 | Daemon log | `daemon.log` |
-| Job stdout | `{job_id}.stdout.log` |
-| Job stderr | `{job_id}.stderr.log` |
+| Job stdout | `{job_id}-{run_seq}.stdout.log` |
+| Job stderr | `{job_id}-{run_seq}.stderr.log` |
 
 ## Communication Protocol
 

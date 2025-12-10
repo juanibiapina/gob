@@ -127,15 +127,21 @@ func TestJobManager_AddJob(t *testing.T) {
 		t.Errorf("expected stderr path %s, got %s", expectedStderr, run.StderrPath)
 	}
 
-	// Verify event was emitted
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	// Verify events were emitted (job_added + run_started)
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	if events[0].Type != EventTypeJobAdded {
 		t.Errorf("expected job_added event, got %s", events[0].Type)
 	}
 	if events[0].JobID != job.ID {
 		t.Errorf("event job ID mismatch")
+	}
+	if events[1].Type != EventTypeRunStarted {
+		t.Errorf("expected run_started event, got %s", events[1].Type)
+	}
+	if events[1].Run == nil {
+		t.Error("expected run data in run_started event")
 	}
 }
 
@@ -394,9 +400,15 @@ func TestJobManager_StartJob(t *testing.T) {
 		t.Error("executor.Start should be called")
 	}
 
-	// Verify event
-	if len(events) != 1 || events[0].Type != EventTypeJobStarted {
-		t.Error("expected job_started event")
+	// Verify events (job_started + run_started)
+	if len(events) != 2 {
+		t.Errorf("expected 2 events, got %d", len(events))
+	}
+	if events[0].Type != EventTypeJobStarted {
+		t.Errorf("expected job_started event, got %s", events[0].Type)
+	}
+	if events[1].Type != EventTypeRunStarted {
+		t.Errorf("expected run_started event, got %s", events[1].Type)
 	}
 
 	// Verify new run was created with incremented sequence
