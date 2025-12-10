@@ -8,6 +8,12 @@ load 'test_helper'
   assert_output --partial "requires at least 1 arg(s)"
 }
 
+@test "add command requires argument after -- separator" {
+  run "$JOB_CLI" add --
+  assert_failure
+  assert_output --partial "requires at least 1 arg(s)"
+}
+
 @test "add command adds a background process" {
   run "$JOB_CLI" add sleep 300
   assert_success
@@ -70,16 +76,6 @@ load 'test_helper'
   assert [ ${#id} -eq 3 ]
 }
 
-@test "add command with multiple arguments" {
-  run "$JOB_CLI" add sleep 300
-  assert_success
-  assert_output --regexp "Added job [A-Za-z0-9]+ running: sleep 300"
-
-  # Extract PID and verify process is running
-  TEST_PID=$("$JOB_CLI" list --json | jq -r '.[0].pid')
-  assert kill -0 "$TEST_PID"
-}
-
 @test "add command handles invalid command" {
   run "$JOB_CLI" add nonexistent_command_xyz
   assert_failure
@@ -104,17 +100,31 @@ load 'test_helper'
   "$JOB_CLI" stop "$job_id2"
 }
 
-@test "add command passes flags to subcommand with -- separator" {
-  # Run ls with -a flag using -- separator
+@test "add command passes flags to subcommand without separator" {
+  # Flags are passed directly to the subcommand (no -- needed)
+  run "$JOB_CLI" add ls -a
+  assert_success
+  assert_output --partial "running: ls -a"
+}
+
+@test "add command supports optional -- separator" {
+  # The -- separator is optional but still works
   run "$JOB_CLI" add -- ls -a
   assert_success
   assert_output --partial "running: ls -a"
 }
 
-@test "add command with follow flag and -- separator" {
-  # Test that -f flag works for gob, and -- separates the subcommand
-  run "$JOB_CLI" add -f -- echo "follow-test"
+@test "add command handles quoted command string" {
+  # Quoted string with spaces is split into command + args
+  run "$JOB_CLI" add "echo hello world"
   assert_success
-  assert_output --partial "running: echo follow-test"
-  assert_output --partial "completed"
+  assert_output --partial "running: echo hello world"
+
+  # Verify the command was split correctly
+  local job=$("$JOB_CLI" list --json | jq '.[0]')
+  local command_length=$(echo "$job" | jq '.command | length')
+  assert [ "$command_length" -eq 3 ]
+  assert [ "$(echo "$job" | jq -r '.command[0]')" = "echo" ]
+  assert [ "$(echo "$job" | jq -r '.command[1]')" = "hello" ]
+  assert [ "$(echo "$job" | jq -r '.command[2]')" = "world" ]
 }

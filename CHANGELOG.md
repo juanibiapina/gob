@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `add` command no longer requires `--` separator for commands with flags (e.g., `gob add npm run --flag`)
+- `add` command now supports quoted command strings (e.g., `gob add "make test"`)
+- Removed `-f/--follow` flag from `add` command (use `gob add` + `gob await` instead)
 - `nuke` command now always operates on all jobs from all directories (removed `--all` flag)
 
 ### Removed

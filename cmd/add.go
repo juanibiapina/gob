@@ -9,31 +9,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var addFollow bool
-
 var addCmd = &cobra.Command{
-	Use:   "add <command> [args...]",
-	Short: "Create and start a new background job",
+	Use:                "add <command> [args...]",
+	Short:              "Create and start a new background job",
+	DisableFlagParsing: true,
 	Long: `Create and start a new background job that continues running after the CLI exits.
 
 The job is started as a detached process and assigned a unique job ID.
 Use this ID with other commands to manage the job.
 
-Use -- to separate gob flags from the command when the command has flags:
-  gob add -- python -m http.server 8080
-
 Examples:
   # Add a long-running sleep
   gob add sleep 3600
 
-  # Add a server (use -- before commands with flags)
-  gob add -- python -m http.server 8080
+  # Add a server
+  gob add python -m http.server 8080
 
   # Add a background compilation
   gob add make build
 
-  # Add and follow output until completion
-  gob add -f -- make test
+  # Quoted command strings also work
+  gob add "make test"
+
+  # Optional -- separator is also supported
+  gob add -- npm run --flag
 
 Output:
   Added job <job_id> running: <command>
@@ -41,8 +40,25 @@ Output:
 Exit codes:
   0: Job added successfully
   1: Error (missing command, failed to start)`,
-	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Handle missing arguments
+		if len(args) == 0 {
+			return fmt.Errorf("requires at least 1 arg(s)")
+		}
+
+		// Strip leading -- if present (optional separator)
+		if args[0] == "--" {
+			args = args[1:]
+			if len(args) == 0 {
+				return fmt.Errorf("requires at least 1 arg(s)")
+			}
+		}
+
+		// Handle quoted command string: "echo hello world" -> ["echo", "hello", "world"]
+		if len(args) == 1 && strings.Contains(args[0], " ") {
+			args = strings.Fields(args[0])
+		}
+
 		// Connect to daemon
 		client, err := daemon.NewClient()
 		if err != nil {
@@ -72,24 +88,10 @@ Exit codes:
 		fmt.Printf("  gob await %s   # wait for completion with live output\n", job.ID)
 		fmt.Printf("  gob stop %s    # stop the job\n", job.ID)
 
-		// If follow flag is set, follow the output
-		if addFollow {
-			completed, err := followJob(job.ID, job.PID, job.StdoutPath)
-			if err != nil {
-				return err
-			}
-			if completed {
-				fmt.Printf("\nJob %s completed\n", job.ID)
-			} else {
-				fmt.Printf("\nJob %s continues running in background\n", job.ID)
-			}
-		}
-
 		return nil
 	},
 }
 
 func init() {
-	addCmd.Flags().BoolVarP(&addFollow, "follow", "f", false, "Follow output until job completes")
 	RootCmd.AddCommand(addCmd)
 }

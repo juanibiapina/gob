@@ -155,8 +155,9 @@ Use `gob` to manage background processes.
 
 ### Running Commands
 
-- `gob add -- <cmd>` - Starts command, returns job ID immediately
-  - IMPORTANT: Always use `--` before the command
+- `gob add <cmd>` - Starts command, returns job ID immediately
+  - Supports flags directly: `gob add npm run --flag`
+  - Supports quoted strings: `gob add "make test"`
 - `gob await <job_id>` - Wait for job to finish, stream output, return exit code
 
 ### Sequential Execution
@@ -164,7 +165,7 @@ Use `gob` to manage background processes.
 For commands that must complete before proceeding:
 
 ```
-gob add -- make build
+gob add make build
 ```
 
 Then immediately:
@@ -180,9 +181,9 @@ Use for: builds, installs, any command where you need the result.
 For independent commands, start all jobs first:
 
 ```
-gob add -- npm run lint
-gob add -- npm run typecheck
-gob add -- npm test
+gob add npm run lint
+gob add npm run typecheck
+gob add npm test
 ```
 
 Then collect results using either:
@@ -217,14 +218,13 @@ Use for: linting + typechecking, running tests across packages, independent buil
 ### Examples
 
 Good:
-  gob add -- make test
+  gob add make test
   gob await <job_id>
-  gob add -- npm run dev
+  gob add npm run dev
 
 Bad:
   make test                 # Missing gob prefix
   npm run dev &             # Never use & - use gob add
-  gob add npm run --flag    # Missing -- before flags
 ````
 
 </details>
@@ -236,15 +236,16 @@ Bad:
 <shell_commands>
 ALWAYS use `gob add` to run shell commands through the Bash tool.
 
-- `gob add -- <cmd>` - Starts command, returns job ID immediately
-  - IMPORTANT: Always use `--` before the command
+- `gob add <cmd>` - Starts command, returns job ID immediately
+  - Supports flags directly: `gob add npm run --flag`
+  - Supports quoted strings: `gob add "make test"`
 - `gob await <job_id>` - Wait for job to finish, stream output, return exit code
 </shell_commands>
 
 <sequential_execution>
 For commands that must complete before proceeding:
 
-gob add -- make build
+gob add make build
 
 Then immediately:
 
@@ -256,9 +257,9 @@ Use for: builds, installs, any command where you need the result.
 <parallel_execution>
 For independent commands, start all jobs first:
 
-gob add -- npm run lint
-gob add -- npm run typecheck
-gob add -- npm test
+gob add npm run lint
+gob add npm run typecheck
+gob add npm test
 
 Then collect results using either:
 
@@ -299,15 +300,14 @@ When this happens, IGNORE the shell ID returned by the Bash tool. Instead:
 
 <examples>
 Good:
-  gob add -- make test
+  gob add make test
   gob await V3x
-  gob add -- npm run dev
-  gob add -- timeout 30 make build
+  gob add npm run dev
+  gob add timeout 30 make build
 
 Bad:
   make test                 # Missing gob prefix
   npm run dev &             # Never use & - use gob add
-  gob add npm run --flag    # Missing -- before flags
 </examples>
 ```
 

@@ -14,7 +14,7 @@ var overviewCmd = &cobra.Command{
 		fmt.Println(`gob - Process Manager for AI agents (and humans)
 
 RUNNING COMMANDS
-  gob add -- <command>    Start a background job
+  gob add <command>       Start a background job
 
 WAITING
   gob await <job_id>      Wait for completion, stream output
