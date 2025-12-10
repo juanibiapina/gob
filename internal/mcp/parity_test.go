@@ -32,10 +32,9 @@ var cliOnlyCommands = map[string]string{
 	"help":       "Built-in Cobra command",
 	"logs":       "Follows all logs interactively - MCP has gob_stdout/gob_stderr per job",
 	"mcp":        "Starts the MCP server itself",
-	"nuke":       "Destructive operation - MCP clients can use gob_cleanup or gob_stop + gob_remove",
+	"nuke":       "Destructive operation - MCP clients can use gob_stop + gob_remove",
 	"overview":   "Shows CLI help/overview",
 	"ping":       "Daemon health check - not needed for MCP (connection errors are reported)",
-	"run":        "Convenience command (add + await) - MCP clients can call gob_add then gob_await",
 	"tui":        "Interactive terminal UI - not applicable to MCP",
 }
 
@@ -157,7 +156,6 @@ func TestNameConversion(t *testing.T) {
 		{"list", "gob_list"},
 		{"await-any", "gob_await_any"},
 		{"await-all", "gob_await_all"},
-		{"cleanup", "gob_cleanup"},
 	}
 
 	for _, tt := range tests {

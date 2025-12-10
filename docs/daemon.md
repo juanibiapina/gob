@@ -64,7 +64,7 @@ The daemon writes job output to log files, and clients tail those files directly
 3. Clients request job metadata (includes log paths)
 4. Clients tail log files directly
 
-Log files are removed when the job is removed (`gob remove`, `gob cleanup`, or `gob nuke`).
+Log files are removed when the job is removed (`gob remove` or `gob nuke`).
 
 ## State Management
 

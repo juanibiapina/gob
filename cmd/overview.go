@@ -14,7 +14,6 @@ var overviewCmd = &cobra.Command{
 		fmt.Println(`gob - Process Manager for AI agents (and humans)
 
 RUNNING COMMANDS
-  gob run <command>       Run and wait (reuses stopped job with same command)
   gob add -- <command>    Start a background job
 
 WAITING
@@ -35,7 +34,6 @@ OUTPUT
 
 CLEANUP
   gob remove <job_id>     Remove a stopped job
-  gob cleanup             Remove all stopped jobs
   gob nuke                Stop all, remove all, shutdown daemon
 
 INTERACTIVE

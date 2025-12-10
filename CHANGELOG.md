@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `gob_nuke` MCP tool - use `gob_cleanup` or `gob_stop` + `gob_remove` instead
+- `cleanup` command - use `gob remove <id>` to remove individual jobs, or `gob nuke` to remove all
+- `run` command - use `gob add` + `gob await` instead
+- `gob_cleanup` MCP tool - use `gob_remove` to remove individual jobs
+- `gob_nuke` MCP tool - use `gob_stop` + `gob_remove` instead
 
 ### Fixed
 
@@ -55,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - MCP (Model Context Protocol) server for AI agent integration (`gob mcp`)
-  - 13 tools: `gob_add`, `gob_list`, `gob_stop`, `gob_start`, `gob_remove`, `gob_restart`, `gob_signal`, `gob_await`, `gob_await_any`, `gob_await_all`, `gob_stdout`, `gob_stderr`, `gob_cleanup`
+  - 12 tools: `gob_add`, `gob_list`, `gob_stop`, `gob_start`, `gob_remove`, `gob_restart`, `gob_signal`, `gob_await`, `gob_await_any`, `gob_await_all`, `gob_stdout`, `gob_stderr`
   - All tools filter by current directory by default
   - Compatible with Claude Code and other MCP clients
 

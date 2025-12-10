@@ -277,16 +277,12 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleRestart(req)
 	case RequestTypeRemove:
 		return d.handleRemove(req)
-	case RequestTypeCleanup:
-		return d.handleCleanup(req)
 	case RequestTypeNuke:
 		return d.handleNuke(req)
 	case RequestTypeSignal:
 		return d.handleSignal(req)
 	case RequestTypeGetJob:
 		return d.handleGetJob(req)
-	case RequestTypeRun:
-		return d.handleRun(req)
 	default:
 		return NewErrorResponse(fmt.Errorf("unknown request type: %s", req.Type))
 	}
@@ -477,16 +473,6 @@ func (d *Daemon) handleRemove(req *Request) *Response {
 	return resp
 }
 
-// handleCleanup handles a cleanup request
-func (d *Daemon) handleCleanup(req *Request) *Response {
-	workdir, _ := req.Payload["workdir"].(string)
-	count := d.jobManager.Cleanup(workdir)
-
-	resp := NewSuccessResponse()
-	resp.Data["count"] = count
-	return resp
-}
-
 // handleNuke handles a nuke request
 func (d *Daemon) handleNuke(req *Request) *Response {
 	workdir, _ := req.Payload["workdir"].(string)
@@ -541,57 +527,6 @@ func (d *Daemon) handleGetJob(req *Request) *Response {
 
 	resp := NewSuccessResponse()
 	resp.Data["job"] = d.jobManager.jobToResponse(job)
-	return resp
-}
-
-// handleRun handles a run request (find/reuse job, or create new)
-func (d *Daemon) handleRun(req *Request) *Response {
-	// Extract command
-	commandRaw, ok := req.Payload["command"]
-	if !ok {
-		return NewErrorResponse(fmt.Errorf("missing command"))
-	}
-
-	// Convert to []string
-	var command []string
-	switch v := commandRaw.(type) {
-	case []interface{}:
-		for _, item := range v {
-			if s, ok := item.(string); ok {
-				command = append(command, s)
-			}
-		}
-	default:
-		return NewErrorResponse(fmt.Errorf("invalid command format"))
-	}
-
-	if len(command) == 0 {
-		return NewErrorResponse(fmt.Errorf("empty command"))
-	}
-
-	workdir, _ := req.Payload["workdir"].(string)
-	if workdir == "" {
-		return NewErrorResponse(fmt.Errorf("missing workdir"))
-	}
-
-	// Check if job with same command exists
-	job, isRestart, err := d.jobManager.RunJob(command, workdir)
-	if err != nil {
-		return NewErrorResponse(err)
-	}
-
-	resp := NewSuccessResponse()
-	resp.Data["job"] = JobResponse{
-		ID:         job.ID,
-		PID:        job.PID,
-		Status:     job.Status(),
-		Command:    job.Command,
-		Workdir:    job.Workdir,
-		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StdoutPath: job.StdoutPath,
-		StderrPath: job.StderrPath,
-	}
-	resp.Data["restarted"] = isRestart
 	return resp
 }
 

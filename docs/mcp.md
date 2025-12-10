@@ -161,13 +161,3 @@ Read stderr from a job (running or completed).
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `job_id` | `string` | Yes | Job ID |
-
-### Bulk Operations
-
-#### `gob_cleanup`
-
-Remove all stopped jobs in current directory.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|---------|
-| `all` | `boolean` | No | Remove from all directories (default: false) |

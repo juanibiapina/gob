@@ -39,11 +39,9 @@ const (
 	RequestTypeStart     RequestType = "start"
 	RequestTypeRestart   RequestType = "restart"
 	RequestTypeRemove    RequestType = "remove"
-	RequestTypeCleanup   RequestType = "cleanup"
 	RequestTypeNuke      RequestType = "nuke"
 	RequestTypeSignal    RequestType = "signal"
 	RequestTypeGetJob    RequestType = "get_job"
-	RequestTypeRun       RequestType = "run"
 	RequestTypeSubscribe RequestType = "subscribe"
 )
 

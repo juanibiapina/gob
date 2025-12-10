@@ -121,12 +121,12 @@ gob completion powershell | Out-String | Invoke-Expression
 # Usage overview
 gob
 
-# Run a command and wait for it to complete
-gob run make test
-gob run pnpm --filter web typecheck
+# Add a background job
+gob add -- make test
+gob add -- pnpm --filter web typecheck
 
-# Add a background job (for long-running processes)
-gob add python -m http.server 8000
+# Wait for a job to complete
+gob await abc
 
 # List all jobs
 gob list
@@ -137,8 +137,8 @@ gob stdout abc
 # Stop a job
 gob stop abc
 
-# Clean up all stopped jobs
-gob cleanup
+# Remove a stopped job
+gob remove abc
 ```
 
 ## Using with AI Coding Agents
@@ -212,7 +212,7 @@ Use for: linting + typechecking, running tests across packages, independent buil
 - `gob stop <job_id>` - Graceful stop
 - `gob stop --force <job_id>` - Force kill
 - `gob restart <job_id>` - Stop + start
-- `gob cleanup` - Remove stopped jobs
+- `gob remove <job_id>` - Remove stopped job
 
 ### Examples
 
@@ -285,7 +285,7 @@ Use for: linting + typechecking, running tests across packages, independent buil
 - `gob stop <job_id>` - Graceful stop
 - `gob stop --force <job_id>` - Force kill
 - `gob restart <job_id>` - Stop + start
-- `gob cleanup` - Remove stopped jobs
+- `gob remove <job_id>` - Remove stopped job
 </job_monitoring>
 
 <auto_background_handling>
@@ -306,7 +306,6 @@ Good:
 
 Bad:
   make test                 # Missing gob prefix
-  gob run make test         # Don't use run, use add + await
   npm run dev &             # Never use & - use gob add
   gob add npm run --flag    # Missing -- before flags
 </examples>
@@ -334,7 +333,6 @@ gob includes a native MCP (Model Context Protocol) server, allowing AI agents to
 | `gob_await_all` | Wait for all jobs to complete |
 | `gob_stdout` | Read stdout from a job |
 | `gob_stderr` | Read stderr from a job |
-| `gob_cleanup` | Remove all stopped jobs |
 
 ### Configuration
 
@@ -438,7 +436,6 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 
 | Command | Description |
 |---------|-------------|
-| `run <cmd>` | Run command, wait for completion (reuses stopped jobs) |
 | `add <cmd>` | Start background job (use `--` before flags: `add -- cmd --flag`) |
 | `await <id>` | Wait for job, stream output, show summary |
 | `await-any` | Wait for any job to complete (`--timeout`) |
@@ -452,7 +449,6 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `restart <id>` | Stop + start job |
 | `signal <id> <sig>` | Send signal (HUP, USR1, etc.) |
 | `remove <id>` | Remove stopped job |
-| `cleanup` | Remove all stopped jobs |
 | `nuke` | Stop all, remove all, shutdown daemon |
 | `tui` | Launch interactive TUI |
 | `mcp` | Start MCP server for AI agents |

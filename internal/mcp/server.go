@@ -66,7 +66,6 @@ func (s *Server) registerTools() {
 	s.registerJobAwaitAll()
 	s.registerJobRestart()
 	s.registerJobSignal()
-	s.registerJobsCleanup()
 	s.registerJobStdout()
 	s.registerJobStderr()
 }
@@ -742,44 +741,6 @@ func (s *Server) registerJobSignal() {
 			"job_id":  jobID,
 			"signal":  signalStr,
 			"pid":     pid,
-		})
-	})
-}
-
-// registerJobsCleanup registers the gob_cleanup tool.
-func (s *Server) registerJobsCleanup() {
-	tool := mcp.NewTool("gob_cleanup",
-		mcp.WithDescription("Remove all stopped jobs in current directory"),
-		mcp.WithBoolean("all",
-			mcp.Description("Remove from all directories (default: false)"),
-		),
-	)
-
-	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		all := request.GetBool("all", false)
-
-		var workdir string
-		if !all {
-			var err error
-			workdir, err = os.Getwd()
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get current directory: %v", err)), nil
-			}
-		}
-
-		client, err := connectToDaemon()
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		defer client.Close()
-
-		count, err := client.Cleanup(workdir)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("failed to cleanup jobs: %v", err)), nil
-		}
-
-		return jsonResult(map[string]any{
-			"removed_count": count,
 		})
 	})
 }
