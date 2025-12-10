@@ -36,7 +36,7 @@ OUTPUT
 CLEANUP
   gob remove <job_id>     Remove a stopped job
   gob cleanup             Remove all stopped jobs
-  gob nuke                Stop all + remove all
+  gob nuke                Stop all, remove all, shutdown daemon
 
 INTERACTIVE
   gob tui                 Launch interactive TUI

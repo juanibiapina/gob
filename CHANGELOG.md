@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `nuke` command now always operates on all jobs from all directories (removed `--all` flag)
+- `gob_nuke` MCP tool now always operates on all jobs (removed `all` parameter)
+
+### Fixed
+
+- `nuke` command now properly shuts down the daemon after stopping and removing all jobs
+
 ## [1.2.3] - 2025-12-09
 
 ### Added

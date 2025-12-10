@@ -335,7 +335,7 @@ gob includes a native MCP (Model Context Protocol) server, allowing AI agents to
 | `gob_stdout` | Read stdout from a job |
 | `gob_stderr` | Read stderr from a job |
 | `gob_cleanup` | Remove all stopped jobs |
-| `gob_nuke` | Stop and remove all jobs |
+| `gob_nuke` | Stop all, remove all, shutdown daemon |
 
 ### Configuration
 

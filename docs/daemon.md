@@ -90,11 +90,12 @@ When a client command runs:
 
 `gob nuke` performs a clean shutdown:
 
-1. Stops all running jobs (SIGTERM, then SIGKILL)
+1. Stops all running jobs (SIGTERM)
 2. Removes all log files
-3. Closes all client connections
-4. Removes socket and PID file
-5. Daemon exits
+3. Removes all jobs
+4. Shuts down the daemon
+
+The daemon also shuts down gracefully when it receives SIGTERM or SIGINT.
 
 ### Signal Handling
 

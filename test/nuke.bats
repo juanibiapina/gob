@@ -90,3 +90,27 @@ load 'test_helper'
   assert_success
   assert_output --partial "Cleaned up 1 total job(s)"
 }
+
+@test "nuke command shuts down daemon" {
+  # Start a job to ensure daemon is running
+  run "$JOB_CLI" add sleep 300
+  assert_success
+
+  # Get daemon PID
+  local daemon_pid=$(cat "$XDG_RUNTIME_DIR/gob/daemon.pid")
+  assert [ -n "$daemon_pid" ]
+
+  # Verify daemon is running
+  run ps -p "$daemon_pid"
+  assert_success
+
+  # Run nuke
+  run "$JOB_CLI" nuke
+  assert_success
+  assert_output --partial "Daemon shut down"
+
+  # Verify daemon is no longer running
+  sleep 0.5
+  run ps -p "$daemon_pid"
+  assert_failure
+}

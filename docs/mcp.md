@@ -174,11 +174,7 @@ Remove all stopped jobs in current directory.
 
 #### `gob_nuke`
 
-Stop all jobs, remove all jobs and delete log files in current directory.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|---------|
-| `all` | `boolean` | No | Nuke all directories (default: false) |
+Stop all jobs, remove all jobs, delete log files, and shutdown the daemon.
 
 ```json
 // Returns
