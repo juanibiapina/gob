@@ -6,7 +6,7 @@ load 'test_helper'
   # Start multiple jobs
   run "$JOB_CLI" add sleep 300
   assert_success
-  run "$JOB_CLI" add sleep 300
+  run "$JOB_CLI" add sleep 400
   assert_success
 
   # Verify jobs exist
@@ -33,11 +33,12 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Wait for output to be written (logs in XDG_RUNTIME_DIR with daemon)
-  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" "test output"
+  # Run ID is job_id-1 for the first run
+  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" "test output"
 
   # Verify log files exist
-  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" ]
-  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}.stderr.log" ]
+  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" ]
+  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stderr.log" ]
 
   # Run nuke
   run "$JOB_CLI" nuke
@@ -45,8 +46,8 @@ load 'test_helper'
   assert_output --partial "Deleted 2 log file(s)"
 
   # Verify log files are removed
-  assert [ ! -f "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log" ]
-  assert [ ! -f "$XDG_RUNTIME_DIR/gob/${job_id}.stderr.log" ]
+  assert [ ! -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" ]
+  assert [ ! -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stderr.log" ]
 }
 
 @test "nuke command stops running jobs" {
@@ -82,8 +83,9 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Manually remove log files to simulate missing logs (logs in XDG_RUNTIME_DIR with daemon)
-  rm -f "$XDG_RUNTIME_DIR/gob/${job_id}.stdout.log"
-  rm -f "$XDG_RUNTIME_DIR/gob/${job_id}.stderr.log"
+  # Run ID is job_id-1 for the first run
+  rm -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log"
+  rm -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stderr.log"
 
   # Run nuke (should not fail even if log files are missing)
   run "$JOB_CLI" nuke

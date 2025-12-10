@@ -2,35 +2,78 @@ package daemon
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
 
-// Job represents a managed background job
+// Job represents a managed background job (a command that can be run repeatedly)
 type Job struct {
-	ID         string    `json:"id"`
-	Command    []string  `json:"command"`
-	PID        int       `json:"pid"`
-	Workdir    string    `json:"workdir"`
-	CreatedAt  time.Time `json:"created_at"`
-	StartedAt  time.Time `json:"started_at"`
-	StoppedAt  time.Time `json:"stopped_at,omitempty"`
-	StdoutPath string    `json:"stdout_path"`
-	StderrPath string    `json:"stderr_path"`
-	ExitCode   *int      `json:"exit_code,omitempty"` // nil while running, set when process exits
+	ID               string  `json:"id"`                // user-facing identifier (e.g., "abc")
+	Command          []string `json:"command"`          // the command + args
+	CommandSignature string  `json:"command_signature"` // hash for lookups
+	Workdir          string  `json:"workdir"`           // directory scope
+	CurrentRunID     *string `json:"current_run_id"`    // nil if not running, points to active run
+	NextRunSeq       int     `json:"next_run_seq"`      // counter for internal run IDs
+	CreatedAt        time.Time `json:"created_at"`
 
-	// Internal fields for process management
-	process ProcessHandle // The running process
+	// Cached statistics (updated on run completion)
+	RunCount        int   `json:"run_count"`
+	SuccessCount    int   `json:"success_count"`
+	TotalDurationMs int64 `json:"total_duration_ms"`
+	MinDurationMs   int64 `json:"min_duration_ms"`
+	MaxDurationMs   int64 `json:"max_duration_ms"`
 }
 
-// JobManager manages all jobs in the daemon
+// IsRunning checks if the job has a currently running process
+func (j *Job) IsRunning() bool {
+	return j.CurrentRunID != nil
+}
+
+// Status returns "running" or "stopped" based on whether there's an active run
+func (j *Job) Status() string {
+	if j.IsRunning() {
+		return "running"
+	}
+	return "stopped"
+}
+
+// AverageDurationMs returns the average duration in milliseconds, or 0 if no runs
+func (j *Job) AverageDurationMs() int64 {
+	if j.RunCount == 0 {
+		return 0
+	}
+	return j.TotalDurationMs / int64(j.RunCount)
+}
+
+// SuccessRate returns the success rate as a percentage (0-100)
+func (j *Job) SuccessRate() float64 {
+	if j.RunCount == 0 {
+		return 0
+	}
+	return float64(j.SuccessCount) / float64(j.RunCount) * 100
+}
+
+// ComputeCommandSignature creates a hash from command array for lookups
+func ComputeCommandSignature(command []string) string {
+	// Join with null byte separator (can't appear in command args)
+	joined := strings.Join(command, "\x00")
+	hash := sha256.Sum256([]byte(joined))
+	return hex.EncodeToString(hash[:])
+}
+
+// JobManager manages all jobs and runs in the daemon
 type JobManager struct {
-	jobs       map[string]*Job
+	jobs       map[string]*Job        // keyed by job ID
+	runs       map[string]*Run        // keyed by run ID
+	jobIndex   map[string]string      // signature+workdir -> job ID for quick lookup
 	mu         sync.RWMutex
 	runtimeDir string
 	onEvent    func(Event)
@@ -41,6 +84,8 @@ type JobManager struct {
 func NewJobManager(runtimeDir string, onEvent func(Event)) *JobManager {
 	return &JobManager{
 		jobs:       make(map[string]*Job),
+		runs:       make(map[string]*Run),
+		jobIndex:   make(map[string]string),
 		runtimeDir: runtimeDir,
 		onEvent:    onEvent,
 		executor:   &RealProcessExecutor{},
@@ -51,6 +96,8 @@ func NewJobManager(runtimeDir string, onEvent func(Event)) *JobManager {
 func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor ProcessExecutor) *JobManager {
 	return &JobManager{
 		jobs:       make(map[string]*Job),
+		runs:       make(map[string]*Run),
+		jobIndex:   make(map[string]string),
 		runtimeDir: runtimeDir,
 		onEvent:    onEvent,
 		executor:   executor,
@@ -64,6 +111,11 @@ func (jm *JobManager) JobCount() int {
 	return len(jm.jobs)
 }
 
+// makeJobIndexKey creates the lookup key for finding jobs by command+workdir
+func makeJobIndexKey(signature, workdir string) string {
+	return signature + "\x00" + workdir
+}
+
 // emitEvent sends an event if a callback is registered
 func (jm *JobManager) emitEvent(event Event) {
 	if jm.onEvent != nil {
@@ -71,40 +123,57 @@ func (jm *JobManager) emitEvent(event Event) {
 	}
 }
 
-// jobToResponse converts a Job to JobResponse
+// jobToResponse converts a Job to JobResponse (for backward compatibility)
 func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 	resp := JobResponse{
-		ID:         job.ID,
-		PID:        job.PID,
-		Status:     job.Status(),
-		Command:    job.Command,
-		Workdir:    job.Workdir,
-		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StartedAt:  job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StdoutPath: job.StdoutPath,
-		StderrPath: job.StderrPath,
-		ExitCode:   job.ExitCode,
+		ID:        job.ID,
+		Status:    job.Status(),
+		Command:   job.Command,
+		Workdir:   job.Workdir,
+		CreatedAt: job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
-	if !job.StoppedAt.IsZero() {
-		resp.StoppedAt = job.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+
+	// If there's a current run, include its details
+	if job.CurrentRunID != nil {
+		if run, ok := jm.runs[*job.CurrentRunID]; ok {
+			resp.PID = run.PID
+			resp.StartedAt = run.StartedAt.Format("2006-01-02T15:04:05Z07:00")
+			resp.StdoutPath = run.StdoutPath
+			resp.StderrPath = run.StderrPath
+			resp.ExitCode = run.ExitCode
+			if run.StoppedAt != nil {
+				resp.StoppedAt = run.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+			}
+		}
+	} else {
+		// Use latest run for stopped jobs
+		latestRun := jm.getLatestRunForJobLocked(job.ID)
+		if latestRun != nil {
+			resp.PID = latestRun.PID
+			resp.StartedAt = latestRun.StartedAt.Format("2006-01-02T15:04:05Z07:00")
+			resp.StdoutPath = latestRun.StdoutPath
+			resp.StderrPath = latestRun.StderrPath
+			resp.ExitCode = latestRun.ExitCode
+			if latestRun.StoppedAt != nil {
+				resp.StoppedAt = latestRun.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+			}
+		}
 	}
+
 	return resp
 }
 
-// IsRunning checks if the job's process is still running
-func (j *Job) IsRunning() bool {
-	if j.process == nil {
-		return false
+// getLatestRunForJobLocked returns the most recent run for a job (caller must hold lock)
+func (jm *JobManager) getLatestRunForJobLocked(jobID string) *Run {
+	var latest *Run
+	for _, run := range jm.runs {
+		if run.JobID == jobID {
+			if latest == nil || run.StartedAt.After(latest.StartedAt) {
+				latest = run
+			}
+		}
 	}
-	return j.process.IsRunning()
-}
-
-// Status returns "running" or "stopped" based on the process state
-func (j *Job) Status() string {
-	if j.IsRunning() {
-		return "running"
-	}
-	return "stopped"
+	return latest
 }
 
 const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -134,44 +203,70 @@ func generateJobID(existingIDs map[string]bool) string {
 	}
 }
 
-// AddJob creates and starts a new job
+// AddJob finds or creates a job for the command, then starts a new run
 func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
+	if len(command) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
+	signature := ComputeCommandSignature(command)
+	indexKey := makeJobIndexKey(signature, workdir)
+
+	// Check if job already exists for this command+workdir
+	if existingJobID, ok := jm.jobIndex[indexKey]; ok {
+		job := jm.jobs[existingJobID]
+		if job.IsRunning() {
+			return nil, fmt.Errorf("job %s is already running", job.ID)
+		}
+		// Start a new run for existing job
+		run, err := jm.startRunLocked(job)
+		if err != nil {
+			return nil, err
+		}
+
+		// Emit job started event (reusing existing job)
+		jm.emitEvent(Event{
+			Type:     EventTypeJobStarted,
+			JobID:    job.ID,
+			Job:      jm.jobToResponse(job),
+			JobCount: len(jm.jobs),
+		})
+
+		_ = run // run is stored, job's CurrentRunID is updated
+		return job, nil
+	}
+
+	// Create new job
 	existingIDs := make(map[string]bool)
 	for id := range jm.jobs {
 		existingIDs[id] = true
 	}
 	jobID := generateJobID(existingIDs)
 
-	// Create log file paths
-	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", jm.runtimeDir, jobID)
-	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, jobID)
-
-	// Start the process
-	process, err := jm.executor.Start(command, workdir, stdoutPath, stderrPath)
-	if err != nil {
-		return nil, err
-	}
-
 	now := time.Now()
 	job := &Job{
-		ID:         jobID,
-		Command:    command,
-		PID:        process.Pid(),
-		Workdir:    workdir,
-		CreatedAt:  now,
-		StartedAt:  now,
-		StdoutPath: stdoutPath,
-		StderrPath: stderrPath,
-		process:    process,
+		ID:               jobID,
+		Command:          command,
+		CommandSignature: signature,
+		Workdir:          workdir,
+		NextRunSeq:       1,
+		CreatedAt:        now,
 	}
 
 	jm.jobs[jobID] = job
+	jm.jobIndex[indexKey] = jobID
 
-	// Start goroutine to wait for process exit and emit event
-	go jm.waitForProcessExit(job)
+	// Start first run
+	run, err := jm.startRunLocked(job)
+	if err != nil {
+		// Clean up job if run failed to start
+		delete(jm.jobs, jobID)
+		delete(jm.jobIndex, indexKey)
+		return nil, err
+	}
 
 	// Emit job added event
 	jm.emitEvent(Event{
@@ -181,20 +276,62 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 		JobCount: len(jm.jobs),
 	})
 
+	_ = run // run is stored
 	return job, nil
 }
 
-// waitForProcessExit waits for a job's process to exit and emits an event
-func (jm *JobManager) waitForProcessExit(job *Job) {
-	if job.process == nil {
+// startRunLocked creates and starts a new run for a job (caller must hold lock)
+func (jm *JobManager) startRunLocked(job *Job) (*Run, error) {
+	runID := fmt.Sprintf("%s-%d", job.ID, job.NextRunSeq)
+	job.NextRunSeq++
+
+	// Create log file paths
+	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", jm.runtimeDir, runID)
+	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, runID)
+
+	// Start the process
+	process, err := jm.executor.Start(job.Command, job.Workdir, stdoutPath, stderrPath)
+	if err != nil {
+		job.NextRunSeq-- // Rollback sequence number
+		return nil, err
+	}
+
+	now := time.Now()
+	run := &Run{
+		ID:         runID,
+		JobID:      job.ID,
+		PID:        process.Pid(),
+		Status:     "running",
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		StartedAt:  now,
+		process:    process,
+	}
+
+	jm.runs[runID] = run
+	job.CurrentRunID = &runID
+
+	// Start goroutine to wait for process exit
+	go jm.waitForProcessExit(job, run)
+
+	return run, nil
+}
+
+// waitForProcessExit waits for a run's process to exit and updates state
+func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
+	if run.process == nil {
 		return
 	}
 
 	// Wait for process to exit (this blocks until the process terminates)
-	err := job.process.Wait()
+	err := run.process.Wait()
+
+	jm.mu.Lock()
 
 	// Record stop time
-	job.StoppedAt = time.Now()
+	now := time.Now()
+	run.StoppedAt = &now
+	run.Status = "stopped"
 
 	// Extract exit code from the error
 	if err != nil {
@@ -203,7 +340,7 @@ func (jm *JobManager) waitForProcessExit(job *Job) {
 				// Only get exit code if process exited normally (not killed by signal)
 				if status.Exited() {
 					code := status.ExitStatus()
-					job.ExitCode = &code
+					run.ExitCode = &code
 				}
 				// If killed by signal, leave ExitCode as nil
 			}
@@ -212,19 +349,43 @@ func (jm *JobManager) waitForProcessExit(job *Job) {
 	} else {
 		// No error means exit code 0
 		code := 0
-		job.ExitCode = &code
+		run.ExitCode = &code
 	}
 
-	// Get job count while holding lock
-	jm.mu.RLock()
-	jobCount := len(jm.jobs)
-	jm.mu.RUnlock()
+	// Clear job's current run pointer
+	job.CurrentRunID = nil
 
-	// Emit stopped event - this handles both explicit stops and natural exits
+	// Update job statistics
+	durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
+	job.RunCount++
+	job.TotalDurationMs += durationMs
+
+	if run.ExitCode != nil && *run.ExitCode == 0 {
+		job.SuccessCount++
+	}
+
+	if job.RunCount == 1 {
+		job.MinDurationMs = durationMs
+		job.MaxDurationMs = durationMs
+	} else {
+		if durationMs < job.MinDurationMs {
+			job.MinDurationMs = durationMs
+		}
+		if durationMs > job.MaxDurationMs {
+			job.MaxDurationMs = durationMs
+		}
+	}
+
+	jobCount := len(jm.jobs)
+	jobResp := jm.jobToResponse(job)
+
+	jm.mu.Unlock()
+
+	// Emit stopped event
 	jm.emitEvent(Event{
 		Type:     EventTypeJobStopped,
 		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
+		Job:      jobResp,
 		JobCount: jobCount,
 	})
 }
@@ -239,6 +400,26 @@ func (jm *JobManager) GetJob(jobID string) (*Job, error) {
 		return nil, fmt.Errorf("job not found: %s", jobID)
 	}
 	return job, nil
+}
+
+// GetCurrentRun returns the current run for a job, or nil if not running
+func (jm *JobManager) GetCurrentRun(jobID string) *Run {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+
+	job, ok := jm.jobs[jobID]
+	if !ok || job.CurrentRunID == nil {
+		return nil
+	}
+	return jm.runs[*job.CurrentRunID]
+}
+
+// GetLatestRun returns the most recent run for a job (running or completed)
+func (jm *JobManager) GetLatestRun(jobID string) *Run {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+
+	return jm.getLatestRunForJobLocked(jobID)
 }
 
 // ListJobs returns all jobs, optionally filtered by workdir
@@ -266,25 +447,28 @@ func (jm *JobManager) ListJobs(workdirFilter string) []*Job {
 func (jm *JobManager) StopJob(jobID string, force bool) error {
 	jm.mu.RLock()
 	job, ok := jm.jobs[jobID]
-	jm.mu.RUnlock()
-
 	if !ok {
+		jm.mu.RUnlock()
 		return fmt.Errorf("job not found: %s", jobID)
 	}
 
-	// Check if already stopped
-	if !job.IsRunning() {
-		return nil
+	if job.CurrentRunID == nil {
+		jm.mu.RUnlock()
+		return nil // Already stopped
 	}
+
+	run := jm.runs[*job.CurrentRunID]
+	pid := run.PID
+	jm.mu.RUnlock()
 
 	if force {
 		// Send SIGKILL immediately
-		if err := syscall.Kill(-job.PID, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 			return fmt.Errorf("failed to kill process: %w", err)
 		}
 	} else {
 		// Send SIGTERM for graceful shutdown
-		if err := syscall.Kill(-job.PID, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
 			return fmt.Errorf("failed to stop process: %w", err)
 		}
 	}
@@ -292,36 +476,50 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 	// Wait for process to terminate (event will be emitted by waitForProcessExit)
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		if !job.IsRunning() {
+		jm.mu.RLock()
+		stillRunning := job.CurrentRunID != nil
+		jm.mu.RUnlock()
+		if !stillRunning {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	// If still running after timeout and we used SIGTERM, escalate to SIGKILL
-	if !force && job.IsRunning() {
-		if err := syscall.Kill(-job.PID, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
-			return fmt.Errorf("failed to kill process: %w", err)
-		}
-
-		// Wait again for SIGKILL
-		deadline = time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			if !job.IsRunning() {
-				return nil
+	if !force {
+		jm.mu.RLock()
+		stillRunning := job.CurrentRunID != nil
+		jm.mu.RUnlock()
+		if stillRunning {
+			if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+				return fmt.Errorf("failed to kill process: %w", err)
 			}
-			time.Sleep(100 * time.Millisecond)
+
+			// Wait again for SIGKILL
+			deadline = time.Now().Add(5 * time.Second)
+			for time.Now().Before(deadline) {
+				jm.mu.RLock()
+				stillRunning := job.CurrentRunID != nil
+				jm.mu.RUnlock()
+				if !stillRunning {
+					return nil
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
 	}
 
-	if job.IsRunning() {
-		return fmt.Errorf("process %d still running after SIGKILL", job.PID)
+	jm.mu.RLock()
+	stillRunning := job.CurrentRunID != nil
+	jm.mu.RUnlock()
+	if stillRunning {
+		return fmt.Errorf("process %d still running after SIGKILL", pid)
 	}
 
 	return nil
 }
 
-// StartJob starts a stopped job
+// StartJob starts a new run for a stopped job
 func (jm *JobManager) StartJob(jobID string) error {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
@@ -336,28 +534,11 @@ func (jm *JobManager) StartJob(jobID string) error {
 		return fmt.Errorf("job %s is already running (use 'gob restart' to restart a running job)", jobID)
 	}
 
-	// Clear logs before restart
-	if err := os.Truncate(job.StdoutPath, 0); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clear stdout log: %w", err)
-	}
-	if err := os.Truncate(job.StderrPath, 0); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clear stderr log: %w", err)
-	}
-
-	// Start the process
-	process, err := jm.executor.Start(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
+	// Start new run
+	_, err := jm.startRunLocked(job)
 	if err != nil {
 		return err
 	}
-
-	job.process = process
-	job.PID = process.Pid()
-	job.ExitCode = nil     // Clear previous exit code
-	job.StartedAt = time.Now()
-	job.StoppedAt = time.Time{} // Clear previous stop time
-
-	// Start goroutine to wait for process exit
-	go jm.waitForProcessExit(job)
 
 	// Emit started event
 	jm.emitEvent(Event{
@@ -370,69 +551,68 @@ func (jm *JobManager) StartJob(jobID string) error {
 	return nil
 }
 
-// RestartJob stops (if running) and starts a job
+// RestartJob stops (if running) and starts a new run
 func (jm *JobManager) RestartJob(jobID string) error {
 	jm.mu.Lock()
-	defer jm.mu.Unlock()
 
 	job, ok := jm.jobs[jobID]
 	if !ok {
+		jm.mu.Unlock()
 		return fmt.Errorf("job not found: %s", jobID)
 	}
 
-	// Stop if running (waitForProcessExit will emit the stopped event)
-	if job.IsRunning() {
-		if err := syscall.Kill(-job.PID, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+	// Stop if running
+	if job.CurrentRunID != nil {
+		run := jm.runs[*job.CurrentRunID]
+		pid := run.PID
+		jm.mu.Unlock()
+
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
 			return fmt.Errorf("failed to stop process: %w", err)
 		}
 
 		// Wait for termination
 		deadline := time.Now().Add(10 * time.Second)
 		for time.Now().Before(deadline) {
-			if !job.IsRunning() {
+			jm.mu.RLock()
+			stillRunning := job.CurrentRunID != nil
+			jm.mu.RUnlock()
+			if !stillRunning {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 
 		// Escalate to SIGKILL if needed
-		if job.IsRunning() {
-			if err := syscall.Kill(-job.PID, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+		jm.mu.RLock()
+		stillRunning := job.CurrentRunID != nil
+		jm.mu.RUnlock()
+		if stillRunning {
+			if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 				return fmt.Errorf("failed to kill process: %w", err)
 			}
 
 			deadline = time.Now().Add(5 * time.Second)
 			for time.Now().Before(deadline) {
-				if !job.IsRunning() {
+				jm.mu.RLock()
+				stillRunning := job.CurrentRunID != nil
+				jm.mu.RUnlock()
+				if !stillRunning {
 					break
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
+
+		jm.mu.Lock()
 	}
 
-	// Clear logs before restart
-	if err := os.Truncate(job.StdoutPath, 0); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clear stdout log: %w", err)
-	}
-	if err := os.Truncate(job.StderrPath, 0); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clear stderr log: %w", err)
-	}
-
-	// Start the process
-	process, err := jm.executor.Start(job.Command, job.Workdir, job.StdoutPath, job.StderrPath)
+	// Start new run
+	_, err := jm.startRunLocked(job)
 	if err != nil {
+		jm.mu.Unlock()
 		return err
 	}
-
-	job.process = process
-	job.PID = process.Pid()
-	job.ExitCode = nil     // Clear previous exit code
-	job.StartedAt = time.Now()
-	job.StoppedAt = time.Time{} // Clear previous stop time
-
-	// Start goroutine to wait for process exit
-	go jm.waitForProcessExit(job)
 
 	// Emit started event
 	jm.emitEvent(Event{
@@ -442,10 +622,11 @@ func (jm *JobManager) RestartJob(jobID string) error {
 		JobCount: len(jm.jobs),
 	})
 
+	jm.mu.Unlock()
 	return nil
 }
 
-// RemoveJob removes a stopped job
+// RemoveJob removes a stopped job and all its runs
 func (jm *JobManager) RemoveJob(jobID string) error {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
@@ -462,9 +643,18 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 	// Capture job info for event before deletion
 	jobResp := jm.jobToResponse(job)
 
-	// Remove log files
-	os.Remove(job.StdoutPath)
-	os.Remove(job.StderrPath)
+	// Remove all runs for this job and their log files
+	for runID, run := range jm.runs {
+		if run.JobID == jobID {
+			os.Remove(run.StdoutPath)
+			os.Remove(run.StderrPath)
+			delete(jm.runs, runID)
+		}
+	}
+
+	// Remove from index
+	indexKey := makeJobIndexKey(job.CommandSignature, job.Workdir)
+	delete(jm.jobIndex, indexKey)
 
 	delete(jm.jobs, jobID)
 
@@ -486,29 +676,31 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 
 	// Collect jobs to nuke
 	var jobsToNuke []*Job
-	var runningJobs []*Job
+	var runningRuns []*Run
 	for _, job := range jm.jobs {
 		if workdirFilter != "" && job.Workdir != workdirFilter {
 			continue
 		}
 		jobsToNuke = append(jobsToNuke, job)
-		if job.IsRunning() {
-			runningJobs = append(runningJobs, job)
+		if job.CurrentRunID != nil {
+			if run, ok := jm.runs[*job.CurrentRunID]; ok {
+				runningRuns = append(runningRuns, run)
+			}
 		}
 	}
 
 	// Stop running jobs with SIGTERM
-	for _, job := range runningJobs {
-		syscall.Kill(-job.PID, syscall.SIGTERM)
+	for _, run := range runningRuns {
+		syscall.Kill(-run.PID, syscall.SIGTERM)
 	}
 
 	// Wait for graceful termination
-	if len(runningJobs) > 0 {
+	if len(runningRuns) > 0 {
 		deadline := time.Now().Add(10 * time.Second)
 		for time.Now().Before(deadline) {
 			allStopped := true
-			for _, job := range runningJobs {
-				if job.IsRunning() {
+			for _, run := range runningRuns {
+				if run.IsRunning() {
 					allStopped = false
 					break
 				}
@@ -520,9 +712,9 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 		}
 
 		// SIGKILL any remaining
-		for _, job := range runningJobs {
-			if job.IsRunning() {
-				syscall.Kill(-job.PID, syscall.SIGKILL)
+		for _, run := range runningRuns {
+			if run.IsRunning() {
+				syscall.Kill(-run.PID, syscall.SIGKILL)
 			}
 		}
 
@@ -530,19 +722,26 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	stopped = len(runningJobs)
+	stopped = len(runningRuns)
 
-	// Note: stopped events will be emitted by waitForProcessExit goroutines
-	// when cmd.Wait() returns for each killed process
-
-	// Delete log files and remove jobs
+	// Delete log files and remove runs for nuked jobs
 	for _, job := range jobsToNuke {
-		if err := os.Remove(job.StdoutPath); err == nil {
-			logsDeleted++
+		for runID, run := range jm.runs {
+			if run.JobID == job.ID {
+				if err := os.Remove(run.StdoutPath); err == nil {
+					logsDeleted++
+				}
+				if err := os.Remove(run.StderrPath); err == nil {
+					logsDeleted++
+				}
+				delete(jm.runs, runID)
+			}
 		}
-		if err := os.Remove(job.StderrPath); err == nil {
-			logsDeleted++
-		}
+
+		// Remove job from index
+		indexKey := makeJobIndexKey(job.CommandSignature, job.Workdir)
+		delete(jm.jobIndex, indexKey)
+
 		// Capture job info for event
 		jobResp := jm.jobToResponse(job)
 		delete(jm.jobs, job.ID)
@@ -560,18 +759,26 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 	return stopped, logsDeleted, cleaned
 }
 
-// Signal sends a signal to a job
+// Signal sends a signal to a running job
 func (jm *JobManager) Signal(jobID string, signal syscall.Signal) error {
 	jm.mu.RLock()
 	job, ok := jm.jobs[jobID]
-	jm.mu.RUnlock()
-
 	if !ok {
+		jm.mu.RUnlock()
 		return fmt.Errorf("job not found: %s", jobID)
 	}
 
+	if job.CurrentRunID == nil {
+		jm.mu.RUnlock()
+		return fmt.Errorf("job %s is not running", jobID)
+	}
+
+	run := jm.runs[*job.CurrentRunID]
+	pid := run.PID
+	jm.mu.RUnlock()
+
 	// Send signal to process group
-	err := syscall.Kill(-job.PID, signal)
+	err := syscall.Kill(-pid, signal)
 	if err != nil && err != syscall.ESRCH {
 		return fmt.Errorf("failed to send signal: %w", err)
 	}
@@ -584,17 +791,16 @@ func (jm *JobManager) FindJobByCommand(command []string, workdir string) *Job {
 	jm.mu.RLock()
 	defer jm.mu.RUnlock()
 
-	for _, job := range jm.jobs {
-		if job.Workdir != workdir {
-			continue
-		}
-		if commandsEqual(job.Command, command) {
-			return job
-		}
+	signature := ComputeCommandSignature(command)
+	indexKey := makeJobIndexKey(signature, workdir)
+
+	if jobID, ok := jm.jobIndex[indexKey]; ok {
+		return jm.jobs[jobID]
 	}
 	return nil
 }
 
+// commandsEqual compares two command arrays for equality
 func commandsEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

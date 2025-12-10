@@ -36,7 +36,7 @@ load 'test_helper'
   "$JOB_CLI" add -- sleep 0.3
   local job1=$(get_job_field id 0)
 
-  "$JOB_CLI" add -- sleep 0.3
+  "$JOB_CLI" add -- sleep 0.4
   local job2=$(get_job_field id 0)
 
   run "$JOB_CLI" await-all
@@ -160,7 +160,7 @@ load 'test_helper'
 
 @test "await-all command plural grammar for multiple jobs" {
   "$JOB_CLI" add -- sleep 0.3
-  "$JOB_CLI" add -- sleep 0.3
+  "$JOB_CLI" add -- sleep 0.4
 
   run "$JOB_CLI" await-all
   assert_success

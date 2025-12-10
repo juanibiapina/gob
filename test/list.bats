@@ -120,12 +120,13 @@ load 'test_helper'
 @test "list command with --all flag shows all jobs" {
   # This test verifies --all flag works (currently shows same as default since all jobs are in same workdir)
   "$JOB_CLI" add sleep 300
-  "$JOB_CLI" add sleep 300
+  "$JOB_CLI" add sleep 400
 
   run "$JOB_CLI" list --all
   assert_success
   # Should show 2 jobs
-  assert_output --regexp "sleep 300.*sleep 300"
+  assert_output --regexp "sleep 300"
+  assert_output --regexp "sleep 400"
 }
 
 @test "list command with --workdir flag shows working directory" {

@@ -128,3 +128,41 @@ load 'test_helper'
   assert [ "$(echo "$job" | jq -r '.command[1]')" = "hello" ]
   assert [ "$(echo "$job" | jq -r '.command[2]')" = "world" ]
 }
+
+@test "add command fails if same command is already running" {
+  # Add a job
+  run "$JOB_CLI" add sleep 300
+  assert_success
+
+  # Get the job ID
+  local job_id=$(get_job_field id)
+
+  # Try to add the same command again - should fail
+  run "$JOB_CLI" add sleep 300
+  assert_failure
+  assert_output --partial "is already running"
+
+  # Different command should succeed
+  run "$JOB_CLI" add sleep 301
+  assert_success
+}
+
+@test "add command reuses existing job after stopped" {
+  # Add a job
+  run "$JOB_CLI" add sleep 300
+  assert_success
+  local job1_id=$(get_job_field id)
+
+  # Stop the job
+  "$JOB_CLI" stop "$job1_id"
+  local pid=$(get_job_field pid)
+  wait_for_process_death "$pid"
+
+  # Add same command again - should reuse the job
+  run "$JOB_CLI" add sleep 300
+  assert_success
+  local job2_id=$(get_job_field id)
+
+  # Should be the same job ID (job was reused)
+  assert_equal "$job1_id" "$job2_id"
+}

@@ -38,7 +38,7 @@ load 'test_helper'
   "$JOB_CLI" add -- sleep 1
   local job1=$(get_job_field id 0)
 
-  "$JOB_CLI" add -- sleep 1
+  "$JOB_CLI" add -- sleep 1.1
   local job2=$(get_job_field id 0)
 
   # Start await-any in background and capture initial output
@@ -136,7 +136,7 @@ load 'test_helper'
 
 @test "await-any command plural grammar for multiple jobs" {
   "$JOB_CLI" add -- sleep 1
-  "$JOB_CLI" add -- sleep 1
+  "$JOB_CLI" add -- sleep 1.1
 
   run timeout 3 "$JOB_CLI" await-any
   assert_success
@@ -153,7 +153,7 @@ load 'test_helper'
 
 @test "await-any command remaining jobs plural grammar" {
   "$JOB_CLI" add -- sleep 3
-  "$JOB_CLI" add -- sleep 3
+  "$JOB_CLI" add -- sleep 3.1
   "$JOB_CLI" add -- sh -c "sleep 0.2; echo 'fast'"
 
   run "$JOB_CLI" await-any

@@ -362,16 +362,7 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 	}
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = JobResponse{
-		ID:         job.ID,
-		PID:        job.PID,
-		Status:     job.Status(),
-		Command:    job.Command,
-		Workdir:    job.Workdir,
-		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StdoutPath: job.StdoutPath,
-		StderrPath: job.StderrPath,
-	}
+	resp.Data["job"] = d.jobManager.jobToResponse(job)
 	return resp
 }
 
@@ -384,9 +375,14 @@ func (d *Daemon) handleStop(req *Request) *Response {
 
 	force, _ := req.Payload["force"].(bool)
 
-	job, err := d.jobManager.GetJob(jobID)
-	if err != nil {
-		return NewErrorResponse(err)
+	// Get PID from current run, or latest run if stopped
+	run := d.jobManager.GetCurrentRun(jobID)
+	if run == nil {
+		run = d.jobManager.GetLatestRun(jobID)
+	}
+	var pid int
+	if run != nil {
+		pid = run.PID
 	}
 
 	if err := d.jobManager.StopJob(jobID, force); err != nil {
@@ -395,7 +391,7 @@ func (d *Daemon) handleStop(req *Request) *Response {
 
 	resp := NewSuccessResponse()
 	resp.Data["job_id"] = jobID
-	resp.Data["pid"] = job.PID
+	resp.Data["pid"] = pid
 	resp.Data["force"] = force
 	return resp
 }
@@ -414,16 +410,7 @@ func (d *Daemon) handleStart(req *Request) *Response {
 	job, _ := d.jobManager.GetJob(jobID)
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = JobResponse{
-		ID:         job.ID,
-		PID:        job.PID,
-		Status:     job.Status(),
-		Command:    job.Command,
-		Workdir:    job.Workdir,
-		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StdoutPath: job.StdoutPath,
-		StderrPath: job.StderrPath,
-	}
+	resp.Data["job"] = d.jobManager.jobToResponse(job)
 	return resp
 }
 
@@ -441,16 +428,7 @@ func (d *Daemon) handleRestart(req *Request) *Response {
 	job, _ := d.jobManager.GetJob(jobID)
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = JobResponse{
-		ID:         job.ID,
-		PID:        job.PID,
-		Status:     job.Status(),
-		Command:    job.Command,
-		Workdir:    job.Workdir,
-		CreatedAt:  job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		StdoutPath: job.StdoutPath,
-		StderrPath: job.StderrPath,
-	}
+	resp.Data["job"] = d.jobManager.jobToResponse(job)
 	return resp
 }
 
@@ -461,11 +439,11 @@ func (d *Daemon) handleRemove(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing job_id"))
 	}
 
-	job, err := d.jobManager.GetJob(jobID)
-	if err != nil {
-		return NewErrorResponse(err)
+	run := d.jobManager.GetLatestRun(jobID)
+	var pid int
+	if run != nil {
+		pid = run.PID
 	}
-	pid := job.PID
 
 	if err := d.jobManager.RemoveJob(jobID); err != nil {
 		return NewErrorResponse(err)
@@ -501,9 +479,15 @@ func (d *Daemon) handleSignal(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing signal"))
 	}
 
-	job, err := d.jobManager.GetJob(jobID)
+	// Check if job exists first
+	_, err := d.jobManager.GetJob(jobID)
 	if err != nil {
 		return NewErrorResponse(err)
+	}
+
+	run := d.jobManager.GetCurrentRun(jobID)
+	if run == nil {
+		return NewErrorResponse(fmt.Errorf("job %s is not running", jobID))
 	}
 
 	if err := d.jobManager.Signal(jobID, syscall.Signal(int(signalNum))); err != nil {
@@ -512,7 +496,7 @@ func (d *Daemon) handleSignal(req *Request) *Response {
 
 	resp := NewSuccessResponse()
 	resp.Data["job_id"] = jobID
-	resp.Data["pid"] = job.PID
+	resp.Data["pid"] = run.PID
 	resp.Data["signal"] = int(signalNum)
 	return resp
 }

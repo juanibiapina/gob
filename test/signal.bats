@@ -122,7 +122,7 @@ load 'test_helper'
   assert_failure
 }
 
-@test "signal command is idempotent on stopped job" {
+@test "signal command fails on stopped job" {
   # Add a job
   "$JOB_CLI" add sleep 300
 
@@ -134,10 +134,10 @@ load 'test_helper'
   "$JOB_CLI" stop "$job_id"
   wait_for_process_death "$pid"
 
-  # Send signal to stopped job - should succeed
+  # Send signal to stopped job - should fail
   run "$JOB_CLI" signal "$job_id" TERM
-  assert_success
-  assert_output "Sent signal TERM to job $job_id (PID $pid)"
+  assert_failure
+  assert_output --partial "is not running"
 }
 
 @test "signal command with invalid job ID shows error" {

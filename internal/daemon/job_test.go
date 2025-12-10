@@ -61,6 +61,27 @@ func TestCommandsEqual(t *testing.T) {
 	}
 }
 
+func TestComputeCommandSignature(t *testing.T) {
+	// Same commands should have same signature
+	sig1 := ComputeCommandSignature([]string{"echo", "hello"})
+	sig2 := ComputeCommandSignature([]string{"echo", "hello"})
+	if sig1 != sig2 {
+		t.Error("same commands should have same signature")
+	}
+
+	// Different commands should have different signatures
+	sig3 := ComputeCommandSignature([]string{"echo", "world"})
+	if sig1 == sig3 {
+		t.Error("different commands should have different signatures")
+	}
+
+	// Order matters
+	sig4 := ComputeCommandSignature([]string{"hello", "echo"})
+	if sig1 == sig4 {
+		t.Error("command order should affect signature")
+	}
+}
+
 func TestJobManager_AddJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
@@ -78,9 +99,6 @@ func TestJobManager_AddJob(t *testing.T) {
 	if job.ID == "" {
 		t.Error("expected non-empty job ID")
 	}
-	if job.PID != 1000 {
-		t.Errorf("expected PID 1000, got %d", job.PID)
-	}
 	if job.Workdir != "/workdir" {
 		t.Errorf("expected workdir /workdir, got %s", job.Workdir)
 	}
@@ -88,14 +106,25 @@ func TestJobManager_AddJob(t *testing.T) {
 		t.Errorf("unexpected command: %v", job.Command)
 	}
 
-	// Verify log paths
-	expectedStdout := filepath.Join(tmpDir, job.ID+".stdout.log")
-	expectedStderr := filepath.Join(tmpDir, job.ID+".stderr.log")
-	if job.StdoutPath != expectedStdout {
-		t.Errorf("expected stdout path %s, got %s", expectedStdout, job.StdoutPath)
+	// Get the current run
+	run := jm.GetCurrentRun(job.ID)
+	if run == nil {
+		t.Fatal("expected current run to exist")
 	}
-	if job.StderrPath != expectedStderr {
-		t.Errorf("expected stderr path %s, got %s", expectedStderr, job.StderrPath)
+
+	if run.PID != 1000 {
+		t.Errorf("expected PID 1000, got %d", run.PID)
+	}
+
+	// Verify log paths use run ID (job.ID-1 for first run)
+	expectedRunID := job.ID + "-1"
+	expectedStdout := filepath.Join(tmpDir, expectedRunID+".stdout.log")
+	expectedStderr := filepath.Join(tmpDir, expectedRunID+".stderr.log")
+	if run.StdoutPath != expectedStdout {
+		t.Errorf("expected stdout path %s, got %s", expectedStdout, run.StdoutPath)
+	}
+	if run.StderrPath != expectedStderr {
+		t.Errorf("expected stderr path %s, got %s", expectedStderr, run.StderrPath)
 	}
 
 	// Verify event was emitted
@@ -107,6 +136,69 @@ func TestJobManager_AddJob(t *testing.T) {
 	}
 	if events[0].JobID != job.ID {
 		t.Errorf("event job ID mismatch")
+	}
+}
+
+func TestJobManager_AddJob_SameCommand_CreatesNewRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	// Add first job
+	job1, err := jm.AddJob([]string{"echo", "hello"}, "/workdir")
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Stop the first run
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Add same command again - should reuse job and create new run
+	job2, err := jm.AddJob([]string{"echo", "hello"}, "/workdir")
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Should be same job
+	if job1.ID != job2.ID {
+		t.Errorf("expected same job ID, got %s and %s", job1.ID, job2.ID)
+	}
+
+	// NextRunSeq should have incremented
+	if job2.NextRunSeq != 3 { // Started at 1, incremented twice
+		t.Errorf("expected NextRunSeq 3, got %d", job2.NextRunSeq)
+	}
+}
+
+func TestJobManager_AddJob_SameCommand_ErrorIfRunning(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	// Add first job
+	_, err := jm.AddJob([]string{"echo", "hello"}, "/workdir")
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Try to add same command while running - should error
+	_, err = jm.AddJob([]string{"echo", "hello"}, "/workdir")
+	if err == nil {
+		t.Error("expected error when adding running job")
+	}
+}
+
+func TestJobManager_AddJob_DifferentWorkdir_CreatesSeparateJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	job1, _ := jm.AddJob([]string{"echo"}, "/workdir1")
+	job2, _ := jm.AddJob([]string{"echo"}, "/workdir2")
+
+	if job1.ID == job2.ID {
+		t.Error("different workdirs should create different jobs")
 	}
 }
 
@@ -306,6 +398,16 @@ func TestJobManager_StartJob(t *testing.T) {
 	if len(events) != 1 || events[0].Type != EventTypeJobStarted {
 		t.Error("expected job_started event")
 	}
+
+	// Verify new run was created with incremented sequence
+	run := jm.GetCurrentRun(job.ID)
+	if run == nil {
+		t.Error("expected current run to exist")
+	}
+	expectedRunID := job.ID + "-2"
+	if run.ID != expectedRunID {
+		t.Errorf("expected run ID %s, got %s", expectedRunID, run.ID)
+	}
 }
 
 func TestJobManager_StartJob_AlreadyRunning(t *testing.T) {
@@ -327,16 +429,20 @@ func TestJobManager_Nuke(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
 
-	// Create some jobs with log files
+	// Create some jobs
 	job1, _ := jm.AddJob([]string{"cmd1"}, "/workdir")
 	time.Sleep(2 * time.Millisecond) // Ensure unique job IDs
 	job2, _ := jm.AddJob([]string{"cmd2"}, "/workdir")
 
+	// Get runs to create fake log files
+	run1 := jm.GetCurrentRun(job1.ID)
+	run2 := jm.GetCurrentRun(job2.ID)
+
 	// Create fake log files
-	os.WriteFile(job1.StdoutPath, []byte("log1"), 0644)
-	os.WriteFile(job1.StderrPath, []byte("log1"), 0644)
-	os.WriteFile(job2.StdoutPath, []byte("log2"), 0644)
-	os.WriteFile(job2.StderrPath, []byte("log2"), 0644)
+	os.WriteFile(run1.StdoutPath, []byte("log1"), 0644)
+	os.WriteFile(run1.StderrPath, []byte("log1"), 0644)
+	os.WriteFile(run2.StdoutPath, []byte("log2"), 0644)
+	os.WriteFile(run2.StderrPath, []byte("log2"), 0644)
 
 	// Stop fake processes to prevent blocking
 	executor.StopAll()
@@ -387,5 +493,53 @@ func TestJobManager_Signal_NonexistentJob(t *testing.T) {
 	err := jm.Signal("nonexistent", 15)
 	if err == nil {
 		t.Error("expected error for non-existent job")
+	}
+}
+
+func TestJobManager_Signal_StoppedJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
+
+	// Stop the job
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Try to signal stopped job
+	err := jm.Signal(job.ID, 15)
+	if err == nil {
+		t.Error("expected error when signaling stopped job")
+	}
+}
+
+func TestJob_Statistics(t *testing.T) {
+	job := &Job{
+		RunCount:        5,
+		SuccessCount:    4,
+		TotalDurationMs: 10000,
+		MinDurationMs:   1000,
+		MaxDurationMs:   3000,
+	}
+
+	if job.AverageDurationMs() != 2000 {
+		t.Errorf("expected average 2000, got %d", job.AverageDurationMs())
+	}
+
+	if job.SuccessRate() != 80 {
+		t.Errorf("expected success rate 80%%, got %.1f%%", job.SuccessRate())
+	}
+}
+
+func TestJob_Statistics_NoRuns(t *testing.T) {
+	job := &Job{}
+
+	if job.AverageDurationMs() != 0 {
+		t.Error("expected 0 average with no runs")
+	}
+
+	if job.SuccessRate() != 0 {
+		t.Error("expected 0 success rate with no runs")
 	}
 }

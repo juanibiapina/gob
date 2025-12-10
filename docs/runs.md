@@ -358,30 +358,36 @@ For now, this is marked as "to be figured out" - the 2.0 release will document t
 - [x] Update tests, CI must pass
 
 ### Phase 1: Data Model
-- [ ] Create `Run` struct (extracted from current Job)
-- [ ] Update `Job` to contain stats + `current_run_id` pointer
-- [ ] Implement `command_signature` hashing
-- [ ] Update daemon to maintain Jobs and Runs in memory
-- [ ] Update tests, CI must pass
+- [x] Create `Run` struct (extracted from current Job)
+- [x] Update `Job` to contain stats + `current_run_id` pointer
+- [x] Implement `command_signature` hashing
+- [x] Update daemon to maintain Jobs and Runs in memory
+- [x] Update tests, CI must pass
+
+**Implementation notes:**
+- Log files now use run ID format: `{job_id}-{run_seq}.stdout.log` (e.g., `abc-1.stdout.log`)
+- Each run gets its own log files (preserved for TUI history view)
+- `signal` command now requires job to be running (returns error for stopped jobs)
+- Phases 1 & 2 were implemented together since data model changes required behavior changes
 
 ### Phase 2: Core Behavior Changes
-- [ ] `add`: find or create Job, error if running, else create new Run
-- [ ] `start`: create new Run under existing Job (error if running)
-- [ ] `restart`: stop current run (if any) + start new Run
-- [ ] `stop`: stop the running job
-- [ ] `signal`: signal the running job
-- [ ] `await`: wait for job to complete
-- [ ] Update all daemon handlers
-- [ ] Update tests, CI must pass
+- [x] `add`: find or create Job, error if running, else create new Run
+- [x] `start`: create new Run under existing Job (error if running)
+- [x] `restart`: stop current run (if any) + start new Run
+- [x] `stop`: stop the running job
+- [x] `signal`: signal the running job (now errors if job not running)
+- [x] `await`: wait for job to complete (no changes needed)
+- [x] Update all daemon handlers
+- [x] Update tests, CI must pass
 
 ### Phase 3: CLI Updates
-- [ ] `list`: output unchanged (shows jobs with current/latest run status)
+- [x] `list`: output unchanged (shows jobs with current/latest run status)
 - [ ] `runs <job_id>`: show run history (new command)
-- [ ] `stdout/stderr`: show current/latest run's output
+- [x] `stdout/stderr`: show current/latest run's output (no changes needed)
 - [ ] `stats <job_id>`: show statistics (new command)
-- [ ] `await-any`: wait for any job to complete
-- [ ] `await-all`: wait for all jobs to complete
-- [ ] `logs`: follows all running jobs
+- [x] `await-any`: wait for any job to complete (no changes needed)
+- [x] `await-all`: wait for all jobs to complete (no changes needed)
+- [x] `logs`: follows all running jobs (no changes needed)
 - [ ] Update help text and examples
 - [ ] Update tests, CI must pass
 
@@ -394,7 +400,7 @@ For now, this is marked as "to be figured out" - the 2.0 release will document t
 - [ ] Update tests, CI must pass
 
 ### Phase 5: MCP Updates
-- [ ] Update all tools for Job/Run model
+- [x] Update all tools for Job/Run model (done in Phase 1)
 - [ ] Add `gob_runs` tool
 - [ ] Add `gob_stats` tool
 - [ ] Update tests, CI must pass
