@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `nuke` command now always operates on all jobs from all directories (removed `--all` flag)
-- `gob_nuke` MCP tool now always operates on all jobs (removed `all` parameter)
+
+### Removed
+
+- `gob_nuke` MCP tool - use `gob_cleanup` or `gob_stop` + `gob_remove` instead
 
 ### Fixed
 
@@ -52,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - MCP (Model Context Protocol) server for AI agent integration (`gob mcp`)
-  - 14 tools: `gob_add`, `gob_list`, `gob_stop`, `gob_start`, `gob_remove`, `gob_restart`, `gob_signal`, `gob_await`, `gob_await_any`, `gob_await_all`, `gob_stdout`, `gob_stderr`, `gob_cleanup`, `gob_nuke`
+  - 13 tools: `gob_add`, `gob_list`, `gob_stop`, `gob_start`, `gob_remove`, `gob_restart`, `gob_signal`, `gob_await`, `gob_await_any`, `gob_await_all`, `gob_stdout`, `gob_stderr`, `gob_cleanup`
   - All tools filter by current directory by default
   - Compatible with Claude Code and other MCP clients
 

@@ -67,7 +67,6 @@ func (s *Server) registerTools() {
 	s.registerJobRestart()
 	s.registerJobSignal()
 	s.registerJobsCleanup()
-	s.registerJobsNuke()
 	s.registerJobStdout()
 	s.registerJobStderr()
 }
@@ -781,46 +780,6 @@ func (s *Server) registerJobsCleanup() {
 
 		return jsonResult(map[string]any{
 			"removed_count": count,
-		})
-	})
-}
-
-// registerJobsNuke registers the gob_nuke tool.
-func (s *Server) registerJobsNuke() {
-	tool := mcp.NewTool("gob_nuke",
-		mcp.WithDescription("Stop all jobs, remove all jobs and log files in current directory"),
-		mcp.WithBoolean("all",
-			mcp.Description("Nuke all directories (default: false)"),
-		),
-	)
-
-	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		all := request.GetBool("all", false)
-
-		var workdir string
-		if !all {
-			var err error
-			workdir, err = os.Getwd()
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get current directory: %v", err)), nil
-			}
-		}
-
-		client, err := connectToDaemon()
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		defer client.Close()
-
-		stopped, logsDeleted, cleaned, err := client.Nuke(workdir)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("failed to nuke jobs: %v", err)), nil
-		}
-
-		return jsonResult(map[string]any{
-			"stopped_count":      stopped,
-			"logs_deleted_count": logsDeleted,
-			"removed_count":      cleaned,
 		})
 	})
 }
