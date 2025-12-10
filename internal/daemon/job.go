@@ -812,3 +812,61 @@ func commandsEqual(a, b []string) bool {
 	}
 	return true
 }
+
+// ListRunsForJob returns all runs for a job, sorted by start time (newest first)
+func (jm *JobManager) ListRunsForJob(jobID string) ([]*Run, error) {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+
+	if _, ok := jm.jobs[jobID]; !ok {
+		return nil, fmt.Errorf("job not found: %s", jobID)
+	}
+
+	var runs []*Run
+	for _, run := range jm.runs {
+		if run.JobID == jobID {
+			runs = append(runs, run)
+		}
+	}
+
+	// Sort by StartedAt, newest first
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].StartedAt.After(runs[j].StartedAt)
+	})
+
+	return runs, nil
+}
+
+// runToResponse converts a Run to RunResponse
+func runToResponse(run *Run) RunResponse {
+	resp := RunResponse{
+		ID:         run.ID,
+		JobID:      run.JobID,
+		PID:        run.PID,
+		Status:     run.Status,
+		ExitCode:   run.ExitCode,
+		StdoutPath: run.StdoutPath,
+		StderrPath: run.StderrPath,
+		StartedAt:  run.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
+		DurationMs: run.Duration().Milliseconds(),
+	}
+	if run.StoppedAt != nil {
+		resp.StoppedAt = run.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+	return resp
+}
+
+// jobToStats converts a Job to StatsResponse
+func jobToStats(job *Job) StatsResponse {
+	return StatsResponse{
+		JobID:           job.ID,
+		Command:         job.Command,
+		RunCount:        job.RunCount,
+		SuccessCount:    job.SuccessCount,
+		SuccessRate:     job.SuccessRate(),
+		TotalDurationMs: job.TotalDurationMs,
+		AvgDurationMs:   job.AverageDurationMs(),
+		MinDurationMs:   job.MinDurationMs,
+		MaxDurationMs:   job.MaxDurationMs,
+	}
+}

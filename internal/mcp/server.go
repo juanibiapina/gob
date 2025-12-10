@@ -68,6 +68,8 @@ func (s *Server) registerTools() {
 	s.registerJobSignal()
 	s.registerJobStdout()
 	s.registerJobStderr()
+	s.registerJobRuns()
+	s.registerJobStats()
 }
 
 // connectToDaemon creates and connects a daemon client.
@@ -828,6 +830,98 @@ func (s *Server) registerJobStderr() {
 		return jsonResult(map[string]any{
 			"job_id":  jobID,
 			"content": content,
+		})
+	})
+}
+
+// registerJobRuns registers the gob_runs tool.
+func (s *Server) registerJobRuns() {
+	tool := mcp.NewTool("gob_runs",
+		mcp.WithDescription("Show run history for a job"),
+		mcp.WithString("job_id",
+			mcp.Required(),
+			mcp.Description("Job ID"),
+		),
+	)
+
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		jobID, err := request.RequireString("job_id")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		client, err := connectToDaemon()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		defer client.Close()
+
+		runs, err := client.Runs(jobID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get runs: %v", err)), nil
+		}
+
+		// Build response
+		runList := make([]map[string]any, 0, len(runs))
+		for _, run := range runs {
+			runInfo := map[string]any{
+				"run_id":      run.ID,
+				"job_id":      run.JobID,
+				"status":      run.Status,
+				"started_at":  run.StartedAt,
+				"duration_ms": run.DurationMs,
+				"pid":         run.PID,
+			}
+			if run.ExitCode != nil {
+				runInfo["exit_code"] = *run.ExitCode
+			}
+			if run.StoppedAt != "" {
+				runInfo["stopped_at"] = run.StoppedAt
+			}
+			runList = append(runList, runInfo)
+		}
+
+		return jsonResult(map[string]any{"runs": runList})
+	})
+}
+
+// registerJobStats registers the gob_stats tool.
+func (s *Server) registerJobStats() {
+	tool := mcp.NewTool("gob_stats",
+		mcp.WithDescription("Show statistics for a job"),
+		mcp.WithString("job_id",
+			mcp.Required(),
+			mcp.Description("Job ID"),
+		),
+	)
+
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		jobID, err := request.RequireString("job_id")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		client, err := connectToDaemon()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		defer client.Close()
+
+		stats, err := client.Stats(jobID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get stats: %v", err)), nil
+		}
+
+		return jsonResult(map[string]any{
+			"job_id":            stats.JobID,
+			"command":           stats.Command,
+			"run_count":         stats.RunCount,
+			"success_count":     stats.SuccessCount,
+			"success_rate":      stats.SuccessRate,
+			"total_duration_ms": stats.TotalDurationMs,
+			"avg_duration_ms":   stats.AvgDurationMs,
+			"min_duration_ms":   stats.MinDurationMs,
+			"max_duration_ms":   stats.MaxDurationMs,
 		})
 	})
 }

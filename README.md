@@ -333,6 +333,8 @@ gob includes a native MCP (Model Context Protocol) server, allowing AI agents to
 | `gob_await_all` | Wait for all jobs to complete |
 | `gob_stdout` | Read stdout from a job |
 | `gob_stderr` | Read stderr from a job |
+| `gob_runs` | Show run history for a job |
+| `gob_stats` | Show statistics for a job |
 
 ### Configuration
 
@@ -441,6 +443,8 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `await-any` | Wait for any job to complete (`--timeout`) |
 | `await-all` | Wait for all jobs to complete (`--timeout`) |
 | `list` | List jobs (`--all` for all directories) |
+| `runs <id>` | Show run history for a job |
+| `stats <id>` | Show statistics for a job |
 | `stdout <id>` | View stdout (`--follow` for real-time) |
 | `stderr <id>` | View stderr (`--follow` for real-time) |
 | `logs` | Follow all output for current directory |

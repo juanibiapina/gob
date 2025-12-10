@@ -287,6 +287,10 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleGetJob(req)
 	case RequestTypeVersion:
 		return d.handleVersion(req)
+	case RequestTypeRuns:
+		return d.handleRuns(req)
+	case RequestTypeStats:
+		return d.handleStats(req)
 	default:
 		return NewErrorResponse(fmt.Errorf("unknown request type: %s", req.Type))
 	}
@@ -536,6 +540,45 @@ func (d *Daemon) countRunningJobs() int {
 		}
 	}
 	return count
+}
+
+// handleRuns handles a runs request
+func (d *Daemon) handleRuns(req *Request) *Response {
+	jobID, ok := req.Payload["job_id"].(string)
+	if !ok {
+		return NewErrorResponse(fmt.Errorf("missing job_id"))
+	}
+
+	runs, err := d.jobManager.ListRunsForJob(jobID)
+	if err != nil {
+		return NewErrorResponse(err)
+	}
+
+	var runResponses []RunResponse
+	for _, run := range runs {
+		runResponses = append(runResponses, runToResponse(run))
+	}
+
+	resp := NewSuccessResponse()
+	resp.Data["runs"] = runResponses
+	return resp
+}
+
+// handleStats handles a stats request
+func (d *Daemon) handleStats(req *Request) *Response {
+	jobID, ok := req.Payload["job_id"].(string)
+	if !ok {
+		return NewErrorResponse(fmt.Errorf("missing job_id"))
+	}
+
+	job, err := d.jobManager.GetJob(jobID)
+	if err != nil {
+		return NewErrorResponse(err)
+	}
+
+	resp := NewSuccessResponse()
+	resp.Data["stats"] = jobToStats(job)
+	return resp
 }
 
 // sendErrorResponse sends an error response to the client

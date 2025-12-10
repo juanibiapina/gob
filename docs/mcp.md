@@ -161,3 +161,31 @@ Read stderr from a job (running or completed).
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `job_id` | `string` | Yes | Job ID |
+
+### Run History and Statistics
+
+#### `gob_runs`
+
+Show run history for a job.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `job_id` | `string` | Yes | Job ID |
+
+```json
+// Returns
+{"runs": [{"run_id": "V3x-2", "job_id": "V3x", "status": "stopped", "exit_code": 0, "duration_ms": 1234}]}
+```
+
+#### `gob_stats`
+
+Show statistics for a job.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `job_id` | `string` | Yes | Job ID |
+
+```json
+// Returns
+{"job_id": "V3x", "command": ["make", "test"], "run_count": 5, "success_count": 4, "success_rate": 80, "avg_duration_ms": 2500}
+```

@@ -59,3 +59,11 @@ wait_for_job_state() {
     done
     return 0
 }
+
+# Wait for a job to stop (either by completing or being stopped)
+# Usage: wait_for_job_to_stop <job_id> [timeout_seconds]
+wait_for_job_to_stop() {
+    local job_id=$1
+    local timeout=${2:-5}
+    wait_for_job_state "$job_id" "stopped" "$timeout"
+}

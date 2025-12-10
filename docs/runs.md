@@ -382,14 +382,21 @@ For now, this is marked as "to be figured out" - the 2.0 release will document t
 
 ### Phase 3: CLI Updates
 - [x] `list`: output unchanged (shows jobs with current/latest run status)
-- [ ] `runs <job_id>`: show run history (new command)
+- [x] `runs <job_id>`: show run history (new command)
 - [x] `stdout/stderr`: show current/latest run's output (no changes needed)
-- [ ] `stats <job_id>`: show statistics (new command)
+- [x] `stats <job_id>`: show statistics (new command)
 - [x] `await-any`: wait for any job to complete (no changes needed)
 - [x] `await-all`: wait for all jobs to complete (no changes needed)
 - [x] `logs`: follows all running jobs (no changes needed)
-- [ ] Update help text and examples
-- [ ] Update tests, CI must pass
+- [x] Update help text and examples
+- [x] Update tests, CI must pass
+
+**Implementation notes:**
+- Reused existing `formatDuration()` from `cmd/await.go` for consistent duration formatting
+- Phase 5 (MCP tools) was completed as part of Phase 3 due to CLI-MCP parity test requirement
+- Added `RunResponse` and `StatsResponse` to protocol for clean API separation
+- `runs` output shows: run ID, relative time, duration, status indicator (◉/✓/✗)
+- `stats` output shows: run count, success rate, avg/min/max duration, estimated next run
 
 ### Phase 4: TUI Updates
 - [ ] Default view unchanged (shows jobs with current/latest run status)
@@ -401,9 +408,12 @@ For now, this is marked as "to be figured out" - the 2.0 release will document t
 
 ### Phase 5: MCP Updates
 - [x] Update all tools for Job/Run model (done in Phase 1)
-- [ ] Add `gob_runs` tool
-- [ ] Add `gob_stats` tool
-- [ ] Update tests, CI must pass
+- [x] Add `gob_runs` tool
+- [x] Add `gob_stats` tool
+- [x] Update tests, CI must pass
+
+**Implementation notes:**
+- Completed as part of Phase 3 (CLI-MCP parity test enforces this)
 
 ### Phase 6: Remove `run` and `cleanup` Commands
 - [x] Remove `cmd/run.go` and tests

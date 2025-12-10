@@ -42,6 +42,8 @@ const (
 	RequestTypeNuke      RequestType = "nuke"
 	RequestTypeSignal    RequestType = "signal"
 	RequestTypeGetJob    RequestType = "get_job"
+	RequestTypeRuns      RequestType = "runs"
+	RequestTypeStats     RequestType = "stats"
 	RequestTypeSubscribe RequestType = "subscribe"
 	RequestTypeVersion   RequestType = "version"
 )
@@ -90,6 +92,33 @@ type JobResponse struct {
 	StdoutPath string   `json:"stdout_path"`
 	StderrPath string   `json:"stderr_path"`
 	ExitCode   *int     `json:"exit_code,omitempty"`
+}
+
+// RunResponse represents a run in API responses
+type RunResponse struct {
+	ID         string `json:"id"`
+	JobID      string `json:"job_id"`
+	PID        int    `json:"pid"`
+	Status     string `json:"status"`
+	ExitCode   *int   `json:"exit_code,omitempty"`
+	StdoutPath string `json:"stdout_path"`
+	StderrPath string `json:"stderr_path"`
+	StartedAt  string `json:"started_at"`
+	StoppedAt  string `json:"stopped_at,omitempty"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// StatsResponse represents job statistics in API responses
+type StatsResponse struct {
+	JobID           string   `json:"job_id"`
+	Command         []string `json:"command"`
+	RunCount        int      `json:"run_count"`
+	SuccessCount    int      `json:"success_count"`
+	SuccessRate     float64  `json:"success_rate"`
+	TotalDurationMs int64    `json:"total_duration_ms"`
+	AvgDurationMs   int64    `json:"avg_duration_ms"`
+	MinDurationMs   int64    `json:"min_duration_ms"`
+	MaxDurationMs   int64    `json:"max_duration_ms"`
 }
 
 // NewRequest creates a new request with the given type

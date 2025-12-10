@@ -384,6 +384,72 @@ func (c *Client) GetJob(jobID string) (*JobResponse, error) {
 	return &job, nil
 }
 
+// Runs returns the run history for a job
+func (c *Client) Runs(jobID string) ([]RunResponse, error) {
+	req := NewRequest(RequestTypeRuns)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse runs from response
+	runsRaw, ok := resp.Data["runs"]
+	if !ok {
+		return []RunResponse{}, nil
+	}
+
+	runsJSON, err := json.Marshal(runsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal runs: %w", err)
+	}
+
+	var runs []RunResponse
+	if err := json.Unmarshal(runsJSON, &runs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal runs: %w", err)
+	}
+
+	return runs, nil
+}
+
+// Stats returns statistics for a job
+func (c *Client) Stats(jobID string) (*StatsResponse, error) {
+	req := NewRequest(RequestTypeStats)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse stats from response
+	statsRaw, ok := resp.Data["stats"]
+	if !ok {
+		return nil, fmt.Errorf("no stats in response")
+	}
+
+	statsJSON, err := json.Marshal(statsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal stats: %w", err)
+	}
+
+	var stats StatsResponse
+	if err := json.Unmarshal(statsJSON, &stats); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal stats: %w", err)
+	}
+
+	return &stats, nil
+}
+
 // Close closes the connection to the daemon
 func (c *Client) Close() error {
 	if c.conn != nil {
