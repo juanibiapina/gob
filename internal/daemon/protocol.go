@@ -43,6 +43,7 @@ const (
 	RequestTypeSignal    RequestType = "signal"
 	RequestTypeGetJob    RequestType = "get_job"
 	RequestTypeSubscribe RequestType = "subscribe"
+	RequestTypeVersion   RequestType = "version"
 )
 
 // EventType represents the type of event emitted by the daemon

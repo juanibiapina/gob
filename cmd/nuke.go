@@ -39,14 +39,14 @@ Exit codes:
   0: Nuke completed successfully
   1: Error (failed to stop jobs, failed to shutdown)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Connect to daemon
+		// Connect to daemon (skip version check - nuke must always work)
 		client, err := daemon.NewClient()
 		if err != nil {
 			return fmt.Errorf("failed to create client: %w", err)
 		}
 		defer client.Close()
 
-		if err := client.Connect(); err != nil {
+		if err := client.ConnectSkipVersionCheck(); err != nil {
 			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 

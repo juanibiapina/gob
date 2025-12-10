@@ -60,6 +60,9 @@ func init() {
 	// Set version for --version flag
 	RootCmd.Version = version.Version
 
+	// Don't show usage on errors - only show it when explicitly requested
+	RootCmd.SilenceUsage = true
+
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.

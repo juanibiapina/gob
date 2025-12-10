@@ -246,3 +246,62 @@ func TestDaemon_handleRequest_UnknownType(t *testing.T) {
 		t.Error("expected error for unknown request type")
 	}
 }
+
+func TestDaemon_handleVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypeVersion,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	// Check version is present
+	if _, ok := resp.Data["version"]; !ok {
+		t.Error("expected version in response")
+	}
+
+	// Check running_jobs is present
+	runningJobs, ok := resp.Data["running_jobs"]
+	if !ok {
+		t.Error("expected running_jobs in response")
+	}
+	if runningJobs != 0 {
+		t.Errorf("expected 0 running jobs, got %v", runningJobs)
+	}
+}
+
+func TestDaemon_handleVersion_WithRunningJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+
+	// Add running jobs
+	jm.AddJob([]string{"echo", "1"}, "/workdir")
+	jm.AddJob([]string{"echo", "2"}, "/workdir")
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypeVersion,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	runningJobs := resp.Data["running_jobs"]
+	if runningJobs != 2 {
+		t.Errorf("expected 2 running jobs, got %v", runningJobs)
+	}
+}

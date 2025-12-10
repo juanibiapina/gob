@@ -11,6 +11,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/juanibiapina/gob/internal/version"
 )
 
 // IdleTimeout is the duration of inactivity (no jobs) before the daemon shuts down
@@ -283,6 +285,8 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleSignal(req)
 	case RequestTypeGetJob:
 		return d.handleGetJob(req)
+	case RequestTypeVersion:
+		return d.handleVersion(req)
 	default:
 		return NewErrorResponse(fmt.Errorf("unknown request type: %s", req.Type))
 	}
@@ -528,6 +532,26 @@ func (d *Daemon) handleGetJob(req *Request) *Response {
 	resp := NewSuccessResponse()
 	resp.Data["job"] = d.jobManager.jobToResponse(job)
 	return resp
+}
+
+// handleVersion handles a version request
+func (d *Daemon) handleVersion(req *Request) *Response {
+	resp := NewSuccessResponse()
+	resp.Data["version"] = version.Version
+	resp.Data["running_jobs"] = d.countRunningJobs()
+	return resp
+}
+
+// countRunningJobs returns the count of currently running jobs
+func (d *Daemon) countRunningJobs() int {
+	jobs := d.jobManager.ListJobs("")
+	count := 0
+	for _, job := range jobs {
+		if job.IsRunning() {
+			count++
+		}
+	}
+	return count
 }
 
 // sendErrorResponse sends an error response to the client

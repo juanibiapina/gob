@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Version negotiation: daemon auto-restarts when CLI version changes
+  - If no running jobs, restart happens automatically
+  - If jobs are running, commands are blocked with guidance to run `gob nuke`
+  - `nuke` command always works (bypasses version check)
+
 ### Changed
 
 - `add` command no longer requires `--` separator for commands with flags (e.g., `gob add npm run --flag`)
