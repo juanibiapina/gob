@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -31,6 +32,9 @@ type Daemon struct {
 	socketPath    string
 	pidPath       string
 	runtimeDir    string
+	logDir        string
+	db            *sql.DB
+	store         *Store
 	ctx           context.Context
 	cancel        context.CancelFunc
 	jobManager    *JobManager
@@ -57,19 +61,46 @@ func New() (*Daemon, error) {
 		return nil, fmt.Errorf("failed to get runtime directory: %w", err)
 	}
 
+	// Ensure state directory exists for database
+	if _, err := EnsureStateDir(); err != nil {
+		return nil, fmt.Errorf("failed to ensure state directory: %w", err)
+	}
+
+	// Ensure log directory exists
+	logDir, err := EnsureLogDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure log directory: %w", err)
+	}
+
+	// Open database
+	dbPath, err := GetDatabasePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database path: %w", err)
+	}
+
+	db, err := OpenDatabase(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	store := NewStore(db)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	d := &Daemon{
 		socketPath:  socketPath,
 		pidPath:     pidPath,
 		runtimeDir:  runtimeDir,
+		logDir:      logDir,
+		db:          db,
+		store:       store,
 		ctx:         ctx,
 		cancel:      cancel,
 		subscribers: make([]*Subscriber, 0),
 	}
 
-	// Initialize job manager with event callback
-	d.jobManager = NewJobManager(runtimeDir, d.handleEvent)
+	// Initialize job manager with event callback and store
+	d.jobManager = NewJobManager(logDir, d.handleEvent, store)
 
 	return d, nil
 }
@@ -85,6 +116,32 @@ func (d *Daemon) Start() error {
 	if err := d.cleanupStaleSocket(); err != nil {
 		return fmt.Errorf("failed to cleanup stale socket: %w", err)
 	}
+
+	// Check for crash recovery
+	if !d.store.WasCleanShutdown() {
+		Logger.Info("previous shutdown was not clean, performing crash recovery")
+		if err := d.recoverFromCrash(); err != nil {
+			Logger.Error("crash recovery failed", "error", err)
+			// Continue anyway - jobs will be loaded but orphans may not be cleaned
+		}
+	}
+
+	// Set shutdown_clean = false (will be set to true on graceful shutdown)
+	if err := d.store.SetShutdownClean(false); err != nil {
+		return fmt.Errorf("failed to set shutdown flag: %w", err)
+	}
+
+	// Record instance ID
+	if err := d.store.SetInstanceID(); err != nil {
+		return fmt.Errorf("failed to set instance ID: %w", err)
+	}
+
+	// Load jobs and runs from database
+	if err := d.jobManager.LoadFromStore(); err != nil {
+		return fmt.Errorf("failed to load state from database: %w", err)
+	}
+
+	Logger.Info("loaded persisted state", "jobs", d.jobManager.JobCount())
 
 	// Create Unix socket listener
 	listener, err := net.Listen("unix", d.socketPath)
@@ -112,8 +169,8 @@ func (d *Daemon) Start() error {
 
 	Logger.Info("daemon started", "socket", d.socketPath)
 
-	// Start idle timer (will be cancelled when first job is added)
-	d.resetIdleTimer()
+	// Start idle timer if no running jobs
+	d.checkIdleOnStartup()
 
 	// Accept connections
 	go d.acceptConnections()
@@ -149,6 +206,18 @@ func (d *Daemon) Shutdown() error {
 	stopped, _, _ := d.jobManager.Nuke("")
 	if stopped > 0 {
 		Logger.Info("stopped running jobs", "count", stopped)
+	}
+
+	// Set shutdown_clean = true since we're shutting down gracefully
+	if err := d.store.SetShutdownClean(true); err != nil {
+		Logger.Warn("failed to set shutdown_clean flag", "error", err)
+	}
+
+	// Close database
+	if d.db != nil {
+		if err := d.db.Close(); err != nil {
+			Logger.Warn("failed to close database", "error", err)
+		}
 	}
 
 	// Close listener
@@ -690,23 +759,23 @@ func (d *Daemon) handleEvent(event Event) {
 	// Broadcast to subscribers
 	d.broadcastEvent(event)
 
-	// Manage idle timer based on job count from the event
-	d.updateIdleTimer(event.JobCount)
+	// Manage idle timer based on running job count
+	d.updateIdleTimerFromEvent(event)
 }
 
-// updateIdleTimer starts or stops the idle timer based on job count
-func (d *Daemon) updateIdleTimer(jobCount int) {
+// updateIdleTimerFromEvent starts or stops the idle timer based on running job count
+func (d *Daemon) updateIdleTimerFromEvent(event Event) {
 	d.idleTimerMu.Lock()
 	defer d.idleTimerMu.Unlock()
 
-	if jobCount == 0 {
-		// No jobs - start/reset the idle timer
+	if event.RunningJobCount == 0 {
+		// No running jobs - start/reset the idle timer
 		if d.idleTimer == nil {
 			d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
 			Logger.Info("idle timer started", "timeout", IdleTimeout)
 		}
 	} else {
-		// Jobs exist - cancel the idle timer
+		// Running jobs exist - cancel the idle timer
 		if d.idleTimer != nil {
 			d.idleTimer.Stop()
 			d.idleTimer = nil
@@ -715,17 +784,58 @@ func (d *Daemon) updateIdleTimer(jobCount int) {
 	}
 }
 
-// resetIdleTimer starts the idle timer (called on startup when no jobs exist)
-func (d *Daemon) resetIdleTimer() {
+// checkIdleOnStartup starts the idle timer if no running jobs exist on startup
+func (d *Daemon) checkIdleOnStartup() {
 	d.idleTimerMu.Lock()
 	defer d.idleTimerMu.Unlock()
 
-	d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
-	Logger.Info("idle timer started", "timeout", IdleTimeout)
+	if !d.jobManager.HasRunningJobs() {
+		d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
+		Logger.Info("idle timer started", "timeout", IdleTimeout)
+	}
 }
 
 // idleShutdown triggers daemon shutdown due to idle timeout
 func (d *Daemon) idleShutdown() {
 	Logger.Info("idle timeout reached, shutting down")
 	d.cancel()
+}
+
+// recoverFromCrash handles cleanup after a daemon crash
+func (d *Daemon) recoverFromCrash() error {
+	// Find all runs marked as 'running' (they're orphans now)
+	orphans, err := d.store.FindOrphanRuns()
+	if err != nil {
+		return fmt.Errorf("failed to find orphan runs: %w", err)
+	}
+
+	for _, orphan := range orphans {
+		run := orphan.Run
+		Logger.Info("found orphan run", "id", run.ID, "pid", run.PID)
+
+		// Verify this is actually our process (PIDs can be reused!)
+		if isOurProcess(run.PID, run.StartedAt, orphan.Command) {
+			Logger.Info("killing orphan process", "pid", run.PID)
+
+			// Signal the process group
+			syscall.Kill(-run.PID, syscall.SIGTERM)
+
+			// Wait briefly for graceful shutdown
+			time.Sleep(2 * time.Second)
+
+			// Force kill if still running
+			if processExists(run.PID) {
+				syscall.Kill(-run.PID, syscall.SIGKILL)
+			}
+		} else {
+			Logger.Info("orphan process no longer exists or doesn't match", "pid", run.PID)
+		}
+
+		// Mark run as stopped
+		if err := d.store.MarkRunStopped(run.ID); err != nil {
+			Logger.Warn("failed to mark run as stopped", "id", run.ID, "error", err)
+		}
+	}
+
+	return nil
 }

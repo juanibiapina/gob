@@ -13,11 +13,12 @@
 The daemon is a long-running background process that:
 
 - **Manages all job processes**: Creates, monitors, and terminates jobs
-- **Maintains job state**: Holds all job metadata in memory (PID, status, command, logs, etc.)
+- **Maintains job state**: Persists job metadata to SQLite database
 - **Listens on Unix socket**: Accepts connections from multiple clients simultaneously
 - **Handles client requests**: Processes commands (add, stop, list, etc.) and sends responses
 - **Broadcasts events**: Notifies subscribed clients of job state changes
 - **Manages job output**: Writes stdout/stderr to log files
+- **Handles crash recovery**: Detects unclean shutdowns and cleans up orphaned processes
 
 The daemon is an internal implementation detail—users interact only with regular commands (`add`, `list`, etc.), which handle daemon lifecycle transparently.
 
@@ -33,15 +34,27 @@ All commands (`add`, `list`, `stop`, etc.) are clients that:
 
 ## File Locations
 
-All files are stored under `$XDG_RUNTIME_DIR/gob/`. Path resolution uses the [adrg/xdg](https://github.com/adrg/xdg) library—see [`internal/daemon/paths.go`](../internal/daemon/paths.go) for implementation.
+Files are stored in two locations based on their persistence requirements. Path resolution uses the [adrg/xdg](https://github.com/adrg/xdg) library—see [`internal/daemon/paths.go`](../internal/daemon/paths.go) for implementation.
+
+### Runtime Files (`$XDG_RUNTIME_DIR/gob/`)
+
+Ephemeral files that don't need to survive reboots:
 
 | File | Path |
 |------|------|
 | Unix socket | `daemon.sock` |
 | PID file | `daemon.pid` |
+
+### State Files (`$XDG_STATE_HOME/gob/`)
+
+Persistent files that survive reboots:
+
+| File | Path |
+|------|------|
+| SQLite database | `state.db` |
 | Daemon log | `daemon.log` |
-| Job stdout | `{job_id}-{run_seq}.stdout.log` |
-| Job stderr | `{job_id}-{run_seq}.stderr.log` |
+| Job stdout | `logs/{job_id}-{run_seq}.stdout.log` |
+| Job stderr | `logs/{job_id}-{run_seq}.stderr.log` |
 
 ## Communication Protocol
 
@@ -68,12 +81,17 @@ Log files are removed when the job is removed (`gob remove` or `gob nuke`).
 
 ## State Management
 
-- **In-memory only**: All job metadata lives in daemon memory
-- **No persistence**: If daemon crashes, all state is lost
-- **Log files persist**: Job output written continuously to disk
-- **Clean slate on crash**: Next command auto-starts a fresh daemon
+- **SQLite persistence**: All job and run metadata stored in `state.db`
+- **Crash recovery**: Unclean shutdowns detected via `shutdown_clean` flag
+- **Orphan handling**: Orphaned processes killed on daemon restart
+- **Log files persist**: Job output written continuously to disk in state directory
 
-Jobs are children of the daemon process. If the daemon crashes, jobs may continue running as orphans.
+Jobs are children of the daemon process. If the daemon crashes, the database retains job metadata. On restart, the daemon:
+1. Detects the unclean shutdown
+2. Finds runs still marked as "running" in the database
+3. Verifies if the processes still exist (checking PID, start time, and command)
+4. Kills any orphaned processes that match
+5. Marks all runs as stopped
 
 ## Daemon Lifecycle
 
@@ -83,27 +101,56 @@ When a client command runs:
 
 1. Client attempts to connect to socket
 2. If connection fails, client starts daemon as a detached process (setsid)
-3. Daemon creates socket and starts listening
-4. Client retries connection
+3. Daemon opens database and runs migrations
+4. Daemon performs crash recovery if previous shutdown was unclean
+5. Daemon loads jobs and runs from database
+6. Daemon creates socket and starts listening
+7. Client retries connection
 
-### Shutdown
+### Idle Shutdown
+
+The daemon automatically shuts down after 5 minutes with no **running** jobs:
+
+- Stopped jobs remain in the database
+- Log files remain in the state directory
+- Next command auto-starts a fresh daemon
+- Jobs are loaded from the database on startup
+
+This allows the daemon to conserve resources while preserving job history.
+
+### Graceful Shutdown
 
 `gob nuke` performs a clean shutdown:
 
-1. Stops all running jobs (SIGTERM)
+1. Stops all running jobs (SIGTERM, then SIGKILL after timeout)
 2. Removes all log files
-3. Removes all jobs
-4. Shuts down the daemon
+3. Removes all jobs from database
+4. Sets `shutdown_clean = true` in database
+5. Shuts down the daemon
 
-The daemon also shuts down gracefully when it receives SIGTERM or SIGINT.
+The daemon also shuts down gracefully when it receives SIGTERM or SIGINT:
+
+1. Stops all running jobs
+2. Updates all runs to "stopped" in database
+3. Sets `shutdown_clean = true`
+4. Closes database and removes socket/PID files
 
 ### Signal Handling
 
 The daemon handles SIGTERM and SIGINT for graceful shutdown, cleaning up resources before exit.
 
+## Database Schema
+
+The SQLite database (`state.db`) contains three tables:
+
+- **daemon_state**: Key-value store for daemon metadata (`instance_id`, `shutdown_clean`)
+- **jobs**: Job definitions (ID, command, workdir, statistics)
+- **runs**: Run history (ID, job reference, PID, status, exit code, timestamps)
+
+Schema migrations are managed by [goose](https://github.com/pressly/goose) with embedded SQL files. See [`internal/daemon/migrations/`](../internal/daemon/migrations/) for migration files.
+
 ## Limitations
 
-- **No crash recovery**: Daemon crash loses all job metadata
-- **Orphaned processes**: Jobs may keep running if daemon crashes
 - **Unix-only**: Windows not supported
 - **Unbounded logs**: Job logs can grow without limit
+- **No automatic restart**: Jobs don't restart automatically after daemon restart (they remain stopped)

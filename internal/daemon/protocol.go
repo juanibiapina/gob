@@ -62,12 +62,13 @@ const (
 
 // Event represents a job/run state change event
 type Event struct {
-	Type     EventType      `json:"type"`
-	JobID    string         `json:"job_id"`
-	Job      JobResponse    `json:"job"`
-	Run      *RunResponse   `json:"run,omitempty"`
-	Stats    *StatsResponse `json:"stats,omitempty"`
-	JobCount int            `json:"job_count"`
+	Type            EventType      `json:"type"`
+	JobID           string         `json:"job_id"`
+	Job             JobResponse    `json:"job"`
+	Run             *RunResponse   `json:"run,omitempty"`
+	Stats           *StatsResponse `json:"stats,omitempty"`
+	JobCount        int            `json:"job_count"`
+	RunningJobCount int            `json:"running_job_count"`
 }
 
 // Request represents a client request to the daemon

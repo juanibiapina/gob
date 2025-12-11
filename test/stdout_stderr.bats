@@ -35,7 +35,7 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Wait for output to be written (logs in XDG_RUNTIME_DIR with daemon)
-  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" "Hello stdout"
+  wait_for_log_content "$XDG_STATE_HOME/gob/logs/${job_id}-1.stdout.log" "Hello stdout"
 
   # Check stdout
   run "$JOB_CLI" stdout "$job_id"
@@ -52,7 +52,7 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Wait for error output to be written (logs in XDG_RUNTIME_DIR with daemon)
-  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}-1.stderr.log" "No such file or directory"
+  wait_for_log_content "$XDG_STATE_HOME/gob/logs/${job_id}-1.stderr.log" "No such file or directory"
 
   # Check stderr has error message
   run "$JOB_CLI" stderr "$job_id"
@@ -68,7 +68,7 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Wait for output to be written (logs in XDG_RUNTIME_DIR with daemon)
-  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" "To stdout"
+  wait_for_log_content "$XDG_STATE_HOME/gob/logs/${job_id}-1.stdout.log" "To stdout"
 
   # Check stdout contains message
   run "$JOB_CLI" stdout "$job_id"
@@ -89,8 +89,8 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Verify log files exist (logs in XDG_RUNTIME_DIR with daemon)
-  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" ]
-  assert [ -f "$XDG_RUNTIME_DIR/gob/${job_id}-1.stderr.log" ]
+  assert [ -f "$XDG_STATE_HOME/gob/logs/${job_id}-1.stdout.log" ]
+  assert [ -f "$XDG_STATE_HOME/gob/logs/${job_id}-1.stderr.log" ]
 }
 
 @test "log files accumulate output over time" {
@@ -102,7 +102,7 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Wait for output to be written (logs in XDG_RUNTIME_DIR with daemon)
-  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" "Line 3"
+  wait_for_log_content "$XDG_STATE_HOME/gob/logs/${job_id}-1.stdout.log" "Line 3"
 
   # Check stdout contains all lines
   run "$JOB_CLI" stdout "$job_id"
@@ -121,7 +121,7 @@ load 'test_helper'
   local job_id=$(get_job_field id)
 
   # Wait for output to be written and process to stop (logs in XDG_RUNTIME_DIR with daemon)
-  wait_for_log_content "$XDG_RUNTIME_DIR/gob/${job_id}-1.stdout.log" "run-"
+  wait_for_log_content "$XDG_STATE_HOME/gob/logs/${job_id}-1.stdout.log" "run-"
   local pid=$(get_job_field pid)
   wait_for_process_death "$pid" || sleep 0.2
 

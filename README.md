@@ -28,6 +28,8 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 - **Real-time sync** - Changes from CLI instantly appear in TUI, and vice-versa
 - **Per-directory jobs** - Jobs are scoped to directories, keeping projects organized
 - **Process lifecycle control** - Start, stop, restart, send signals to any job
+- **Job persistence** - Jobs survive daemon restarts with SQLite-backed state
+- **Run history** - Track execution history and statistics for repeated commands
 
 ## Installation
 

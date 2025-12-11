@@ -18,8 +18,17 @@ Previously, each `gob add make test` created a new, independent job. Now, gob re
 
 The mental model shift: a "job" is now "a command you run repeatedly" rather than "a process running in the background". Each execution is a "run" of that job.
 
+**Jobs now persist across daemon restarts.**
+
+Job state is stored in a SQLite database and survives daemon crashes or restarts. When the daemon starts:
+- Previously stopped jobs are restored (can be restarted with `gob start`)
+- Orphaned processes from crashes are detected and cleaned up
+- The daemon exits cleanly when idle (no running jobs) for 5 minutes, but jobs remain in the database
+
 ### Added
 
+- **Job persistence**: Jobs survive daemon restarts via SQLite database
+- **Crash recovery**: Daemon detects unclean shutdowns and kills orphaned processes
 - `runs <job_id>` command - show run history for a job
 - `stats <job_id>` command - show statistics (success rate, avg/min/max duration)
 - `add` shows previous run count, success rate, and expected duration for repeat jobs
@@ -34,6 +43,9 @@ The mental model shift: a "job" is now "a command you run repeatedly" rather tha
 
 ### Changed
 
+- **Idle shutdown**: Daemon now exits when no *running* jobs for 5 minutes (stopped jobs persist)
+- **Log location**: Job logs moved from `$XDG_RUNTIME_DIR/gob/` to `$XDG_STATE_HOME/gob/logs/` for persistence across reboots
+- **Database location**: Job state stored in `$XDG_STATE_HOME/gob/state.db`
 - `add` reuses existing job for same command in same directory (creates new run)
 - `add` errors if same command is already running (no parallel runs of same job)
 - `add` no longer requires `--` separator for commands with flags

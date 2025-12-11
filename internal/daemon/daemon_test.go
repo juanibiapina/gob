@@ -8,7 +8,7 @@ import (
 func TestDaemon_handlePing(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{Type: RequestTypePing}
@@ -26,7 +26,7 @@ func TestDaemon_handlePing(t *testing.T) {
 func TestDaemon_handleList_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{Type: RequestTypeList, Payload: map[string]interface{}{}}
@@ -50,7 +50,7 @@ func TestDaemon_handleList_Empty(t *testing.T) {
 func TestDaemon_handleList_WithJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job
 	jm.AddJob([]string{"echo", "hello"}, "/workdir")
@@ -73,7 +73,7 @@ func TestDaemon_handleList_WithJobs(t *testing.T) {
 func TestDaemon_handleAdd(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -102,7 +102,7 @@ func TestDaemon_handleAdd(t *testing.T) {
 func TestDaemon_handleAdd_MissingCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -123,7 +123,7 @@ func TestDaemon_handleAdd_MissingCommand(t *testing.T) {
 func TestDaemon_handleAdd_MissingWorkdir(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -143,7 +143,7 @@ func TestDaemon_handleAdd_MissingWorkdir(t *testing.T) {
 func TestDaemon_handleGetJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -170,7 +170,7 @@ func TestDaemon_handleGetJob(t *testing.T) {
 func TestDaemon_handleGetJob_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -190,7 +190,7 @@ func TestDaemon_handleGetJob_NotFound(t *testing.T) {
 func TestDaemon_handleStop(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -217,7 +217,7 @@ func TestDaemon_handleStop(t *testing.T) {
 func TestDaemon_handleStop_MissingJobID(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -235,7 +235,7 @@ func TestDaemon_handleStop_MissingJobID(t *testing.T) {
 func TestDaemon_handleRequest_UnknownType(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{Type: "unknown"}
@@ -250,7 +250,7 @@ func TestDaemon_handleRequest_UnknownType(t *testing.T) {
 func TestDaemon_handleVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -282,7 +282,7 @@ func TestDaemon_handleVersion(t *testing.T) {
 func TestDaemon_handleVersion_WithRunningJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add running jobs
 	jm.AddJob([]string{"echo", "1"}, "/workdir")

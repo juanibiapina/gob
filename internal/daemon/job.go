@@ -78,10 +78,11 @@ type JobManager struct {
 	runtimeDir string
 	onEvent    func(Event)
 	executor   ProcessExecutor
+	store      *Store                 // database store for persistence
 }
 
 // NewJobManager creates a new job manager
-func NewJobManager(runtimeDir string, onEvent func(Event)) *JobManager {
+func NewJobManager(runtimeDir string, onEvent func(Event), store *Store) *JobManager {
 	return &JobManager{
 		jobs:       make(map[string]*Job),
 		runs:       make(map[string]*Run),
@@ -89,11 +90,12 @@ func NewJobManager(runtimeDir string, onEvent func(Event)) *JobManager {
 		runtimeDir: runtimeDir,
 		onEvent:    onEvent,
 		executor:   &RealProcessExecutor{},
+		store:      store,
 	}
 }
 
 // NewJobManagerWithExecutor creates a new job manager with a custom executor (for testing)
-func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor ProcessExecutor) *JobManager {
+func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor ProcessExecutor, store *Store) *JobManager {
 	return &JobManager{
 		jobs:       make(map[string]*Job),
 		runs:       make(map[string]*Run),
@@ -101,6 +103,7 @@ func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor 
 		runtimeDir: runtimeDir,
 		onEvent:    onEvent,
 		executor:   executor,
+		store:      store,
 	}
 }
 
@@ -109,6 +112,65 @@ func (jm *JobManager) JobCount() int {
 	jm.mu.RLock()
 	defer jm.mu.RUnlock()
 	return len(jm.jobs)
+}
+
+// HasRunningJobs returns true if there are any running jobs
+func (jm *JobManager) HasRunningJobs() bool {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+	for _, job := range jm.jobs {
+		if job.IsRunning() {
+			return true
+		}
+	}
+	return false
+}
+
+// countRunningJobsLocked returns the number of running jobs (caller must hold lock)
+func (jm *JobManager) countRunningJobsLocked() int {
+	count := 0
+	for _, job := range jm.jobs {
+		if job.IsRunning() {
+			count++
+		}
+	}
+	return count
+}
+
+// LoadFromStore loads jobs and runs from the database
+func (jm *JobManager) LoadFromStore() error {
+	if jm.store == nil {
+		return nil
+	}
+
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+
+	// Load jobs
+	jobs, err := jm.store.LoadJobs()
+	if err != nil {
+		return fmt.Errorf("failed to load jobs: %w", err)
+	}
+
+	for _, job := range jobs {
+		jm.jobs[job.ID] = job
+		indexKey := makeJobIndexKey(job.CommandSignature, job.Workdir)
+		jm.jobIndex[indexKey] = job.ID
+	}
+
+	// Load runs
+	runs, err := jm.store.LoadRuns()
+	if err != nil {
+		return fmt.Errorf("failed to load runs: %w", err)
+	}
+
+	for _, run := range runs {
+		jm.runs[run.ID] = run
+		// Note: We don't restore CurrentRunID here because all runs
+		// should be stopped after crash recovery
+	}
+
+	return nil
 }
 
 // makeJobIndexKey creates the lookup key for finding jobs by command+workdir
@@ -229,22 +291,24 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 
 		// Emit job started event (reusing existing job)
 		jm.emitEvent(Event{
-			Type:     EventTypeJobStarted,
-			JobID:    job.ID,
-			Job:      jm.jobToResponse(job),
-			JobCount: len(jm.jobs),
+			Type:            EventTypeJobStarted,
+			JobID:           job.ID,
+			Job:             jm.jobToResponse(job),
+			JobCount:        len(jm.jobs),
+			RunningJobCount: jm.countRunningJobsLocked(),
 		})
 
 		// Emit run started event
 		runResp := runToResponse(run)
 		stats := jobToStats(job)
 		jm.emitEvent(Event{
-			Type:     EventTypeRunStarted,
-			JobID:    job.ID,
-			Job:      jm.jobToResponse(job),
-			Run:      &runResp,
-			Stats:    &stats,
-			JobCount: len(jm.jobs),
+			Type:            EventTypeRunStarted,
+			JobID:           job.ID,
+			Job:             jm.jobToResponse(job),
+			Run:             &runResp,
+			Stats:           &stats,
+			JobCount:        len(jm.jobs),
+			RunningJobCount: jm.countRunningJobsLocked(),
 		})
 
 		return job, nil
@@ -270,10 +334,22 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 	jm.jobs[jobID] = job
 	jm.jobIndex[indexKey] = jobID
 
+	// Persist new job to database
+	if jm.store != nil {
+		if err := jm.store.InsertJob(job); err != nil {
+			delete(jm.jobs, jobID)
+			delete(jm.jobIndex, indexKey)
+			return nil, fmt.Errorf("failed to persist job: %w", err)
+		}
+	}
+
 	// Start first run
 	run, err := jm.startRunLocked(job)
 	if err != nil {
 		// Clean up job if run failed to start
+		if jm.store != nil {
+			jm.store.DeleteJob(jobID)
+		}
 		delete(jm.jobs, jobID)
 		delete(jm.jobIndex, indexKey)
 		return nil, err
@@ -281,22 +357,24 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 
 	// Emit job added event
 	jm.emitEvent(Event{
-		Type:     EventTypeJobAdded,
-		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
-		JobCount: len(jm.jobs),
+		Type:            EventTypeJobAdded,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	// Emit run started event
 	runResp := runToResponse(run)
 	stats := jobToStats(job)
 	jm.emitEvent(Event{
-		Type:     EventTypeRunStarted,
-		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
-		Run:      &runResp,
-		Stats:    &stats,
-		JobCount: len(jm.jobs),
+		Type:            EventTypeRunStarted,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
+		Run:             &runResp,
+		Stats:           &stats,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	return job, nil
@@ -332,6 +410,18 @@ func (jm *JobManager) startRunLocked(job *Job) (*Run, error) {
 
 	jm.runs[runID] = run
 	job.CurrentRunID = &runID
+
+	// Persist run to database
+	if jm.store != nil {
+		if err := jm.store.InsertRun(run); err != nil {
+			// Log but don't fail - in-memory state is still valid
+			Logger.Warn("failed to persist run", "id", run.ID, "error", err)
+		}
+		// Update job's NextRunSeq in database
+		if err := jm.store.UpdateJob(job); err != nil {
+			Logger.Warn("failed to update job", "id", job.ID, "error", err)
+		}
+	}
 
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job, run)
@@ -398,7 +488,18 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 		}
 	}
 
+	// Persist run completion and job stats to database
+	if jm.store != nil {
+		if err := jm.store.UpdateRun(run); err != nil {
+			Logger.Warn("failed to update run", "id", run.ID, "error", err)
+		}
+		if err := jm.store.UpdateJob(job); err != nil {
+			Logger.Warn("failed to update job stats", "id", job.ID, "error", err)
+		}
+	}
+
 	jobCount := len(jm.jobs)
+	runningJobCount := jm.countRunningJobsLocked()
 	jobResp := jm.jobToResponse(job)
 	runResp := runToResponse(run)
 	stats := jobToStats(job)
@@ -407,20 +508,22 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 
 	// Emit run stopped event
 	jm.emitEvent(Event{
-		Type:     EventTypeRunStopped,
-		JobID:    job.ID,
-		Job:      jobResp,
-		Run:      &runResp,
-		Stats:    &stats,
-		JobCount: jobCount,
+		Type:            EventTypeRunStopped,
+		JobID:           job.ID,
+		Job:             jobResp,
+		Run:             &runResp,
+		Stats:           &stats,
+		JobCount:        jobCount,
+		RunningJobCount: runningJobCount,
 	})
 
 	// Emit job stopped event (for backward compatibility)
 	jm.emitEvent(Event{
-		Type:     EventTypeJobStopped,
-		JobID:    job.ID,
-		Job:      jobResp,
-		JobCount: jobCount,
+		Type:            EventTypeJobStopped,
+		JobID:           job.ID,
+		Job:             jobResp,
+		JobCount:        jobCount,
+		RunningJobCount: runningJobCount,
 	})
 }
 
@@ -576,22 +679,24 @@ func (jm *JobManager) StartJob(jobID string) error {
 
 	// Emit started event
 	jm.emitEvent(Event{
-		Type:     EventTypeJobStarted,
-		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
-		JobCount: len(jm.jobs),
+		Type:            EventTypeJobStarted,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	// Emit run started event
 	runResp := runToResponse(run)
 	stats := jobToStats(job)
 	jm.emitEvent(Event{
-		Type:     EventTypeRunStarted,
-		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
-		Run:      &runResp,
-		Stats:    &stats,
-		JobCount: len(jm.jobs),
+		Type:            EventTypeRunStarted,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
+		Run:             &runResp,
+		Stats:           &stats,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	return nil
@@ -662,22 +767,24 @@ func (jm *JobManager) RestartJob(jobID string) error {
 
 	// Emit started event
 	jm.emitEvent(Event{
-		Type:     EventTypeJobStarted,
-		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
-		JobCount: len(jm.jobs),
+		Type:            EventTypeJobStarted,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	// Emit run started event
 	runResp := runToResponse(run)
 	stats := jobToStats(job)
 	jm.emitEvent(Event{
-		Type:     EventTypeRunStarted,
-		JobID:    job.ID,
-		Job:      jm.jobToResponse(job),
-		Run:      &runResp,
-		Stats:    &stats,
-		JobCount: len(jm.jobs),
+		Type:            EventTypeRunStarted,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
+		Run:             &runResp,
+		Stats:           &stats,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	jm.mu.Unlock()
@@ -716,12 +823,20 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 
 	delete(jm.jobs, jobID)
 
+	// Delete from database (cascades to runs)
+	if jm.store != nil {
+		if err := jm.store.DeleteJob(jobID); err != nil {
+			Logger.Warn("failed to delete job from database", "id", jobID, "error", err)
+		}
+	}
+
 	// Emit removed event
 	jm.emitEvent(Event{
-		Type:     EventTypeJobRemoved,
-		JobID:    jobID,
-		Job:      jobResp,
-		JobCount: len(jm.jobs),
+		Type:            EventTypeJobRemoved,
+		JobID:           jobID,
+		Job:             jobResp,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
 	return nil
@@ -805,12 +920,20 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 		delete(jm.jobs, job.ID)
 		cleaned++
 
+		// Delete from database (cascades to runs)
+		if jm.store != nil {
+			if err := jm.store.DeleteJob(job.ID); err != nil {
+				Logger.Warn("failed to delete job from database", "id", job.ID, "error", err)
+			}
+		}
+
 		// Emit removed event
 		jm.emitEvent(Event{
-			Type:     EventTypeJobRemoved,
-			JobID:    job.ID,
-			Job:      jobResp,
-			JobCount: len(jm.jobs),
+			Type:            EventTypeJobRemoved,
+			JobID:           job.ID,
+			Job:             jobResp,
+			JobCount:        len(jm.jobs),
+			RunningJobCount: jm.countRunningJobsLocked(),
 		})
 	}
 

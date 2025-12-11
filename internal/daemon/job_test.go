@@ -89,7 +89,7 @@ func TestJobManager_AddJob(t *testing.T) {
 	var events []Event
 	onEvent := func(e Event) { events = append(events, e) }
 
-	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
 	job, err := jm.AddJob([]string{"echo", "hello"}, "/workdir")
 	if err != nil {
@@ -148,7 +148,7 @@ func TestJobManager_AddJob(t *testing.T) {
 func TestJobManager_AddJob_SameCommand_CreatesNewRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add first job
 	job1, err := jm.AddJob([]string{"echo", "hello"}, "/workdir")
@@ -180,7 +180,7 @@ func TestJobManager_AddJob_SameCommand_CreatesNewRun(t *testing.T) {
 func TestJobManager_AddJob_SameCommand_ErrorIfRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add first job
 	_, err := jm.AddJob([]string{"echo", "hello"}, "/workdir")
@@ -198,7 +198,7 @@ func TestJobManager_AddJob_SameCommand_ErrorIfRunning(t *testing.T) {
 func TestJobManager_AddJob_DifferentWorkdir_CreatesSeparateJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job1, _ := jm.AddJob([]string{"echo"}, "/workdir1")
 	job2, _ := jm.AddJob([]string{"echo"}, "/workdir2")
@@ -211,7 +211,7 @@ func TestJobManager_AddJob_DifferentWorkdir_CreatesSeparateJob(t *testing.T) {
 func TestJobManager_AddJob_EmptyCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	_, err := jm.AddJob([]string{}, "/workdir")
 	if err == nil {
@@ -224,7 +224,7 @@ func TestJobManager_AddJob_ExecutorError(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	executor.SetStartError(fmt.Errorf("process start failed"))
 
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	_, err := jm.AddJob([]string{"echo"}, "/workdir")
 	if err == nil {
@@ -235,7 +235,7 @@ func TestJobManager_AddJob_ExecutorError(t *testing.T) {
 func TestJobManager_GetJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -258,7 +258,7 @@ func TestJobManager_GetJob(t *testing.T) {
 func TestJobManager_ListJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Empty list
 	jobs := jm.ListJobs("")
@@ -294,7 +294,7 @@ func TestJobManager_ListJobs(t *testing.T) {
 func TestJobManager_FindJobByCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo", "hello"}, "/workdir")
 
@@ -327,7 +327,7 @@ func TestJobManager_RemoveJob(t *testing.T) {
 	var events []Event
 	onEvent := func(e Event) { events = append(events, e) }
 
-	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -360,7 +360,7 @@ func TestJobManager_RemoveJob(t *testing.T) {
 func TestJobManager_RemoveJob_RunningFails(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -378,7 +378,7 @@ func TestJobManager_StartJob(t *testing.T) {
 	var events []Event
 	onEvent := func(e Event) { events = append(events, e) }
 
-	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -425,7 +425,7 @@ func TestJobManager_StartJob(t *testing.T) {
 func TestJobManager_StartJob_AlreadyRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -439,7 +439,7 @@ func TestJobManager_StartJob_AlreadyRunning(t *testing.T) {
 func TestJobManager_Nuke(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Create some jobs
 	job1, _ := jm.AddJob([]string{"cmd1"}, "/workdir")
@@ -482,7 +482,7 @@ func TestJobManager_Nuke(t *testing.T) {
 func TestJobManager_Signal(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
@@ -500,7 +500,7 @@ func TestJobManager_Signal(t *testing.T) {
 func TestJobManager_Signal_NonexistentJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	err := jm.Signal("nonexistent", 15)
 	if err == nil {
@@ -511,7 +511,7 @@ func TestJobManager_Signal_NonexistentJob(t *testing.T) {
 func TestJobManager_Signal_StoppedJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor)
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	job, _ := jm.AddJob([]string{"echo"}, "/workdir")
 
