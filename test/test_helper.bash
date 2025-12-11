@@ -55,7 +55,7 @@ setup() {
 }
 
 teardown() {
-  # Cleanup: nuke stops jobs and shuts down daemon, kill_daemon handles any orphaned daemon
-  "$JOB_CLI" nuke >/dev/null 2>&1 || true
+  # Cleanup: shutdown stops jobs and shuts down daemon, kill_daemon handles any orphaned daemon
+  "$JOB_CLI" shutdown >/dev/null 2>&1 || true
   kill_daemon
 }

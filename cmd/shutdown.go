@@ -7,39 +7,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var nukeCmd = &cobra.Command{
-	Use:   "nuke",
-	Short: "Stop all jobs, remove all data, and shutdown daemon",
-	Long: `Stop all running jobs, remove all job data, and shutdown the daemon.
-
-⚠️  DESTRUCTIVE COMMAND - complete reset of gob.
+var shutdownCmd = &cobra.Command{
+	Use:   "shutdown",
+	Short: "Stop all running jobs and shutdown daemon",
+	Long: `Stop all running jobs and shutdown the daemon.
 
 Workflow:
   1. Sends SIGTERM to all running jobs
-  2. Removes all log files (stdout and stderr)
-  3. Removes all jobs (both running and stopped)
-  4. Shuts down the daemon
+  2. Waits for graceful termination (SIGKILL after timeout)
+  3. Shuts down the daemon
 
 Example:
-  gob nuke
+  gob shutdown
 
 Output:
   Stopped <n> running job(s)
-  Deleted <m> log file(s)
-  Cleaned up <k> total job(s)
   Daemon shut down
 
 Notes:
-  - Uses SIGTERM (graceful) not SIGKILL
-  - Affects ALL jobs from ALL directories
-  - Cannot be undone - all job data will be lost
+  - Uses SIGTERM (graceful) not SIGKILL initially
+  - Job history is preserved (jobs are not removed)
   - Daemon will restart automatically on next gob command
 
 Exit codes:
-  0: Nuke completed successfully
+  0: Shutdown completed successfully
   1: Error (failed to stop jobs, failed to shutdown)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Connect to daemon (skip version check - nuke must always work)
+		// Connect to daemon (skip version check - shutdown must always work)
 		client, err := daemon.NewClient()
 		if err != nil {
 			return fmt.Errorf("failed to create client: %w", err)
@@ -50,16 +44,14 @@ Exit codes:
 			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
-		// Nuke all jobs (empty workdir = no filter)
-		stopped, logsDeleted, cleaned, err := client.Nuke("")
+		// Stop all running jobs
+		stopped, err := client.StopAll()
 		if err != nil {
-			return fmt.Errorf("failed to nuke: %w", err)
+			return fmt.Errorf("failed to stop jobs: %w", err)
 		}
 
 		// Print summary
 		fmt.Printf("Stopped %d running job(s)\n", stopped)
-		fmt.Printf("Deleted %d log file(s)\n", logsDeleted)
-		fmt.Printf("Cleaned up %d total job(s)\n", cleaned)
 
 		// Shutdown daemon
 		if err := client.Shutdown(); err != nil {
@@ -72,5 +64,5 @@ Exit codes:
 }
 
 func init() {
-	RootCmd.AddCommand(nukeCmd)
+	RootCmd.AddCommand(shutdownCmd)
 }

@@ -456,7 +456,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `restart <id>` | Stop + start job |
 | `signal <id> <sig>` | Send signal (HUP, USR1, etc.) |
 | `remove <id>` | Remove stopped job |
-| `nuke` | Stop all, remove all, shutdown daemon |
+| `shutdown` | Stop all running jobs, shutdown daemon |
 | `tui` | Launch interactive TUI |
 | `mcp` | Start MCP server for AI agents |
 

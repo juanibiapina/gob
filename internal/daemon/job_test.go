@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -436,7 +435,7 @@ func TestJobManager_StartJob_AlreadyRunning(t *testing.T) {
 	}
 }
 
-func TestJobManager_Nuke(t *testing.T) {
+func TestJobManager_StopAll(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
@@ -446,36 +445,29 @@ func TestJobManager_Nuke(t *testing.T) {
 	time.Sleep(2 * time.Millisecond) // Ensure unique job IDs
 	job2, _ := jm.AddJob([]string{"cmd2"}, "/workdir")
 
-	// Get runs to create fake log files
-	run1 := jm.GetCurrentRun(job1.ID)
-	run2 := jm.GetCurrentRun(job2.ID)
+	// Verify jobs are running
+	if job1.CurrentRunID == nil {
+		t.Error("expected job1 to have a current run")
+	}
+	if job2.CurrentRunID == nil {
+		t.Error("expected job2 to have a current run")
+	}
 
-	// Create fake log files
-	os.WriteFile(run1.StdoutPath, []byte("log1"), 0644)
-	os.WriteFile(run1.StderrPath, []byte("log1"), 0644)
-	os.WriteFile(run2.StdoutPath, []byte("log2"), 0644)
-	os.WriteFile(run2.StderrPath, []byte("log2"), 0644)
+	// Stop all jobs
+	stopped := jm.StopAll()
 
-	// Stop fake processes to prevent blocking
-	executor.StopAll()
+	// Jobs were running, so we expect 2 stopped
+	if stopped != 2 {
+		t.Errorf("expected 2 stopped, got %d", stopped)
+	}
+
+	// Wait for processes to stop
 	time.Sleep(10 * time.Millisecond)
 
-	stopped, logsDeleted, cleaned := jm.Nuke("")
-
-	if stopped != 0 { // Already stopped
-		t.Errorf("expected 0 stopped (already stopped), got %d", stopped)
-	}
-	if logsDeleted != 4 {
-		t.Errorf("expected 4 logs deleted, got %d", logsDeleted)
-	}
-	if cleaned != 2 {
-		t.Errorf("expected 2 cleaned, got %d", cleaned)
-	}
-
-	// Verify no jobs remain
+	// Verify jobs still exist (StopAll doesn't remove jobs)
 	jobs := jm.ListJobs("")
-	if len(jobs) != 0 {
-		t.Error("expected no jobs after nuke")
+	if len(jobs) != 2 {
+		t.Errorf("expected 2 jobs to remain after StopAll, got %d", len(jobs))
 	}
 }
 

@@ -44,7 +44,7 @@ func (c *Client) Connect() error {
 	return c.connect(false)
 }
 
-// ConnectSkipVersionCheck connects without checking daemon version (used by nuke)
+// ConnectSkipVersionCheck connects without checking daemon version (used by shutdown)
 func (c *Client) ConnectSkipVersionCheck() error {
 	return c.connect(true)
 }
@@ -326,26 +326,21 @@ func (c *Client) Remove(jobID string) (int, error) {
 	return int(pid), nil
 }
 
-// Nuke stops all jobs and removes all data
-func (c *Client) Nuke(workdir string) (stopped, logsDeleted, cleaned int, err error) {
-	req := NewRequest(RequestTypeNuke)
-	if workdir != "" {
-		req.Payload["workdir"] = workdir
-	}
+// StopAll stops all running jobs
+func (c *Client) StopAll() (stopped int, err error) {
+	req := NewRequest(RequestTypeStopAll)
 
 	resp, err := c.SendRequest(req)
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, err
 	}
 
 	if !resp.Success {
-		return 0, 0, 0, fmt.Errorf("nuke failed: %s", resp.Error)
+		return 0, fmt.Errorf("stop_all failed: %s", resp.Error)
 	}
 
 	stoppedF, _ := resp.Data["stopped"].(float64)
-	logsDeletedF, _ := resp.Data["logs_deleted"].(float64)
-	cleanedF, _ := resp.Data["cleaned"].(float64)
-	return int(stoppedF), int(logsDeletedF), int(cleanedF), nil
+	return int(stoppedF), nil
 }
 
 // Signal sends a signal to a job
@@ -519,7 +514,7 @@ func (c *Client) CheckDaemonVersion() error {
 		return c.restartDaemon(fmt.Sprintf("version mismatch: daemon=%s, client=%s", info.Version, version.Version))
 	}
 
-	return fmt.Errorf("daemon version mismatch (daemon=%s, client=%s) but has %d running job(s); run 'gob nuke' to stop all jobs and restart daemon",
+	return fmt.Errorf("daemon version mismatch (daemon=%s, client=%s) but has %d running job(s); run 'gob shutdown' to stop all jobs and restart daemon",
 		info.Version, version.Version, info.RunningJobs)
 }
 
@@ -546,7 +541,7 @@ func (c *Client) handleOldDaemon() error {
 	}
 
 	// Has running jobs - return error with guidance
-	return fmt.Errorf("daemon version outdated but has %d running job(s); run 'gob nuke' to stop all jobs and restart daemon", runningCount)
+	return fmt.Errorf("daemon version outdated but has %d running job(s); run 'gob shutdown' to stop all jobs and restart daemon", runningCount)
 }
 
 // restartDaemon shuts down the current daemon and starts a new one

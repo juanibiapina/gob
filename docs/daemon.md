@@ -77,7 +77,7 @@ The daemon writes job output to log files, and clients tail those files directly
 3. Clients request job metadata (includes log paths)
 4. Clients tail log files directly
 
-Log files are removed when the job is removed (`gob remove` or `gob nuke`).
+Log files are removed when the job is removed (`gob remove`).
 
 ## State Management
 
@@ -120,13 +120,13 @@ This allows the daemon to conserve resources while preserving job history.
 
 ### Graceful Shutdown
 
-`gob nuke` performs a clean shutdown:
+`gob shutdown` performs a clean shutdown:
 
 1. Stops all running jobs (SIGTERM, then SIGKILL after timeout)
-2. Removes all log files
-3. Removes all jobs from database
-4. Sets `shutdown_clean = true` in database
-5. Shuts down the daemon
+2. Sets `shutdown_clean = true` in database
+3. Shuts down the daemon
+
+Job history and log files are preserved.
 
 The daemon also shuts down gracefully when it receives SIGTERM or SIGINT:
 

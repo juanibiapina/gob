@@ -203,7 +203,7 @@ func (d *Daemon) Shutdown() error {
 	d.subscribersMu.Unlock()
 
 	// Stop all managed jobs first
-	stopped, _, _ := d.jobManager.Nuke("")
+	stopped := d.jobManager.StopAll()
 	if stopped > 0 {
 		Logger.Info("stopped running jobs", "count", stopped)
 	}
@@ -348,8 +348,8 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleRestart(req)
 	case RequestTypeRemove:
 		return d.handleRemove(req)
-	case RequestTypeNuke:
-		return d.handleNuke(req)
+	case RequestTypeStopAll:
+		return d.handleStopAll(req)
 	case RequestTypeSignal:
 		return d.handleSignal(req)
 	case RequestTypeGetJob:
@@ -536,15 +536,12 @@ func (d *Daemon) handleRemove(req *Request) *Response {
 	return resp
 }
 
-// handleNuke handles a nuke request
-func (d *Daemon) handleNuke(req *Request) *Response {
-	workdir, _ := req.Payload["workdir"].(string)
-	stopped, logsDeleted, cleaned := d.jobManager.Nuke(workdir)
+// handleStopAll handles a stop_all request
+func (d *Daemon) handleStopAll(req *Request) *Response {
+	stopped := d.jobManager.StopAll()
 
 	resp := NewSuccessResponse()
 	resp.Data["stopped"] = stopped
-	resp.Data["logs_deleted"] = logsDeleted
-	resp.Data["cleaned"] = cleaned
 	return resp
 }
 

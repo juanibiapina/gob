@@ -38,8 +38,8 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
   - Select historical runs to view their logs
 - Version negotiation: daemon auto-restarts when CLI version changes
   - If no running jobs, restart happens automatically
-  - If jobs are running, commands are blocked with guidance to run `gob nuke`
-  - `nuke` command always works (bypasses version check)
+  - If jobs are running, commands are blocked with guidance to run `gob shutdown`
+  - `shutdown` command always works (bypasses version check)
 
 ### Changed
 
@@ -51,18 +51,20 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
 - `add` no longer requires `--` separator for commands with flags
 - `add` supports quoted command strings (e.g., `gob add "make test"`)
 - `signal` requires job to be running (returns error for stopped jobs)
-- `nuke` always operates on all jobs (removed `--all` flag)
+- **`nuke` renamed to `shutdown`**: Now only stops running jobs and shuts down daemon (no longer removes jobs or logs)
+- `shutdown` always operates on all jobs (removed `--all` flag)
 - Removed `-f/--follow` flag from `add` (use `gob add` + `gob await`)
 
 ### Removed
 
-- `cleanup` command - use `gob remove <id>` or `gob nuke`
+- `cleanup` command - use `gob remove <id>` to remove individual jobs
+- `nuke` command - replaced by `shutdown` (which preserves job history)
 - `run` command - use `gob add` + `gob await`
-- `gob_cleanup` and `gob_nuke` MCP tools
+- `gob_cleanup` MCP tool
 
 ### Fixed
 
-- `nuke` now properly shuts down the daemon after removing all jobs
+- `shutdown` (formerly `nuke`) now properly shuts down the daemon after stopping all jobs
 
 ## [1.2.3] - 2025-12-09
 

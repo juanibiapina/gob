@@ -26,7 +26,7 @@ Output:
 Notes:
   - Only works on stopped jobs (use 'gob stop' first if needed)
   - Removes the job and all its run history (stats, logs)
-  - Use 'gob nuke' to remove all jobs and shutdown the daemon
+  - Use 'gob shutdown' to stop all jobs and shutdown the daemon
 
 Exit codes:
   0: Job removed successfully

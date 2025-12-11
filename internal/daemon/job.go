@@ -842,19 +842,14 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 	return nil
 }
 
-// Nuke stops all jobs and removes all data
-func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned int) {
+// StopAll stops all running jobs
+func (jm *JobManager) StopAll() (stopped int) {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
-	// Collect jobs to nuke
-	var jobsToNuke []*Job
+	// Collect running jobs
 	var runningRuns []*Run
 	for _, job := range jm.jobs {
-		if workdirFilter != "" && job.Workdir != workdirFilter {
-			continue
-		}
-		jobsToNuke = append(jobsToNuke, job)
 		if job.CurrentRunID != nil {
 			if run, ok := jm.runs[*job.CurrentRunID]; ok {
 				runningRuns = append(runningRuns, run)
@@ -895,49 +890,7 @@ func (jm *JobManager) Nuke(workdirFilter string) (stopped, logsDeleted, cleaned 
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	stopped = len(runningRuns)
-
-	// Delete log files and remove runs for nuked jobs
-	for _, job := range jobsToNuke {
-		for runID, run := range jm.runs {
-			if run.JobID == job.ID {
-				if err := os.Remove(run.StdoutPath); err == nil {
-					logsDeleted++
-				}
-				if err := os.Remove(run.StderrPath); err == nil {
-					logsDeleted++
-				}
-				delete(jm.runs, runID)
-			}
-		}
-
-		// Remove job from index
-		indexKey := makeJobIndexKey(job.CommandSignature, job.Workdir)
-		delete(jm.jobIndex, indexKey)
-
-		// Capture job info for event
-		jobResp := jm.jobToResponse(job)
-		delete(jm.jobs, job.ID)
-		cleaned++
-
-		// Delete from database (cascades to runs)
-		if jm.store != nil {
-			if err := jm.store.DeleteJob(job.ID); err != nil {
-				Logger.Warn("failed to delete job from database", "id", job.ID, "error", err)
-			}
-		}
-
-		// Emit removed event
-		jm.emitEvent(Event{
-			Type:            EventTypeJobRemoved,
-			JobID:           job.ID,
-			Job:             jobResp,
-			JobCount:        len(jm.jobs),
-			RunningJobCount: jm.countRunningJobsLocked(),
-		})
-	}
-
-	return stopped, logsDeleted, cleaned
+	return len(runningRuns)
 }
 
 // Signal sends a signal to a running job
