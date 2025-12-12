@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 	"time"
 )
 
-// StartDaemon starts the daemon process as a detached background process.
-// It uses exec.Command with Setsid to create a new session, ensuring the
-// daemon survives after the parent exits.
+// StartDaemon starts the daemon process as a fully detached background process.
+// The daemon command uses go-daemon internally to properly daemonize with PPID=1.
 func StartDaemon() error {
 	// Get path to current executable
 	exe, err := os.Executable()
@@ -18,21 +16,15 @@ func StartDaemon() error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	// Start daemon as detached process
+	// Start daemon - it will daemonize itself using go-daemon
 	cmd := exec.Command(exe, "daemon")
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true,
-	}
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to start daemon: %w", err)
 	}
-
-	// Don't wait for the process
-	go cmd.Wait()
 
 	// Wait for socket to appear
 	socketPath, err := GetSocketPath()

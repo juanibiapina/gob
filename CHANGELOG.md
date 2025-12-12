@@ -65,6 +65,7 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
 ### Fixed
 
 - `shutdown` (formerly `nuke`) now properly shuts down the daemon after stopping all jobs
+- Daemon now properly daemonizes with PPID=1 using go-daemon library (was incorrectly keeping parent PID)
 
 ## [1.2.3] - 2025-12-09
 

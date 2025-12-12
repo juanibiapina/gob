@@ -4,7 +4,7 @@
 
 `gob` uses a daemon-based architecture similar to tmux. The daemon runs in the background and manages all job processes, while CLI commands and the TUI act as clients that communicate with the daemon via a Unix socket.
 
-**Platform Support:** Unix-like systems only (Linux, macOS, BSD). Windows is not supported due to reliance on Unix sockets, signals, process groups, and setsid.
+**Platform Support:** Unix-like systems only (Linux, macOS, BSD). Windows is not supported due to reliance on Unix sockets, signals, and process groups.
 
 ## Components
 
@@ -100,12 +100,13 @@ Jobs are children of the daemon process. If the daemon crashes, the database ret
 When a client command runs:
 
 1. Client attempts to connect to socket
-2. If connection fails, client starts daemon as a detached process (setsid)
-3. Daemon opens database and runs migrations
-4. Daemon performs crash recovery if previous shutdown was unclean
-5. Daemon loads jobs and runs from database
-6. Daemon creates socket and starts listening
-7. Client retries connection
+2. If connection fails, client starts `gob daemon` command
+3. `gob daemon` uses [go-daemon](https://github.com/sevlyar/go-daemon) to properly daemonize (PPID becomes 1)
+4. Daemon opens database and runs migrations
+5. Daemon performs crash recovery if previous shutdown was unclean
+6. Daemon loads jobs and runs from database
+7. Daemon creates socket and starts listening
+8. Client retries connection
 
 ### Idle Shutdown
 
