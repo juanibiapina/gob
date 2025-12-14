@@ -444,7 +444,21 @@ The TUI has four panels:
 
 ### Key Bindings
 
-Press `?` in the TUI to see all keyboard shortcuts.
+| Key | Action |
+|-----|--------|
+| `↑/k`, `↓/j` | Navigate / scroll |
+| `h/l` | Scroll log horizontally (in log panels) |
+| `H/L` | Scroll log horizontally (from jobs/runs panels) |
+| `g/G` | Go to first/last |
+| `f` | Toggle follow mode |
+| `w` | Toggle line wrap |
+| `s/S` | Stop / kill job |
+| `r` | Restart job |
+| `d` | Delete stopped job |
+| `n` | New job |
+| `1/2/3/4` | Switch to panel |
+| `?` | Show all shortcuts |
+| `q` | Quit |
 
 ## CLI Reference
 

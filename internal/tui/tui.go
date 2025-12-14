@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/juanibiapina/gob/internal/telemetry"
 )
@@ -136,6 +137,8 @@ type Model struct {
 
 	// Log viewer state
 	followLogs    bool
+	wrapLines     bool
+	logPanelWidth int
 	stdoutContent string
 	stderrContent string
 
@@ -385,9 +388,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		stdoutHeight := totalLogHeight - stderrHeight
 
+		// Store log panel width for line wrapping
+		m.logPanelWidth = logWidth - 4
+
 		m.stdoutView = viewport.New(logWidth-4, stdoutHeight-3)
 		m.stderrView = viewport.New(logWidth-4, stderrHeight-3)
 		m.jobListView = viewport.New(m.jobPanelWidth()-4, totalLogHeight-3)
+
+		// Enable horizontal scrolling on log viewports
+		m.stdoutView.SetHorizontalStep(4)
+		m.stderrView.SetHorizontalStep(4)
 
 	case logTickMsg:
 		// Update logs only - job status is handled by events
@@ -833,6 +843,14 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.followLogs = true
 		}
 
+	case "H":
+		m.stdoutView.ScrollLeft(4)
+		m.stderrView.ScrollLeft(4)
+
+	case "L":
+		m.stdoutView.ScrollRight(4)
+		m.stderrView.ScrollRight(4)
+
 	case "f":
 		m.followLogs = !m.followLogs
 		telemetry.TUIActionExecute("toggle_follow")
@@ -840,6 +858,14 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
 		}
+
+	case "w":
+		m.wrapLines = !m.wrapLines
+		telemetry.TUIActionExecute("toggle_wrap")
+		m.stdoutView.SetContent(m.formatStdout())
+		m.stderrView.SetContent(m.formatStderr())
+		m.stdoutView.SetXOffset(0)
+		m.stderrView.SetXOffset(0)
 	}
 
 	return m, nil
@@ -890,6 +916,22 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
 		}
+
+	case "H":
+		m.stdoutView.ScrollLeft(4)
+		m.stderrView.ScrollLeft(4)
+
+	case "L":
+		m.stdoutView.ScrollRight(4)
+		m.stderrView.ScrollRight(4)
+
+	case "w":
+		m.wrapLines = !m.wrapLines
+		telemetry.TUIActionExecute("toggle_wrap")
+		m.stdoutView.SetContent(m.formatStdout())
+		m.stderrView.SetContent(m.formatStderr())
+		m.stdoutView.SetXOffset(0)
+		m.stderrView.SetXOffset(0)
 	}
 
 	return m, nil
@@ -912,6 +954,12 @@ func (m Model) updateLogsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if activeView.AtBottom() {
 			m.followLogs = true
 		}
+
+	case "left", "h":
+		activeView.ScrollLeft(4)
+
+	case "right", "l":
+		activeView.ScrollRight(4)
 
 	case "pgup", "ctrl+u":
 		activeView.HalfViewUp()
@@ -938,6 +986,16 @@ func (m Model) updateLogsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
 		}
+
+	case "w":
+		m.wrapLines = !m.wrapLines
+		telemetry.TUIActionExecute("toggle_wrap")
+		// Re-apply content with new wrap setting
+		m.stdoutView.SetContent(m.formatStdout())
+		m.stderrView.SetContent(m.formatStderr())
+		// Reset horizontal scroll when toggling wrap
+		m.stdoutView.SetXOffset(0)
+		m.stderrView.SetXOffset(0)
 	}
 
 	var cmd tea.Cmd
@@ -1050,8 +1108,16 @@ func (m Model) formatStdout() string {
 		return mutedStyle.Render("(no output yet)")
 	}
 
+	// Strip cursor movement sequences that break TUI rendering
+	content := StripCursorSequences(m.stdoutContent)
+
+	// Apply line wrapping if enabled
+	if m.wrapLines && m.logPanelWidth > 0 {
+		content = ansi.Wrap(content, m.logPanelWidth, " ")
+	}
+
 	var result strings.Builder
-	lines := strings.Split(m.stdoutContent, "\n")
+	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		if line != "" {
 			result.WriteString(line + "\n")
@@ -1069,9 +1135,17 @@ func (m Model) formatStderr() string {
 		return mutedStyle.Render("(no errors)")
 	}
 
+	// Strip cursor movement sequences that break TUI rendering
+	content := StripCursorSequences(m.stderrContent)
+
+	// Apply line wrapping if enabled
+	if m.wrapLines && m.logPanelWidth > 0 {
+		content = ansi.Wrap(content, m.logPanelWidth, " ")
+	}
+
 	var result strings.Builder
 	stderrStyle := lipgloss.NewStyle().Foreground(warningColor)
-	lines := strings.Split(m.stderrContent, "\n")
+	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		if line != "" {
 			result.WriteString(stderrStyle.Render(line) + "\n")
@@ -1258,9 +1332,17 @@ func (m Model) renderPanels() string {
 			stdoutTitle += " [following]"
 			stderrTitle += " [following]"
 		}
+		if m.wrapLines {
+			stdoutTitle += " [wrap]"
+			stderrTitle += " [wrap]"
+		}
 	} else {
 		stdoutTitle = "3 stdout"
 		stderrTitle = "4 stderr"
+		if m.wrapLines {
+			stdoutTitle += " [wrap]"
+			stderrTitle += " [wrap]"
+		}
 	}
 
 	// Stdout panel
@@ -1416,7 +1498,7 @@ func (m Model) renderPanel(title, content string, width, height int, active bool
 	contentWidth := width - 4 // 2 for borders, 2 for padding
 	contentHeight := height - 2
 
-	// Split content into lines and pad/truncate
+	// Split content into lines and ensure exact width using ANSI-aware functions
 	contentLines := strings.Split(content, "\n")
 	var paddedLines []string
 	for i := 0; i < contentHeight; i++ {
@@ -1424,20 +1506,8 @@ func (m Model) renderPanel(title, content string, width, height int, active bool
 		if i < len(contentLines) {
 			line = contentLines[i]
 		}
-		// Truncate if too long (accounting for ANSI codes is tricky, so we use lipgloss)
-		lineWidth := lipgloss.Width(line)
-		if lineWidth > contentWidth {
-			// Simple truncation - may cut ANSI codes but better than overflow
-			runes := []rune(line)
-			if len(runes) > contentWidth {
-				line = string(runes[:contentWidth-1]) + "…"
-			}
-		}
-		// Pad to full width
-		padding := contentWidth - lipgloss.Width(line)
-		if padding > 0 {
-			line = line + strings.Repeat(" ", padding)
-		}
+		// Ensure line is exactly contentWidth using ANSI-aware truncation/padding
+		line = FitToWidth(line, contentWidth)
 		paddedLines = append(paddedLines, vBorder+" "+line+" "+vBorder)
 	}
 
@@ -1614,28 +1684,35 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("d", "delete"),
 				m.renderKey("c", "copy"),
 				m.renderKey("n", "new"),
+				m.renderKey("H/L", "scroll log"),
+				m.renderKey("w", "wrap"),
 				m.renderKey("a", "all dirs"),
-				m.renderKey("1/2/3/4", "panels"),
 			)
 		case panelRuns:
 			parts = append(parts,
 				m.renderKey("↑↓", "select run"),
 				m.renderKey("g/G", "first/last"),
+				m.renderKey("H/L", "scroll log"),
 				m.renderKey("f", "follow"),
+				m.renderKey("w", "wrap"),
 				m.renderKey("1/2/3/4", "panels"),
 			)
 		case panelStdout:
 			parts = append(parts,
 				m.renderKey("↑↓", "scroll"),
+				m.renderKey("h/l", "left/right"),
 				m.renderKey("g/G", "top/bottom"),
 				m.renderKey("f", "follow"),
+				m.renderKey("w", "wrap"),
 				m.renderKey("1/2/3/4", "panels"),
 			)
 		case panelStderr:
 			parts = append(parts,
 				m.renderKey("↑↓", "scroll"),
+				m.renderKey("h/l", "left/right"),
 				m.renderKey("g/G", "top/bottom"),
 				m.renderKey("f", "follow"),
+				m.renderKey("w", "wrap"),
 				m.renderKey("1/2/3/4", "panels"),
 			)
 		}
@@ -1700,10 +1777,13 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("n", "new job"),
 		"",
 		helpKeyStyle.Render("Log Viewer"),
-		"  " + m.renderKey("↑/k ↓/j", "scroll"),
+		"  " + m.renderKey("↑/k ↓/j", "scroll vertical"),
+		"  " + m.renderKey("h/l", "scroll horizontal"),
+		"  " + m.renderKey("H/L", "scroll log (from jobs)"),
 		"  " + m.renderKey("pgup/pgdn", "page scroll"),
 		"  " + m.renderKey("g/G", "top/bottom"),
 		"  " + m.renderKey("f", "toggle follow"),
+		"  " + m.renderKey("w", "toggle wrap"),
 		"",
 		helpKeyStyle.Render("Other"),
 		"  " + m.renderKey("a", "toggle all dirs"),

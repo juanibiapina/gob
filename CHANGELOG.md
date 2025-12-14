@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Combines `add` + `await` for convenience
   - Shows stats from previous runs, streams output, exits with job's exit code
 - `gob_run` MCP tool - Same functionality for AI agents
+- **TUI horizontal scrolling**: Navigate long log lines with `h`/`l` keys in log panels, or `H`/`L` from jobs/runs panels
+- **TUI line wrap toggle**: Press `w` to toggle between truncated and wrapped log display
+
+### Fixed
+
+- **TUI rendering corruption**: Log output containing cursor movement sequences (from progress bars, spinners) no longer breaks the TUI display
 
 ## [2.0.1] - 2025-12-14
 
