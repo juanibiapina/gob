@@ -168,8 +168,8 @@ load 'test_helper'
 }
 
 @test "add command shows stats for job with previous runs" {
-  # Add a quick job (true exits immediately with success)
-  run "$JOB_CLI" add true
+  # Add a quick job (use sleep 0.01 instead of true to avoid timing issues in CI)
+  run "$JOB_CLI" add sleep 0.01
   assert_success
   local job_id=$(get_job_field id)
 
@@ -180,7 +180,7 @@ load 'test_helper'
   "$JOB_CLI" await "$job_id"
 
   # Add same command again - should show stats from previous run
-  run "$JOB_CLI" add true
+  run "$JOB_CLI" add sleep 0.01
   assert_success
 
   # Should show stats

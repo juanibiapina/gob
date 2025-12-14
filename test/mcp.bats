@@ -298,8 +298,8 @@ load 'test_helper.bash'
 }
 
 @test "mcp gob_run tool returns stats for job with previous runs" {
-    # Run a command first time
-    run "$JOB_CLI" run true
+    # Run a command first time (use sleep 0.01 instead of true to avoid timing issues)
+    run "$JOB_CLI" run sleep 0.01
     assert_success
     
     # Create a coprocess for the MCP server
@@ -313,7 +313,7 @@ load 'test_helper.bash'
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
     # Call gob_run tool for the same command - should include stats
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_run","arguments":{"command":["true"]}}}' >&${MCP[1]}
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_run","arguments":{"command":["sleep","0.01"]}}}' >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
@@ -326,8 +326,8 @@ load 'test_helper.bash'
 }
 
 @test "mcp gob_add tool returns stats for job with previous runs" {
-    # Create a job that completes quickly
-    run "$JOB_CLI" add -- true
+    # Create a job that completes quickly (use sleep 0.01 instead of true to avoid timing issues)
+    run "$JOB_CLI" add -- sleep 0.01
     assert_success
     job_id=$(echo "$output" | head -1 | awk '{print $3}')
     
@@ -345,7 +345,7 @@ load 'test_helper.bash'
     echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
     
     # Call gob_add tool for the same command - should include stats
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_add","arguments":{"command":["true"]}}}' >&${MCP[1]}
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_add","arguments":{"command":["sleep","0.01"]}}}' >&${MCP[1]}
     read -r call_response <&${MCP[0]}
     
     # Close the server
