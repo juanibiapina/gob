@@ -14,6 +14,7 @@ Every time a job runs, the client captures its current environment (`os.Environ(
 
 | Command | Environment Used |
 |---------|------------------|
+| `gob run` | Current client environment |
 | `gob add` | Current client environment |
 | `gob start` | Current client environment |
 | `gob restart` | Current client environment |
@@ -33,7 +34,8 @@ The spawned process receives **only** the environment passed by the client. It d
 ```bash
 # Job runs with FOO=bar
 export FOO=bar
-gob add ./my-script
+gob run ./my-script   # Runs with FOO=bar
+gob add ./my-script   # Starts with FOO=bar
 
 # Later, change the environment
 export FOO=baz

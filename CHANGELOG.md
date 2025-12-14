@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `run` command - Add a job and wait for completion in one command
+  - Combines `add` + `await` for convenience
+  - Shows stats from previous runs, streams output, exits with job's exit code
+- `gob_run` MCP tool - Same functionality for AI agents
+
 ## [2.0.1] - 2025-12-14
 
 ### Added

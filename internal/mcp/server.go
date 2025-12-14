@@ -65,6 +65,7 @@ func (s *Server) registerTools() {
 	s.registerJobAwaitAny()
 	s.registerJobAwaitAll()
 	s.registerJobRestart()
+	s.registerJobRun()
 	s.registerJobSignal()
 	s.registerJobStdout()
 	s.registerJobStderr()
@@ -675,6 +676,120 @@ func (s *Server) registerJobRestart() {
 			"status": job.Status,
 			"pid":    job.PID,
 		})
+	})
+}
+
+// registerJobRun registers the gob_run tool.
+func (s *Server) registerJobRun() {
+	tool := mcp.NewTool("gob_run",
+		mcp.WithDescription("Add a job and wait for it to complete, returning its output"),
+		mcp.WithArray("command",
+			mcp.Required(),
+			mcp.Description("Command and arguments as array (e.g. [\"make\", \"build\"])"),
+		),
+		mcp.WithNumber("timeout",
+			mcp.Description("Timeout in seconds (0 = no timeout, default: 300)"),
+		),
+	)
+
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		command, err := request.RequireStringSlice("command")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		if len(command) == 0 {
+			return mcp.NewToolResultError("command array cannot be empty"), nil
+		}
+
+		timeout := request.GetInt("timeout", 300)
+		if timeout == 0 {
+			timeout = 3600 // Max 1 hour
+		}
+
+		workdir, err := os.Getwd()
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get current directory: %v", err)), nil
+		}
+
+		// Capture current environment
+		env := os.Environ()
+
+		client, err := connectToDaemon()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		defer client.Close()
+
+		// Add the job
+		addResult, err := client.Add(command, workdir, env)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to add job: %v", err)), nil
+		}
+
+		jobID := addResult.Job.ID
+
+		// Build initial response with stats if available
+		response := map[string]any{
+			"job_id": jobID,
+		}
+
+		// Include stats if job has previous runs
+		if addResult.Stats != nil && addResult.Stats.RunCount > 0 {
+			response["previous_runs"] = addResult.Stats.RunCount
+			response["success_rate"] = addResult.Stats.SuccessRate
+			response["expected_duration_ms"] = addResult.Stats.AvgDurationMs
+		}
+
+		// If already stopped (very fast command), return immediately
+		if addResult.Job.Status == "stopped" {
+			stdout, stderr := readJobOutput(&daemon.JobResponse{
+				ID:         addResult.Job.ID,
+				StdoutPath: addResult.Job.StdoutPath,
+			})
+			response["status"] = addResult.Job.Status
+			response["stdout"] = stdout
+			response["stderr"] = stderr
+			if addResult.Job.ExitCode != nil {
+				response["exit_code"] = *addResult.Job.ExitCode
+			}
+			return jsonResult(response)
+		}
+
+		// Subscribe and wait for completion
+		subClient, err := connectToDaemon()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		defer subClient.Close()
+
+		eventCh, errCh := subClient.SubscribeChan("")
+		timeoutCh := time.After(time.Duration(timeout) * time.Second)
+
+		for {
+			select {
+			case <-timeoutCh:
+				return mcp.NewToolResultError("timeout waiting for job to complete"), nil
+
+			case err := <-errCh:
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("subscription error: %v", err)), nil
+				}
+				return mcp.NewToolResultError("subscription closed unexpectedly"), nil
+
+			case event := <-eventCh:
+				if event.Type == daemon.EventTypeJobStopped && event.JobID == jobID {
+					stdout, stderr := readJobOutput(&event.Job)
+					response["status"] = event.Job.Status
+					response["stdout"] = stdout
+					response["stderr"] = stderr
+					if event.Job.ExitCode != nil {
+						response["exit_code"] = *event.Job.ExitCode
+					}
+					return jsonResult(response)
+				}
+			}
+		}
 	})
 }
 

@@ -123,7 +123,10 @@ gob completion powershell | Out-String | Invoke-Expression
 # Usage overview
 gob
 
-# Add a background job
+# Run a command and wait for completion
+gob run make test
+
+# Add a background job (returns immediately)
 gob add -- make test
 gob add -- pnpm --filter web typecheck
 
@@ -157,6 +160,9 @@ Use `gob` to manage background processes.
 
 ### Running Commands
 
+- `gob run <cmd>` - Run command, wait for completion, stream output
+  - Equivalent to `gob add` + `gob await`
+  - Best for: builds, tests, any command where you need the result
 - `gob add <cmd>` - Starts command, returns job ID immediately
   - Supports flags directly: `gob add npm run --flag`
   - Supports quoted strings: `gob add "make test"`
@@ -167,12 +173,13 @@ Use `gob` to manage background processes.
 For commands that must complete before proceeding:
 
 ```
+gob run make build
+```
+
+Or use add + await for more control:
+
+```
 gob add make build
-```
-
-Then immediately:
-
-```
 gob await <job_id>
 ```
 
@@ -220,9 +227,9 @@ Use for: linting + typechecking, running tests across packages, independent buil
 ### Examples
 
 Good:
-  gob add make test
-  gob await <job_id>
-  gob add npm run dev
+  gob run make test         # Run and wait for completion
+  gob add npm run dev       # Start background server
+  gob add make build && gob await <job_id>  # Add + await for more control
 
 Bad:
   make test                 # Missing gob prefix
@@ -236,8 +243,10 @@ Bad:
 
 ```
 <shell_commands>
-ALWAYS use `gob add` to run shell commands through the Bash tool.
+ALWAYS use `gob` to run shell commands through the Bash tool.
 
+- `gob run <cmd>` - Run command, wait for completion, stream output
+  - Best for: builds, tests, any command where you need the result
 - `gob add <cmd>` - Starts command, returns job ID immediately
   - Supports flags directly: `gob add npm run --flag`
   - Supports quoted strings: `gob add "make test"`
@@ -247,10 +256,11 @@ ALWAYS use `gob add` to run shell commands through the Bash tool.
 <sequential_execution>
 For commands that must complete before proceeding:
 
+gob run make build
+
+Or use add + await for more control:
+
 gob add make build
-
-Then immediately:
-
 gob await <job_id>
 
 Use for: builds, installs, any command where you need the result.
@@ -302,9 +312,9 @@ When this happens, IGNORE the shell ID returned by the Bash tool. Instead:
 
 <examples>
 Good:
-  gob add make test
-  gob await V3x
-  gob add npm run dev
+  gob run make test         # Run and wait for completion
+  gob add npm run dev       # Start background server
+  gob await V3x             # Wait for specific job
   gob add timeout 30 make build
 
 Bad:
@@ -324,6 +334,7 @@ gob includes a native MCP (Model Context Protocol) server, allowing AI agents to
 | Tool | Description |
 |------|-------------|
 | `gob_add` | Create a new background job |
+| `gob_run` | Add a job and wait for completion |
 | `gob_list` | List jobs in current directory |
 | `gob_stop` | Stop a running job |
 | `gob_start` | Start a stopped job |
@@ -441,6 +452,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 
 | Command | Description |
 |---------|-------------|
+| `run <cmd>` | Run command and wait for completion (add + await) |
 | `add <cmd>` | Start background job (use `--` before flags: `add -- cmd --flag`) |
 | `await <id>` | Wait for job, stream output, show summary |
 | `await-any` | Wait for any job to complete (`--timeout`) |

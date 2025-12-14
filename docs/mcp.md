@@ -41,6 +41,22 @@ Create a new background job in the current directory.
 {"job_id": "V3x", "status": "running", "pid": 12345}
 ```
 
+#### `gob_run`
+
+Add a job and wait for it to complete, returning its output. Combines `gob_add` + `gob_await` in a single call.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `command` | `array` | Yes | Command and arguments (e.g. `["make", "build"]`) |
+| `timeout` | `integer` | No | Timeout in seconds (default: 300) |
+
+```json
+// Returns
+{"job_id": "V3x", "status": "stopped", "exit_code": 0, "stdout": "...", "stderr": "..."}
+```
+
+If the job has previous runs, the response also includes `previous_runs`, `success_rate`, and `expected_duration_ms`.
+
 ### Job Listing
 
 #### `gob_list`

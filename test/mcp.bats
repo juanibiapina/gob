@@ -271,6 +271,60 @@ load 'test_helper.bash'
     echo "$call_response" | jq -e ".result.content[0].text | fromjson | .status == \"stopped\""
 }
 
+@test "mcp gob_run tool runs command and returns output" {
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call gob_run tool
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_run","arguments":{"command":["sh","-c","echo hello world; echo error >&2"]}}}' >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response contains stdout, stderr, and exit code
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .stdout | contains(\"hello world\")"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .stderr | contains(\"error\")"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .exit_code == 0"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .status == \"stopped\""
+}
+
+@test "mcp gob_run tool returns stats for job with previous runs" {
+    # Run a command first time
+    run "$JOB_CLI" run true
+    assert_success
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call gob_run tool for the same command - should include stats
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gob_run","arguments":{"command":["true"]}}}' >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response contains stats
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .previous_runs == 1"
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .success_rate == 100"
+}
+
 @test "mcp gob_add tool returns stats for job with previous runs" {
     # Create a job that completes quickly
     run "$JOB_CLI" add -- true
