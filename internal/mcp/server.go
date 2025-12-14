@@ -715,6 +715,16 @@ func (s *Server) registerJobRun() {
 		// Capture current environment
 		env := os.Environ()
 
+		// Set up subscription BEFORE adding the job to avoid race conditions
+		// with very fast commands that complete before subscription is ready
+		subClient, err := connectToDaemon()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		defer subClient.Close()
+
+		eventCh, errCh := subClient.SubscribeChan("")
+
 		client, err := connectToDaemon()
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
@@ -756,14 +766,6 @@ func (s *Server) registerJobRun() {
 			return jsonResult(response)
 		}
 
-		// Subscribe and wait for completion
-		subClient, err := connectToDaemon()
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		defer subClient.Close()
-
-		eventCh, errCh := subClient.SubscribeChan("")
 		timeoutCh := time.After(time.Duration(timeout) * time.Second)
 
 		for {
