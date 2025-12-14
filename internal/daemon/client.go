@@ -173,11 +173,12 @@ func (c *Client) List(workdir string) ([]JobResponse, error) {
 	return jobs, nil
 }
 
-// Add creates and starts a new job
-func (c *Client) Add(command []string, workdir string) (*AddResponse, error) {
+// Add creates and starts a new job with the given environment
+func (c *Client) Add(command []string, workdir string, env []string) (*AddResponse, error) {
 	req := NewRequest(RequestTypeAdd)
 	req.Payload["command"] = command
 	req.Payload["workdir"] = workdir
+	req.Payload["env"] = env
 
 	resp, err := c.SendRequest(req)
 	if err != nil {
@@ -242,10 +243,11 @@ func (c *Client) Stop(jobID string, force bool) (int, error) {
 	return int(pid), nil
 }
 
-// Start starts a stopped job
-func (c *Client) Start(jobID string) (*JobResponse, error) {
+// Start starts a stopped job with the given environment
+func (c *Client) Start(jobID string, env []string) (*JobResponse, error) {
 	req := NewRequest(RequestTypeStart)
 	req.Payload["job_id"] = jobID
+	req.Payload["env"] = env
 
 	resp, err := c.SendRequest(req)
 	if err != nil {
@@ -275,10 +277,11 @@ func (c *Client) Start(jobID string) (*JobResponse, error) {
 	return &job, nil
 }
 
-// Restart restarts a job
-func (c *Client) Restart(jobID string) (*JobResponse, error) {
+// Restart restarts a job with the given environment
+func (c *Client) Restart(jobID string, env []string) (*JobResponse, error) {
 	req := NewRequest(RequestTypeRestart)
 	req.Payload["job_id"] = jobID
+	req.Payload["env"] = env
 
 	resp, err := c.SendRequest(req)
 	if err != nil {

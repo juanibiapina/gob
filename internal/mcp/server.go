@@ -132,13 +132,16 @@ func (s *Server) registerJobAdd() {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to get current directory: %v", err)), nil
 		}
 
+		// Capture current environment
+		env := os.Environ()
+
 		client, err := connectToDaemon()
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		defer client.Close()
 
-		result, err := client.Add(command, workdir)
+		result, err := client.Add(command, workdir, env)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to add job: %v", err)), nil
 		}
@@ -284,7 +287,10 @@ func (s *Server) registerJobStart() {
 		}
 		defer client.Close()
 
-		job, err := client.Start(jobID)
+		// Capture current environment
+		env := os.Environ()
+
+		job, err := client.Start(jobID, env)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to start job: %v", err)), nil
 		}
@@ -656,7 +662,10 @@ func (s *Server) registerJobRestart() {
 		}
 		defer client.Close()
 
-		job, err := client.Restart(jobID)
+		// Capture current environment
+		env := os.Environ()
+
+		job, err := client.Restart(jobID, env)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to restart job: %v", err)), nil
 		}

@@ -79,7 +79,7 @@ func NewFakeProcessExecutor() *FakeProcessExecutor {
 }
 
 // Start creates a fake process
-func (e *FakeProcessExecutor) Start(command []string, workdir, stdoutPath, stderrPath string) (ProcessHandle, error) {
+func (e *FakeProcessExecutor) Start(command []string, workdir string, env []string, stdoutPath, stderrPath string) (ProcessHandle, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

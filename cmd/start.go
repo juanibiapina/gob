@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/juanibiapina/gob/internal/daemon"
@@ -47,8 +48,11 @@ Exit codes:
 			return fmt.Errorf("failed to connect to daemon: %w", err)
 		}
 
+		// Capture current environment
+		env := os.Environ()
+
 		// Start via daemon
-		job, err := client.Start(jobID)
+		job, err := client.Start(jobID, env)
 		if err != nil {
 			return err
 		}

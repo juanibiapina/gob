@@ -16,12 +16,12 @@ import (
 
 // Job represents a managed background job (a command that can be run repeatedly)
 type Job struct {
-	ID               string  `json:"id"`                // user-facing identifier (e.g., "abc")
-	Command          []string `json:"command"`          // the command + args
-	CommandSignature string  `json:"command_signature"` // hash for lookups
-	Workdir          string  `json:"workdir"`           // directory scope
-	CurrentRunID     *string `json:"current_run_id"`    // nil if not running, points to active run
-	NextRunSeq       int     `json:"next_run_seq"`      // counter for internal run IDs
+	ID               string    `json:"id"`                // user-facing identifier (e.g., "abc")
+	Command          []string  `json:"command"`           // the command + args
+	CommandSignature string    `json:"command_signature"` // hash for lookups
+	Workdir          string    `json:"workdir"`           // directory scope
+	CurrentRunID     *string   `json:"current_run_id"`    // nil if not running, points to active run
+	NextRunSeq       int       `json:"next_run_seq"`      // counter for internal run IDs
 	CreatedAt        time.Time `json:"created_at"`
 
 	// Cached statistics (updated on run completion)
@@ -71,14 +71,14 @@ func ComputeCommandSignature(command []string) string {
 
 // JobManager manages all jobs and runs in the daemon
 type JobManager struct {
-	jobs       map[string]*Job        // keyed by job ID
-	runs       map[string]*Run        // keyed by run ID
-	jobIndex   map[string]string      // signature+workdir -> job ID for quick lookup
+	jobs       map[string]*Job   // keyed by job ID
+	runs       map[string]*Run   // keyed by run ID
+	jobIndex   map[string]string // signature+workdir -> job ID for quick lookup
 	mu         sync.RWMutex
 	runtimeDir string
 	onEvent    func(Event)
 	executor   ProcessExecutor
-	store      *Store                 // database store for persistence
+	store      *Store // database store for persistence
 }
 
 // NewJobManager creates a new job manager
@@ -266,7 +266,7 @@ func generateJobID(existingIDs map[string]bool) string {
 }
 
 // AddJob finds or creates a job for the command, then starts a new run
-func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
+func (jm *JobManager) AddJob(command []string, workdir string, env []string) (*Job, error) {
 	if len(command) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
@@ -283,8 +283,8 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 		if job.IsRunning() {
 			return nil, fmt.Errorf("job %s is already running", job.ID)
 		}
-		// Start a new run for existing job
-		run, err := jm.startRunLocked(job)
+		// Start a new run for existing job with the provided environment
+		run, err := jm.startRunLocked(job, env)
 		if err != nil {
 			return nil, err
 		}
@@ -343,8 +343,8 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 		}
 	}
 
-	// Start first run
-	run, err := jm.startRunLocked(job)
+	// Start first run with the provided environment
+	run, err := jm.startRunLocked(job, env)
 	if err != nil {
 		// Clean up job if run failed to start
 		if jm.store != nil {
@@ -381,7 +381,7 @@ func (jm *JobManager) AddJob(command []string, workdir string) (*Job, error) {
 }
 
 // startRunLocked creates and starts a new run for a job (caller must hold lock)
-func (jm *JobManager) startRunLocked(job *Job) (*Run, error) {
+func (jm *JobManager) startRunLocked(job *Job, env []string) (*Run, error) {
 	runID := fmt.Sprintf("%s-%d", job.ID, job.NextRunSeq)
 	job.NextRunSeq++
 
@@ -389,8 +389,8 @@ func (jm *JobManager) startRunLocked(job *Job) (*Run, error) {
 	stdoutPath := fmt.Sprintf("%s/%s.stdout.log", jm.runtimeDir, runID)
 	stderrPath := fmt.Sprintf("%s/%s.stderr.log", jm.runtimeDir, runID)
 
-	// Start the process
-	process, err := jm.executor.Start(job.Command, job.Workdir, stdoutPath, stderrPath)
+	// Start the process with the provided environment
+	process, err := jm.executor.Start(job.Command, job.Workdir, env, stdoutPath, stderrPath)
 	if err != nil {
 		job.NextRunSeq-- // Rollback sequence number
 		return nil, err
@@ -656,8 +656,8 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 	return nil
 }
 
-// StartJob starts a new run for a stopped job
-func (jm *JobManager) StartJob(jobID string) error {
+// StartJob starts a new run for a stopped job with the provided environment
+func (jm *JobManager) StartJob(jobID string, env []string) error {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
@@ -671,8 +671,8 @@ func (jm *JobManager) StartJob(jobID string) error {
 		return fmt.Errorf("job %s is already running (use 'gob restart' to restart a running job)", jobID)
 	}
 
-	// Start new run
-	run, err := jm.startRunLocked(job)
+	// Start new run with the provided environment
+	run, err := jm.startRunLocked(job, env)
 	if err != nil {
 		return err
 	}
@@ -702,8 +702,8 @@ func (jm *JobManager) StartJob(jobID string) error {
 	return nil
 }
 
-// RestartJob stops (if running) and starts a new run
-func (jm *JobManager) RestartJob(jobID string) error {
+// RestartJob stops (if running) and starts a new run with the provided environment
+func (jm *JobManager) RestartJob(jobID string, env []string) error {
 	jm.mu.Lock()
 
 	job, ok := jm.jobs[jobID]
@@ -758,8 +758,8 @@ func (jm *JobManager) RestartJob(jobID string) error {
 		jm.mu.Lock()
 	}
 
-	// Start new run
-	run, err := jm.startRunLocked(job)
+	// Start new run with the provided environment
+	run, err := jm.startRunLocked(job, env)
 	if err != nil {
 		jm.mu.Unlock()
 		return err

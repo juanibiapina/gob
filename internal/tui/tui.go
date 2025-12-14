@@ -125,6 +125,7 @@ type Model struct {
 	messageTime time.Time
 	isError     bool
 	cwd         string
+	env         []string
 
 	// Components
 	help        help.Model
@@ -139,10 +140,10 @@ type Model struct {
 	stderrContent string
 
 	// Run history state
-	runs          []Run
-	stats         *daemon.StatsResponse
-	runCursor     int
-	runsForJobID  string // tracks which job the runs are for
+	runs         []Run
+	stats        *daemon.StatsResponse
+	runCursor    int
+	runsForJobID string // tracks which job the runs are for
 
 	// Subscription state
 	subscribed bool
@@ -162,6 +163,7 @@ func New() Model {
 	h.ShowAll = true
 
 	cwd, _ := os.Getwd()
+	env := os.Environ()
 
 	return Model{
 		jobs:        []Job{},
@@ -172,6 +174,7 @@ func New() Model {
 		help:        h,
 		textInput:   ti,
 		cwd:         cwd,
+		env:         env,
 		followLogs:  true,
 	}
 }
@@ -374,7 +377,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Calculate panel sizes
 		logWidth := m.width - m.jobPanelWidth()
 		totalLogHeight := m.height - 2 // header + status bar
-		
+
 		// Stderr gets 20% of height, stdout gets 80%
 		stderrHeight := totalLogHeight * 20 / 100
 		if stderrHeight < 4 {
@@ -979,7 +982,7 @@ func (m Model) restartJob(jobID string) tea.Cmd {
 		}
 		defer client.Close()
 
-		job, err := client.Restart(jobID)
+		job, err := client.Restart(jobID, m.env)
 		if err != nil {
 			return actionResultMsg{message: fmt.Sprintf("Failed to restart: %v", err), isError: true}
 		}
@@ -1024,7 +1027,7 @@ func (m Model) addJob(command string) tea.Cmd {
 		}
 		defer client.Close()
 
-		result, err := client.Add(parts, m.cwd)
+		result, err := client.Add(parts, m.cwd, m.env)
 		if err != nil {
 			return actionResultMsg{message: fmt.Sprintf("Failed to add: %v", err), isError: true}
 		}
@@ -1120,13 +1123,13 @@ func (m Model) View() string {
 
 func (m Model) renderHeader() string {
 	title := " gob "
-	
+
 	// Directory info
 	dir := m.shortenPath(m.cwd)
 	if m.showAll {
 		dir = "all directories"
 	}
-	
+
 	// Running count
 	running := 0
 	for _, j := range m.jobs {
@@ -1134,14 +1137,14 @@ func (m Model) renderHeader() string {
 			running++
 		}
 	}
-	
+
 	stats := fmt.Sprintf(" %d jobs (%d running) ", len(m.jobs), running)
-	
+
 	// Build header
 	titlePart := headerStyle.Render(title)
 	dirPart := statusTextStyle.Render(" " + dir + " ")
 	statsPart := headerStyle.Render(stats)
-	
+
 	// Fill remaining space
 	usedWidth := lipgloss.Width(titlePart) + lipgloss.Width(dirPart) + lipgloss.Width(statsPart)
 	gap := m.width - usedWidth
@@ -1149,7 +1152,7 @@ func (m Model) renderHeader() string {
 		gap = 0
 	}
 	filler := statusBarStyle.Render(strings.Repeat(" ", gap))
-	
+
 	return titlePart + dirPart + filler + statsPart
 }
 
@@ -1193,17 +1196,17 @@ func (m Model) renderPanels() string {
 	var stdoutTitle, stderrTitle string
 	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
 		job := m.jobs[m.cursor]
-		
+
 		// Check if showing a specific run
 		var showingRunID string
 		var runStatus string
 		var durationStr string
-		
+
 		if len(m.runs) > 0 && m.runCursor >= 0 && m.runCursor < len(m.runs) {
 			// Showing a specific run
 			run := m.runs[m.runCursor]
 			showingRunID = run.ID
-			
+
 			if run.Status == "running" {
 				runStatus = "◉"
 				if !run.StartedAt.IsZero() {
@@ -1222,7 +1225,7 @@ func (m Model) renderPanels() string {
 		} else {
 			// Showing current/latest run (the job's current state)
 			showingRunID = job.ID
-			
+
 			if job.Running {
 				runStatus = "◉"
 			} else if job.ExitCode != nil {
@@ -1410,7 +1413,7 @@ func (m Model) renderPanel(title, content string, width, height int, active bool
 	vBorder := lipgloss.NewStyle().Foreground(borderColor).Render(v)
 
 	// Content area
-	contentWidth := width - 4  // 2 for borders, 2 for padding
+	contentWidth := width - 4 // 2 for borders, 2 for padding
 	contentHeight := height - 2
 
 	// Split content into lines and pad/truncate

@@ -17,7 +17,7 @@ type ProcessHandle interface {
 
 // ProcessExecutor handles process creation
 type ProcessExecutor interface {
-	Start(command []string, workdir, stdoutPath, stderrPath string) (ProcessHandle, error)
+	Start(command []string, workdir string, env []string, stdoutPath, stderrPath string) (ProcessHandle, error)
 }
 
 // RealProcessExecutor implements ProcessExecutor using os/exec
@@ -46,14 +46,18 @@ func (h *realProcessHandle) IsRunning() bool {
 	return err == nil
 }
 
-// Start starts a process with the given command
-func (e *RealProcessExecutor) Start(command []string, workdir, stdoutPath, stderrPath string) (ProcessHandle, error) {
+// Start starts a process with the given command and environment
+func (e *RealProcessExecutor) Start(command []string, workdir string, env []string, stdoutPath, stderrPath string) (ProcessHandle, error) {
 	if len(command) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
 
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Dir = workdir
+
+	// Use the provided environment (clean, not inherited from daemon)
+	// This ensures the process runs with the client's environment
+	cmd.Env = env
 
 	// Create a new process group so we can signal all children together
 	cmd.SysProcAttr = &syscall.SysProcAttr{

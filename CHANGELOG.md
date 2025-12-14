@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Environment passing**: Jobs now run with the client's environment, not the daemon's
+  - `add`, `start`, and `restart` capture the client's environment and pass it to the job
+  - Jobs run in a clean environment containing only what the client provides
+  - See `docs/environment.md` for details
+
 ## [2.0.0] - 2025-12-12
 
 **Jobs are now persistent entities, not ephemeral processes.**

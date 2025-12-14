@@ -77,8 +77,11 @@ Exit codes:
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
+		// Capture current environment
+		env := os.Environ()
+
 		// Add job via daemon
-		result, err := client.Add(args, cwd)
+		result, err := client.Add(args, cwd, env)
 		if err != nil {
 			return fmt.Errorf("failed to add job: %w", err)
 		}

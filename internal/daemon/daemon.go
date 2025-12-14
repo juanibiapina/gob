@@ -429,7 +429,20 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing workdir"))
 	}
 
-	job, err := d.jobManager.AddJob(command, workdir)
+	// Extract environment
+	var env []string
+	if envRaw, ok := req.Payload["env"]; ok {
+		switch v := envRaw.(type) {
+		case []interface{}:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					env = append(env, s)
+				}
+			}
+		}
+	}
+
+	job, err := d.jobManager.AddJob(command, workdir, env)
 	if err != nil {
 		return NewErrorResponse(err)
 	}
@@ -484,7 +497,20 @@ func (d *Daemon) handleStart(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing job_id"))
 	}
 
-	if err := d.jobManager.StartJob(jobID); err != nil {
+	// Extract environment
+	var env []string
+	if envRaw, ok := req.Payload["env"]; ok {
+		switch v := envRaw.(type) {
+		case []interface{}:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					env = append(env, s)
+				}
+			}
+		}
+	}
+
+	if err := d.jobManager.StartJob(jobID, env); err != nil {
 		return NewErrorResponse(err)
 	}
 
@@ -502,7 +528,20 @@ func (d *Daemon) handleRestart(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing job_id"))
 	}
 
-	if err := d.jobManager.RestartJob(jobID); err != nil {
+	// Extract environment
+	var env []string
+	if envRaw, ok := req.Payload["env"]; ok {
+		switch v := envRaw.(type) {
+		case []interface{}:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					env = append(env, s)
+				}
+			}
+		}
+	}
+
+	if err := d.jobManager.RestartJob(jobID, env); err != nil {
 		return NewErrorResponse(err)
 	}
 
