@@ -533,13 +533,32 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 		m.jobs = append([]Job{newJob}, m.jobs...)
 
 	case daemon.EventTypeJobStarted:
-		// Update job status to running
+		// Find the job, update its status, and move it to the top
 		for i := range m.jobs {
 			if m.jobs[i].ID == event.JobID {
+				// Update job status
 				m.jobs[i].Running = true
 				m.jobs[i].PID = event.Job.PID
 				m.jobs[i].StartedAt = parseTime(event.Job.StartedAt)
 				m.jobs[i].StoppedAt = time.Time{}
+
+				// Move job to the top of the list (most recently run first)
+				if i > 0 {
+					job := m.jobs[i]
+					// Remove from current position
+					m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
+					// Prepend to list
+					m.jobs = append([]Job{job}, m.jobs...)
+					// Adjust cursor to keep selection on same job
+					if m.cursor == i {
+						// Selected job moved to top
+						m.cursor = 0
+					} else if m.cursor < i {
+						// Selected job was above the moved job, shift down by 1
+						m.cursor++
+					}
+					// If cursor > i, the selected job stays at same index
+				}
 				break
 			}
 		}
