@@ -270,14 +270,42 @@ func TestJobManager_ListJobs(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	job2, _ := jm.AddJob([]string{"cmd2"}, "/workdir2", nil)
 
-	// List all
+	// List all - AddJob starts runs, so sorted by most recent run (job2 was added last)
 	jobs = jm.ListJobs("")
 	if len(jobs) != 2 {
 		t.Fatalf("expected 2 jobs, got %d", len(jobs))
 	}
-	// Sorted by CreatedAt descending (newest first)
 	if jobs[0].ID != job2.ID {
-		t.Error("jobs not sorted by creation time")
+		t.Error("job2 should appear first (most recent run)")
+	}
+
+	// Stop all jobs
+	executor.StopAll()
+	time.Sleep(50 * time.Millisecond)
+
+	// Start job1 - now it should appear first (most recent run)
+	err := jm.StartJob(job1.ID, nil)
+	if err != nil {
+		t.Fatalf("failed to start job1: %v", err)
+	}
+
+	jobs = jm.ListJobs("")
+	if jobs[0].ID != job1.ID {
+		t.Error("job1 should appear first after restart")
+	}
+
+	// Stop job1, wait, then start job2 - it should appear first
+	executor.StopAll()
+	time.Sleep(50 * time.Millisecond)
+
+	err = jm.StartJob(job2.ID, nil)
+	if err != nil {
+		t.Fatalf("failed to start job2: %v", err)
+	}
+
+	jobs = jm.ListJobs("")
+	if jobs[0].ID != job2.ID {
+		t.Error("job2 should appear first after restart")
 	}
 
 	// Filter by workdir

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Job ordering**: Jobs are now ordered by most recent run everywhere (CLI, TUI, MCP), not just when a job starts in the TUI
+
 ## [2.0.3] - 2025-12-15
 
 ### Changed

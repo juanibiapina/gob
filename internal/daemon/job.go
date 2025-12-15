@@ -572,12 +572,24 @@ func (jm *JobManager) ListJobs(workdirFilter string) []*Job {
 		jobs = append(jobs, job)
 	}
 
-	// Sort by CreatedAt, newest first
+	// Sort by most recent activity (run start time, or creation time if no runs)
 	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].CreatedAt.After(jobs[j].CreatedAt)
+		timeI := jm.getJobSortTime(jobs[i])
+		timeJ := jm.getJobSortTime(jobs[j])
+		return timeI.After(timeJ)
 	})
 
 	return jobs
+}
+
+// getJobSortTime returns the time to use for sorting a job
+// Uses the most recent run's start time, or falls back to job creation time
+func (jm *JobManager) getJobSortTime(job *Job) time.Time {
+	latestRun := jm.getLatestRunForJobLocked(job.ID)
+	if latestRun != nil {
+		return latestRun.StartedAt
+	}
+	return job.CreatedAt
 }
 
 // StopJob stops a running job
