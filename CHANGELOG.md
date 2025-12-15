@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3] - 2025-12-15
+
 ### Changed
 
 - **TUI job ordering**: Jobs are now ordered by most recent run, so whenever a job starts running it moves to the top of the list
