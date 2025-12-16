@@ -348,6 +348,7 @@ gob includes a native MCP (Model Context Protocol) server, allowing AI agents to
 | `gob_stderr` | Read stderr from a job |
 | `gob_runs` | Show run history for a job |
 | `gob_stats` | Show statistics for a job |
+| `gob_ports` | List listening ports for a job |
 
 ### Configuration
 
@@ -435,12 +436,13 @@ gob tui
 
 ### Layout
 
-The TUI has four panels:
+The TUI has five panels:
 
 - **Panel 1 (Jobs)**: List of all jobs with status (◉ running, ✓ success, ✗ failed)
-- **Panel 2 (Runs)**: Run history for the selected job
-- **Panel 3 (stdout)**: Standard output of selected run
-- **Panel 4 (stderr)**: Standard error of selected run
+- **Panel 2 (Ports)**: Listening ports for the selected job
+- **Panel 3 (Runs)**: Run history for the selected job
+- **Panel 4 (stdout)**: Standard output of selected run
+- **Panel 5 (stderr)**: Standard error of selected run
 
 ### Key Bindings
 
@@ -456,7 +458,7 @@ The TUI has four panels:
 | `r` | Restart job |
 | `d` | Delete stopped job |
 | `n` | New job |
-| `1/2/3/4` | Switch to panel |
+| `1/2/3/4/5` | Switch to panel |
 | `?` | Show all shortcuts |
 | `q` | Quit |
 
@@ -477,6 +479,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `stdout <id>` | View stdout (`--follow` for real-time) |
 | `stderr <id>` | View stderr (`--follow` for real-time) |
 | `logs` | Follow all output for current directory |
+| `ports [id]` | List listening ports (`--all` for all jobs) |
 | `stop <id>` | Stop job (`--force` for SIGKILL) |
 | `start <id>` | Start stopped job |
 | `restart <id>` | Stop + start job |

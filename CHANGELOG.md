@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Port tracking**: Track listening ports for running jobs and their child processes
+  - `ports [job_id]` command - list listening ports for a job or all running jobs
+  - `gob_ports` MCP tool for AI agents
+  - TUI: New Ports panel (panel 2) showing listening ports for selected job
+  - Daemon polls ports at 2s, 5s, 10s after job starts and emits `ports_updated` events
+  - Supports Linux and macOS
+
 ## [2.0.4] - 2025-12-15
 
 ### Changed

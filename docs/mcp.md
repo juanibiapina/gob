@@ -205,3 +205,21 @@ Show statistics for a job.
 // Returns
 {"job_id": "V3x", "command": ["make", "test"], "run_count": 5, "success_count": 4, "success_rate": 80, "avg_duration_ms": 2500}
 ```
+
+### Port Tracking
+
+#### `gob_ports`
+
+List listening ports for a job's process tree.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `job_id` | `string` | No | Job ID (lists all running jobs if omitted) |
+
+```json
+// Returns (running job with ports)
+{"job_id": "V3x", "pid": 12345, "ports": [{"port": 8080, "protocol": "tcp", "address": "0.0.0.0", "pid": 12345}]}
+
+// Returns (stopped job)
+{"job_id": "V3x", "status": "stopped", "message": "job is not running"}
+```
