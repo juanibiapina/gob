@@ -152,9 +152,15 @@ type Model struct {
 	runCursor    int
 	runsForJobID string // tracks which job the runs are for
 
+	// Job list scroll state
+	jobOffset int // first visible job index (for scrolling)
+
 	// Port list state
 	portCursor int // selected port index
 	portOffset int // first visible port index (for scrolling)
+
+	// Run list scroll state
+	runOffset int // first visible run index (for scrolling)
 
 	// Subscription state
 	subscribed bool
@@ -461,12 +467,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cursor < 0 {
 			m.cursor = 0
 		}
+		// Ensure jobOffset stays valid
+		if m.jobOffset > m.cursor {
+			m.jobOffset = m.cursor
+		}
 		// Fetch runs for the selected job (ports come from events)
 		if len(m.jobs) > 0 {
 			jobID := m.jobs[m.cursor].ID
 			if jobID != m.runsForJobID {
 				m.runsForJobID = jobID
 				m.runCursor = 0
+				m.runOffset = 0
 				m.portCursor = 0
 				m.portOffset = 0
 				cmds = append(cmds, m.fetchRuns(jobID))
@@ -483,6 +494,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.runCursor < 0 {
 				m.runCursor = 0
+			}
+			// Ensure runOffset stays valid
+			if m.runOffset > m.runCursor {
+				m.runOffset = m.runCursor
 			}
 		}
 
@@ -537,10 +552,14 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			StoppedAt:  parseTime(event.Job.StoppedAt),
 			Ports:      event.Job.Ports,
 		}
-		// Only adjust cursor if there are existing jobs (keep selection on same job)
+		// Only adjust cursor and offset if there are existing jobs (keep selection on same job)
 		// When list was empty, cursor stays at 0 to select the new job
 		if len(m.jobs) > 0 {
 			m.cursor++
+			// Also adjust offset to keep current view stable
+			if m.jobOffset > 0 || m.cursor > 0 {
+				m.jobOffset++
+			}
 		}
 		m.jobs = append([]Job{newJob}, m.jobs...)
 
@@ -561,13 +580,18 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 					m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
 					// Prepend to list
 					m.jobs = append([]Job{job}, m.jobs...)
-					// Adjust cursor to keep selection on same job
+					// Adjust cursor and offset to keep selection on same job
 					if m.cursor == i {
 						// Selected job moved to top
 						m.cursor = 0
+						m.jobOffset = 0
 					} else if m.cursor < i {
 						// Selected job was above the moved job, shift down by 1
 						m.cursor++
+						// Also adjust offset to keep current view stable
+						if m.jobOffset > 0 || m.cursor > 0 {
+							m.jobOffset++
+						}
 					}
 					// If cursor > i, the selected job stays at same index
 				}
@@ -599,10 +623,18 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 				if m.cursor < 0 {
 					m.cursor = 0
 				}
+				// Adjust offset if needed
+				if m.jobOffset > m.cursor {
+					m.jobOffset = m.cursor
+				}
+				if m.jobOffset < 0 {
+					m.jobOffset = 0
+				}
 				// Clear runs if this was the selected job
 				if event.JobID == m.runsForJobID {
 					m.runs = nil
 					m.stats = nil
+					m.runOffset = 0
 					m.runsForJobID = ""
 				}
 				break
@@ -783,6 +815,11 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.showAll = !m.showAll
 		m.cursor = 0
+		m.jobOffset = 0
+		m.runCursor = 0
+		m.runOffset = 0
+		m.portCursor = 0
+		m.portOffset = 0
 		telemetry.TUIActionExecute("toggle_all_dirs")
 		// Restart subscription with new filter
 		if m.subClient != nil {
@@ -813,8 +850,13 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
+			// Scroll up if cursor goes above visible area
+			if m.cursor < m.jobOffset {
+				m.jobOffset = m.cursor
+			}
 			m.followLogs = true
 			m.runCursor = 0
+			m.runOffset = 0
 			m.runs = nil
 			m.stats = nil
 			m.portCursor = 0
@@ -828,8 +870,14 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		if m.cursor < len(m.jobs)-1 {
 			m.cursor++
+			// Scroll down if cursor goes below visible area
+			visibleRows := m.jobsVisibleRows()
+			if m.cursor >= m.jobOffset+visibleRows {
+				m.jobOffset = m.cursor - visibleRows + 1
+			}
 			m.followLogs = true
 			m.runCursor = 0
+			m.runOffset = 0
 			m.runs = nil
 			m.stats = nil
 			m.portCursor = 0
@@ -842,8 +890,10 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "g":
 		m.cursor = 0
+		m.jobOffset = 0
 		m.followLogs = true
 		m.runCursor = 0
+		m.runOffset = 0
 		m.runs = nil
 		m.stats = nil
 		m.portCursor = 0
@@ -856,8 +906,15 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		if len(m.jobs) > 0 {
 			m.cursor = len(m.jobs) - 1
+			visibleRows := m.jobsVisibleRows()
+			if m.cursor >= visibleRows {
+				m.jobOffset = m.cursor - visibleRows + 1
+			} else {
+				m.jobOffset = 0
+			}
 			m.followLogs = true
 			m.runCursor = 0
+			m.runOffset = 0
 			m.runs = nil
 			m.stats = nil
 			m.portCursor = 0
@@ -1029,6 +1086,10 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.runCursor > 0 {
 			m.runCursor--
+			// Scroll up if cursor goes above visible area
+			if m.runCursor < m.runOffset {
+				m.runOffset = m.runCursor
+			}
 			m.followLogs = true
 			return m, m.readLogs()
 		}
@@ -1036,18 +1097,30 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		if m.runCursor < len(m.runs)-1 {
 			m.runCursor++
+			// Scroll down if cursor goes below visible area
+			visibleRows := m.runsVisibleRows()
+			if m.runCursor >= m.runOffset+visibleRows {
+				m.runOffset = m.runCursor - visibleRows + 1
+			}
 			m.followLogs = true
 			return m, m.readLogs()
 		}
 
 	case "g":
 		m.runCursor = 0
+		m.runOffset = 0
 		m.followLogs = true
 		return m, m.readLogs()
 
 	case "G":
 		if len(m.runs) > 0 {
 			m.runCursor = len(m.runs) - 1
+			visibleRows := m.runsVisibleRows()
+			if m.runCursor >= visibleRows {
+				m.runOffset = m.runCursor - visibleRows + 1
+			} else {
+				m.runOffset = 0
+			}
 			m.followLogs = true
 			return m, m.readLogs()
 		}
@@ -1332,6 +1405,53 @@ func (m Model) portsVisibleRows() int {
 	return visibleRows
 }
 
+// jobsVisibleRows returns the number of job rows visible in the jobs panel
+// This must match the calculation in renderPanels() to ensure scroll logic is accurate
+func (m Model) jobsVisibleRows() int {
+	totalH := m.height - 1 // height - status bar (matching renderPanels)
+	if totalH < 8 {
+		totalH = 8
+	}
+	infoH := 3
+	leftH := totalH - infoH
+	portsH := leftH * 20 / 100
+	if portsH < 4 {
+		portsH = 4
+	}
+	runsH := leftH * 30 / 100
+	if runsH < 5 {
+		runsH = 5
+	}
+	jobsH := leftH - portsH - runsH
+	// Panel height - border (2) = content rows for jobs
+	visibleRows := jobsH - 2
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+	return visibleRows
+}
+
+// runsVisibleRows returns the number of run rows visible in the runs panel
+// This must match the calculation in renderPanels() to ensure scroll logic is accurate
+func (m Model) runsVisibleRows() int {
+	totalH := m.height - 1 // height - status bar (matching renderPanels)
+	if totalH < 8 {
+		totalH = 8
+	}
+	infoH := 3
+	leftH := totalH - infoH
+	runsH := leftH * 30 / 100
+	if runsH < 5 {
+		runsH = 5
+	}
+	// Panel height - border (2) - stats line (1) - empty line (1) = content rows for runs
+	visibleRows := runsH - 4
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+	return visibleRows
+}
+
 // View renders the UI
 func (m Model) View() string {
 	if !m.ready {
@@ -1594,8 +1714,21 @@ func (m Model) renderRunsList(width, height int) string {
 		durationWidth = 3
 	}
 
-	// Run list
-	for i, run := range m.runs {
+	// Calculate visible range (height - 2 for stats line and empty line)
+	visibleRows := height - 2
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+
+	startIdx := m.runOffset
+	endIdx := m.runOffset + visibleRows
+	if endIdx > len(m.runs) {
+		endIdx = len(m.runs)
+	}
+
+	// Run list (only visible runs)
+	for i := startIdx; i < endIdx; i++ {
+		run := m.runs[i]
 		isSelected := i == m.runCursor && m.activePanel == panelRuns
 		runLine := m.formatRunListLine(run, isSelected, width, statusWidth, idWidth, timeWidth, durationWidth)
 		lines = append(lines, runLine)
@@ -1817,8 +1950,21 @@ func (m Model) renderJobList(width, height int) string {
 		return mutedStyle.Render("No jobs. Press 'n' to start one.")
 	}
 
+	// Calculate visible range
+	visibleRows := height
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+
+	startIdx := m.jobOffset
+	endIdx := m.jobOffset + visibleRows
+	if endIdx > len(m.jobs) {
+		endIdx = len(m.jobs)
+	}
+
 	var lines []string
-	for i, job := range m.jobs {
+	for i := startIdx; i < endIdx; i++ {
+		job := m.jobs[i]
 		isSelected := i == m.cursor
 
 		// Status indicator with semantic symbols
