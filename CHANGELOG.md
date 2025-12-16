@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2025-12-16
+
 ### Fixed
 
 - **Telemetry no longer prints errors to stderr**: When telemetry requests fail (e.g., blocked by pihole, network issues), errors are now silently discarded instead of being logged. This prevents TUI corruption and unwanted console output for users who block analytics.
