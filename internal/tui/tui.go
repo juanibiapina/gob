@@ -163,6 +163,10 @@ type Model struct {
 	runCursor    int
 	runsForJobID string // tracks which job the runs are for
 
+	// Port list state
+	portCursor int // selected port index
+	portOffset int // first visible port index (for scrolling)
+
 	// Subscription state
 	subscribed bool
 	subClient  *daemon.Client
@@ -503,6 +507,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if jobID != m.runsForJobID {
 				m.runsForJobID = jobID
 				m.runCursor = 0
+				m.portCursor = 0
+				m.portOffset = 0
 				cmds = append(cmds, m.fetchRuns(jobID), fetchJobPorts(jobID))
 			}
 		}
@@ -541,6 +547,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.jobs {
 			if m.jobs[i].ID == msg.jobID {
 				m.jobs[i].Ports = msg.ports
+				// Bounds check port cursor if this is the selected job
+				if i == m.cursor {
+					portCount := len(msg.ports)
+					if m.portCursor >= portCount {
+						m.portCursor = portCount - 1
+					}
+					if m.portCursor < 0 {
+						m.portCursor = 0
+					}
+					if m.portOffset > m.portCursor {
+						m.portOffset = m.portCursor
+					}
+				}
 				break
 			}
 		}
@@ -841,6 +860,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runCursor = 0
 			m.runs = nil
 			m.stats = nil
+			m.portCursor = 0
+			m.portOffset = 0
 			if len(m.jobs) > 0 {
 				m.runsForJobID = m.jobs[m.cursor].ID
 			}
@@ -854,6 +875,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runCursor = 0
 			m.runs = nil
 			m.stats = nil
+			m.portCursor = 0
+			m.portOffset = 0
 			if len(m.jobs) > 0 {
 				m.runsForJobID = m.jobs[m.cursor].ID
 			}
@@ -866,6 +889,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.runCursor = 0
 		m.runs = nil
 		m.stats = nil
+		m.portCursor = 0
+		m.portOffset = 0
 		if len(m.jobs) > 0 {
 			m.runsForJobID = m.jobs[m.cursor].ID
 		}
@@ -878,6 +903,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runCursor = 0
 			m.runs = nil
 			m.stats = nil
+			m.portCursor = 0
+			m.portOffset = 0
 			m.runsForJobID = m.jobs[m.cursor].ID
 			return m, m.fetchRunsForSelectedJob()
 		}
@@ -970,8 +997,47 @@ func (m Model) fetchRunsForSelectedJob() tea.Cmd {
 }
 
 func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Display-only panel for now - just handle common keys
+	// Get current job's port count for bounds checking
+	portCount := 0
+	if len(m.jobs) > 0 && m.cursor < len(m.jobs) && m.jobs[m.cursor].Running {
+		portCount = len(m.jobs[m.cursor].Ports)
+	}
+
 	switch msg.String() {
+	case "up", "k":
+		if m.portCursor > 0 {
+			m.portCursor--
+			// Scroll up if cursor goes above visible area
+			if m.portCursor < m.portOffset {
+				m.portOffset = m.portCursor
+			}
+		}
+
+	case "down", "j":
+		if m.portCursor < portCount-1 {
+			m.portCursor++
+			// Scroll down if cursor goes below visible area
+			visibleRows := m.portsVisibleRows()
+			if m.portCursor >= m.portOffset+visibleRows {
+				m.portOffset = m.portCursor - visibleRows + 1
+			}
+		}
+
+	case "g":
+		m.portCursor = 0
+		m.portOffset = 0
+
+	case "G":
+		if portCount > 0 {
+			m.portCursor = portCount - 1
+			visibleRows := m.portsVisibleRows()
+			if m.portCursor >= visibleRows {
+				m.portOffset = m.portCursor - visibleRows + 1
+			} else {
+				m.portOffset = 0
+			}
+		}
+
 	case "f":
 		m.followLogs = !m.followLogs
 		telemetry.TUIActionExecute("toggle_follow")
@@ -1287,6 +1353,21 @@ func (m Model) jobPanelWidth() int {
 	return w
 }
 
+// portsVisibleRows returns the number of port rows visible in the ports panel
+func (m Model) portsVisibleRows() int {
+	totalH := m.height - 2 // header + status bar
+	portsH := totalH * 20 / 100
+	if portsH < 4 {
+		portsH = 4
+	}
+	// Panel height - border (2) - header row (1) = content rows for ports
+	visibleRows := portsH - 3
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+	return visibleRows
+}
+
 // View renders the UI
 func (m Model) View() string {
 	if !m.ready {
@@ -1553,13 +1634,47 @@ func (m Model) renderPortsList(width, height int) string {
 	header := fmt.Sprintf("%-6s %-6s %-15s %s", "PORT", "PROTO", "ADDRESS", "PID")
 	lines := []string{mutedStyle.Render(header)}
 
-	// Port rows
-	for _, p := range ports {
-		line := fmt.Sprintf("%-6d %-6s %-15s %d", p.Port, p.Protocol, p.Address, p.PID)
+	// Calculate visible range (height - 1 for header row)
+	visibleRows := height - 1
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+
+	startIdx := m.portOffset
+	endIdx := m.portOffset + visibleRows
+	if endIdx > len(ports) {
+		endIdx = len(ports)
+	}
+
+	// Port rows (only visible ones)
+	for i := startIdx; i < endIdx; i++ {
+		p := ports[i]
+		isSelected := i == m.portCursor && m.activePanel == panelPorts
+		line := m.formatPortLine(p, isSelected, width)
 		lines = append(lines, line)
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// formatPortLine formats a single port line with optional selection highlighting
+func (m Model) formatPortLine(p daemon.PortInfo, isSelected bool, width int) string {
+	if isSelected {
+		sp := jobSelectedBgStyle.Render(" ")
+		sp2 := jobSelectedBgStyle.Render("  ")
+		portStr := jobSelectedBgStyle.Render(fmt.Sprintf("%-5d", p.Port))
+		protoStr := jobSelectedBgStyle.Render(fmt.Sprintf("%-6s", p.Protocol))
+		addrStr := jobSelectedBgStyle.Render(fmt.Sprintf("%-15s", p.Address))
+		pidStr := jobSelectedBgStyle.Render(fmt.Sprintf("%d", p.PID))
+		line := sp + portStr + sp2 + protoStr + sp2 + addrStr + sp2 + pidStr
+		// Pad to fill width
+		padding := width - lipgloss.Width(line)
+		if padding > 0 {
+			line = line + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
+		}
+		return line
+	}
+	return fmt.Sprintf(" %-5d  %-6s  %-15s  %d", p.Port, p.Protocol, p.Address, p.PID)
 }
 
 // formatRunListLine formats a single run line for the runs panel
@@ -1857,6 +1972,8 @@ func (m Model) renderStatusBar() string {
 			)
 		case panelPorts:
 			parts = append(parts,
+				m.renderKey("↑↓", "navigate"),
+				m.renderKey("g/G", "first/last"),
 				m.renderKey("H/L", "scroll log"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
