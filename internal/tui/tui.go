@@ -1312,9 +1312,15 @@ func (m Model) jobPanelWidth() int {
 }
 
 // portsVisibleRows returns the number of port rows visible in the ports panel
+// This must match the calculation in renderPanels() to ensure scroll logic is accurate
 func (m Model) portsVisibleRows() int {
-	totalH := m.height - 2 // header + status bar
-	portsH := totalH * 20 / 100
+	totalH := m.height - 1 // height - status bar (matching renderPanels)
+	if totalH < 8 {
+		totalH = 8
+	}
+	infoH := 3
+	leftH := totalH - infoH
+	portsH := leftH * 20 / 100
 	if portsH < 4 {
 		portsH = 4
 	}

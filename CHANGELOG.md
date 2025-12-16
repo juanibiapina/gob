@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Runs panel columns now have fixed percentage-based widths with proper truncation
   - fix: Remove daemon restart message that was printed to stdout, corrupting the TUI display
 
+### Fixed
+
+- **TUI ports panel scrolling**: Fixed off-by-one scroll timing where the panel would scroll after the cursor was already one line out of view instead of when about to leave the visible area
+
 ## [2.1.1] - 2025-12-16
 
 ### Fixed
