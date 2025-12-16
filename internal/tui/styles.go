@@ -26,7 +26,7 @@ var (
 	colorBrightWhite   = lipgloss.Color("15")
 
 	// Semantic aliases
-	primaryColor   = colorBlue
+	primaryColor   = colorYellow
 	successColor   = colorGreen
 	dangerColor    = colorRed
 	warningColor   = colorYellow

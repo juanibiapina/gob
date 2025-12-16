@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/juanibiapina/gob/internal/telemetry"
+	"github.com/juanibiapina/gob/internal/version"
 )
 
 // Panel focus
@@ -1333,10 +1334,6 @@ func (m Model) View() string {
 
 	var s strings.Builder
 
-	// Header
-	s.WriteString(m.renderHeader())
-	s.WriteString("\n")
-
 	// Main panels
 	s.WriteString(m.renderPanels())
 
@@ -1352,61 +1349,30 @@ func (m Model) View() string {
 	return s.String()
 }
 
-func (m Model) renderHeader() string {
-	title := " gob "
-
-	// Directory info
-	dir := m.shortenPath(m.cwd)
-	if m.showAll {
-		dir = "all directories"
-	}
-
-	// Running count
-	running := 0
-	for _, j := range m.jobs {
-		if j.Running {
-			running++
-		}
-	}
-
-	stats := fmt.Sprintf(" %d jobs (%d running) ", len(m.jobs), running)
-
-	// Build header
-	titlePart := headerStyle.Render(title)
-	dirPart := statusTextStyle.Render(" " + dir + " ")
-	statsPart := headerStyle.Render(stats)
-
-	// Fill remaining space
-	usedWidth := lipgloss.Width(titlePart) + lipgloss.Width(dirPart) + lipgloss.Width(statsPart)
-	gap := m.width - usedWidth
-	if gap < 0 {
-		gap = 0
-	}
-	filler := statusBarStyle.Render(strings.Repeat(" ", gap))
-
-	return titlePart + dirPart + filler + statsPart
-}
-
 func (m Model) renderPanels() string {
 	leftPanelW := m.jobPanelWidth()
 	rightPanelW := m.width - leftPanelW
-	totalH := m.height - 2 // height - header - status bar
+	totalH := m.height - 1 // height - status bar
 
 	// Ensure minimum height
 	if totalH < 8 {
 		totalH = 8
 	}
 
-	// Left side: Jobs (50%) + Ports (20%) + Runs (30%)
-	portsH := totalH * 20 / 100
+	// Info panel is fixed at 3 lines (border + 1 content + border)
+	infoH := 3
+	leftH := totalH - infoH
+
+	// Left side: Jobs (50%) + Ports (20%) + Runs (30%) of remaining height
+	portsH := leftH * 20 / 100
 	if portsH < 4 {
 		portsH = 4
 	}
-	runsH := totalH * 30 / 100
+	runsH := leftH * 30 / 100
 	if runsH < 5 {
 		runsH = 5
 	}
-	jobsH := totalH - portsH - runsH
+	jobsH := leftH - portsH - runsH
 
 	// Right side: Stdout (80%) + Stderr (20%)
 	stderrH := totalH * 20 / 100
@@ -1415,25 +1381,32 @@ func (m Model) renderPanels() string {
 	}
 	stdoutH := totalH - stderrH
 
+	// Info panel (logo + directory + version)
+	dir := m.shortenPath(m.cwd)
+	if m.showAll {
+		dir = "all directories"
+	}
+	infoPanel := m.renderInfoPanel("gob", dir, version.Version, leftPanelW, infoH)
+
 	// Jobs panel
 	jobContent := m.renderJobList(leftPanelW-4, jobsH-2)
-	jobPanel := m.renderPanel("1 Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
+	jobPanel := m.renderPanel(1, "Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
 
 	// Ports panel
-	portsTitle := "2 Ports"
+	portsTitle := "Ports"
 	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-		portsTitle = fmt.Sprintf("2 Ports: %s", m.jobs[m.cursor].ID)
+		portsTitle = fmt.Sprintf("Ports: %s", m.jobs[m.cursor].ID)
 	}
 	portsContent := m.renderPortsList(leftPanelW-4, portsH-2)
-	portsPanel := m.renderPanel(portsTitle, portsContent, leftPanelW, portsH, m.activePanel == panelPorts)
+	portsPanel := m.renderPanel(2, portsTitle, portsContent, leftPanelW, portsH, m.activePanel == panelPorts)
 
 	// Runs panel
-	runsTitle := "3 Runs"
+	runsTitle := "Runs"
 	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-		runsTitle = fmt.Sprintf("3 Runs: %s", m.jobs[m.cursor].ID)
+		runsTitle = fmt.Sprintf("Runs: %s", m.jobs[m.cursor].ID)
 	}
 	runsContent := m.renderRunsList(leftPanelW-4, runsH-2)
-	runsPanel := m.renderPanel(runsTitle, runsContent, leftPanelW, runsH, m.activePanel == panelRuns)
+	runsPanel := m.renderPanel(3, runsTitle, runsContent, leftPanelW, runsH, m.activePanel == panelRuns)
 
 	// Build titles for log panels
 	var stdoutTitle, stderrTitle string
@@ -1495,8 +1468,8 @@ func (m Model) renderPanels() string {
 			}
 		}
 
-		stdoutTitle = fmt.Sprintf("4 stdout: %s %s%s", showingRunID, runStatus, durationStr)
-		stderrTitle = "5 stderr"
+		stdoutTitle = fmt.Sprintf("stdout: %s %s%s", showingRunID, runStatus, durationStr)
+		stderrTitle = "stderr"
 		if m.followLogs {
 			stdoutTitle += " [following]"
 			stderrTitle += " [following]"
@@ -1506,8 +1479,8 @@ func (m Model) renderPanels() string {
 			stderrTitle += " [wrap]"
 		}
 	} else {
-		stdoutTitle = "4 stdout"
-		stderrTitle = "5 stderr"
+		stdoutTitle = "stdout"
+		stderrTitle = "stderr"
 		if m.wrapLines {
 			stdoutTitle += " [wrap]"
 			stderrTitle += " [wrap]"
@@ -1518,19 +1491,56 @@ func (m Model) renderPanels() string {
 	m.stdoutView.Width = rightPanelW - 4
 	m.stdoutView.Height = stdoutH - 3
 	stdoutContent := m.stdoutView.View()
-	stdoutPanel := m.renderPanel(stdoutTitle, stdoutContent, rightPanelW, stdoutH, m.activePanel == panelStdout)
+	stdoutPanel := m.renderPanel(4, stdoutTitle, stdoutContent, rightPanelW, stdoutH, m.activePanel == panelStdout)
 
 	// Stderr panel
 	m.stderrView.Width = rightPanelW - 4
 	m.stderrView.Height = stderrH - 3
 	stderrContent := m.stderrView.View()
-	stderrPanel := m.renderPanel(stderrTitle, stderrContent, rightPanelW, stderrH, m.activePanel == panelStderr)
+	stderrPanel := m.renderPanel(5, stderrTitle, stderrContent, rightPanelW, stderrH, m.activePanel == panelStderr)
 
 	// Stack panels
-	leftPanels := lipgloss.JoinVertical(lipgloss.Left, jobPanel, portsPanel, runsPanel)
+	leftPanels := lipgloss.JoinVertical(lipgloss.Left, infoPanel, jobPanel, portsPanel, runsPanel)
 	rightPanels := lipgloss.JoinVertical(lipgloss.Left, stdoutPanel, stderrPanel)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanels, rightPanels)
+}
+
+// renderInfoPanel renders the info panel with logo, directory (left) and version (right)
+func (m Model) renderInfoPanel(logo, dir, ver string, width, height int) string {
+	borderColor := colorBlue
+	textColor := colorWhite
+
+	// Border characters
+	tl, tr, bl, br := "╭", "╮", "╰", "╯"
+	h, v := "─", "│"
+
+	// Top border
+	topLine := lipgloss.NewStyle().Foreground(borderColor).Render(tl + strings.Repeat(h, width-2) + tr)
+
+	// Bottom border
+	bottomLine := lipgloss.NewStyle().Foreground(borderColor).Render(bl + strings.Repeat(h, width-2) + br)
+
+	// Side borders
+	vBorder := lipgloss.NewStyle().Foreground(borderColor).Render(v)
+
+	// Content area with logo+dir left-aligned and version right-aligned
+	contentWidth := width - 4 // 2 for borders, 2 for padding
+	styledLogo := lipgloss.NewStyle().Foreground(primaryColor).Bold(true).Render(logo)
+	styledDir := lipgloss.NewStyle().Foreground(textColor).Render(dir)
+	styledVer := lipgloss.NewStyle().Foreground(textColor).Render(ver)
+
+	leftPart := styledLogo + "  " + styledDir
+	leftWidth := lipgloss.Width(logo) + 2 + lipgloss.Width(dir)
+
+	gap := contentWidth - leftWidth - lipgloss.Width(ver)
+	if gap < 1 {
+		gap = 1
+	}
+	line := leftPart + strings.Repeat(" ", gap) + styledVer
+	contentLine := vBorder + " " + FitToWidth(line, contentWidth) + " " + vBorder
+
+	return topLine + "\n" + contentLine + "\n" + bottomLine
 }
 
 // renderRunsList renders the runs list for the selected job
@@ -1695,35 +1705,45 @@ func (m Model) formatRunListLine(run Run, isSelected bool, width int) string {
 	return fmt.Sprintf(" %s %s  %s  %s", status, jobIDStyle.Render(run.ID), jobTimeStyle.Render(relTime), jobTimeStyle.Render(duration))
 }
 
-func (m Model) renderPanel(title, content string, width, height int, active bool) string {
-	borderColor := colorBrightBlack
-	titleBg := colorBrightBlack
-	titleFg := colorWhite
+func (m Model) renderPanel(num int, title, content string, width, height int, active bool) string {
+	borderColor := colorBlue
+	titleFg := colorBlue
 	if active {
 		borderColor = primaryColor
-		titleBg = primaryColor
-		titleFg = colorBlack
+		titleFg = primaryColor
 	}
 
 	// Border characters
 	tl, tr, bl, br := "╭", "╮", "╰", "╯"
 	h, v := "─", "│"
 
-	// Title with background
-	titleText := " " + title + " "
-	styledTitle := lipgloss.NewStyle().
-		Background(titleBg).
+	// Panel number and title, styled separately
+	numText := fmt.Sprintf("[%d]", num)
+	styledNum := lipgloss.NewStyle().
 		Foreground(titleFg).
-		Bold(true).
-		Render(titleText)
-	titleWidth := lipgloss.Width(titleText)
+		Bold(active).
+		Render(numText)
+	styledTitle := lipgloss.NewStyle().
+		Foreground(titleFg).
+		Bold(active).
+		Render(title)
 
-	// Top border with title
-	topBorderRight := width - 3 - titleWidth
+	// Border dash between number and title (styled as border)
+	styledDash := lipgloss.NewStyle().Foreground(borderColor).Render(h)
+
+	// Calculate widths
+	numWidth := lipgloss.Width(numText)
+	titleWidth := lipgloss.Width(title)
+
+	// Top border with number and title
+	// Format: ╭─[num]─title─────...─╮
+	topBorderRight := width - 2 - numWidth - 1 - titleWidth - 1
 	if topBorderRight < 0 {
 		topBorderRight = 0
 	}
 	topLine := lipgloss.NewStyle().Foreground(borderColor).Render(tl+h) +
+		styledNum +
+		styledDash +
 		styledTitle +
 		lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat(h, topBorderRight)+tr)
 

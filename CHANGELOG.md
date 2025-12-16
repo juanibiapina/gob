@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **TUI visual refresh**: Updated panel styling with new color scheme and info panel showing directory and version
+
 ## [2.1.1] - 2025-12-16
 
 ### Fixed

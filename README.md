@@ -439,8 +439,9 @@ gob tui
 
 ### Layout
 
-The TUI has five panels:
+The TUI has an info bar and five panels:
 
+- **Info bar**: Shows working directory and version
 - **Panel 1 (Jobs)**: List of all jobs with status (◉ running, ✓ success, ✗ failed)
 - **Panel 2 (Ports)**: Listening ports for the selected job
 - **Panel 3 (Runs)**: Run history for the selected job
