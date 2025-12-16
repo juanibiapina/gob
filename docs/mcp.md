@@ -76,7 +76,7 @@ List jobs in current directory.
 
 #### `gob_stop`
 
-Stop a running job.
+Stop a running job. The daemon snapshots the entire process tree before signaling and returns an error if any child survives after SIGKILL.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -93,7 +93,7 @@ Start a stopped job.
 
 #### `gob_restart`
 
-Stop and start a job.
+Stop and start a job. Restart waits for the previous run's entire process tree to terminate before launching the new process.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

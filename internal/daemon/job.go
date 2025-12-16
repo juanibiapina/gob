@@ -597,7 +597,7 @@ func (jm *JobManager) getJobSortTime(job *Job) time.Time {
 	return job.CreatedAt
 }
 
-// StopJob stops a running job
+// StopJob stops a running job and verifies all child processes terminate
 func (jm *JobManager) StopJob(jobID string, force bool) error {
 	jm.mu.RLock()
 	job, ok := jm.jobs[jobID]
@@ -615,11 +615,16 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 	pid := run.PID
 	jm.mu.RUnlock()
 
+	// Snapshot all PIDs in the process tree before signaling
+	treePIDs := getProcessTreePIDs(pid)
+
 	if force {
-		// Send SIGKILL immediately
+		// Send SIGKILL to process group
 		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 			return fmt.Errorf("failed to kill process: %w", err)
 		}
+		// Also SIGKILL each PID individually (handles processes that escaped the group)
+		killPIDs(treePIDs, syscall.SIGKILL)
 	} else {
 		// Send SIGTERM for graceful shutdown
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
@@ -627,13 +632,11 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 		}
 	}
 
-	// Wait for process to terminate (event will be emitted by waitForProcessExit)
+	// Wait for entire process tree to terminate
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		jm.mu.RLock()
-		stillRunning := job.CurrentRunID != nil
-		jm.mu.RUnlock()
-		if !stillRunning {
+		survivors := filterRunningPIDs(treePIDs)
+		if len(survivors) == 0 {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -641,21 +644,20 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 
 	// If still running after timeout and we used SIGTERM, escalate to SIGKILL
 	if !force {
-		jm.mu.RLock()
-		stillRunning := job.CurrentRunID != nil
-		jm.mu.RUnlock()
-		if stillRunning {
+		survivors := filterRunningPIDs(treePIDs)
+		if len(survivors) > 0 {
+			// Kill process group
 			if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 				return fmt.Errorf("failed to kill process: %w", err)
 			}
+			// Also kill each survivor individually
+			killPIDs(survivors, syscall.SIGKILL)
 
-			// Wait again for SIGKILL
+			// Wait again for SIGKILL to take effect
 			deadline = time.Now().Add(5 * time.Second)
 			for time.Now().Before(deadline) {
-				jm.mu.RLock()
-				stillRunning := job.CurrentRunID != nil
-				jm.mu.RUnlock()
-				if !stillRunning {
+				survivors = filterRunningPIDs(treePIDs)
+				if len(survivors) == 0 {
 					return nil
 				}
 				time.Sleep(100 * time.Millisecond)
@@ -663,11 +665,10 @@ func (jm *JobManager) StopJob(jobID string, force bool) error {
 		}
 	}
 
-	jm.mu.RLock()
-	stillRunning := job.CurrentRunID != nil
-	jm.mu.RUnlock()
-	if stillRunning {
-		return fmt.Errorf("process %d still running after SIGKILL", pid)
+	// Final verification
+	survivors := filterRunningPIDs(treePIDs)
+	if len(survivors) > 0 {
+		return fmt.Errorf("process tree has %d surviving processes after SIGKILL: %v", len(survivors), survivors)
 	}
 
 	return nil
@@ -735,41 +736,47 @@ func (jm *JobManager) RestartJob(jobID string, env []string) error {
 		pid := run.PID
 		jm.mu.Unlock()
 
+		// Snapshot all PIDs in the process tree before signaling
+		treePIDs := getProcessTreePIDs(pid)
+
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
 			return fmt.Errorf("failed to stop process: %w", err)
 		}
 
-		// Wait for termination
+		// Wait for entire process tree to terminate
 		deadline := time.Now().Add(10 * time.Second)
 		for time.Now().Before(deadline) {
-			jm.mu.RLock()
-			stillRunning := job.CurrentRunID != nil
-			jm.mu.RUnlock()
-			if !stillRunning {
+			survivors := filterRunningPIDs(treePIDs)
+			if len(survivors) == 0 {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 
 		// Escalate to SIGKILL if needed
-		jm.mu.RLock()
-		stillRunning := job.CurrentRunID != nil
-		jm.mu.RUnlock()
-		if stillRunning {
+		survivors := filterRunningPIDs(treePIDs)
+		if len(survivors) > 0 {
+			// Kill process group
 			if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 				return fmt.Errorf("failed to kill process: %w", err)
 			}
+			// Also kill each survivor individually
+			killPIDs(survivors, syscall.SIGKILL)
 
 			deadline = time.Now().Add(5 * time.Second)
 			for time.Now().Before(deadline) {
-				jm.mu.RLock()
-				stillRunning := job.CurrentRunID != nil
-				jm.mu.RUnlock()
-				if !stillRunning {
+				survivors = filterRunningPIDs(treePIDs)
+				if len(survivors) == 0 {
 					break
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
+		}
+
+		// Final verification before restarting
+		survivors = filterRunningPIDs(treePIDs)
+		if len(survivors) > 0 {
+			return fmt.Errorf("cannot restart: process tree has %d surviving processes after SIGKILL: %v", len(survivors), survivors)
 		}
 
 		jm.mu.Lock()
@@ -859,51 +866,58 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 	return nil
 }
 
-// StopAll stops all running jobs
+// StopAll stops all running jobs and their process trees
 func (jm *JobManager) StopAll() (stopped int) {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
-	// Collect running jobs
+	// Collect running jobs and snapshot all PIDs in their process trees
 	var runningRuns []*Run
+	var allTreePIDs []int
 	for _, job := range jm.jobs {
 		if job.CurrentRunID != nil {
 			if run, ok := jm.runs[*job.CurrentRunID]; ok {
 				runningRuns = append(runningRuns, run)
+				// Snapshot PIDs for this process tree
+				treePIDs := getProcessTreePIDs(run.PID)
+				allTreePIDs = append(allTreePIDs, treePIDs...)
 			}
 		}
 	}
 
-	// Stop running jobs with SIGTERM
+	if len(runningRuns) == 0 {
+		return 0
+	}
+
+	// Stop running jobs with SIGTERM (to process groups)
 	for _, run := range runningRuns {
 		syscall.Kill(-run.PID, syscall.SIGTERM)
 	}
 
-	// Wait for graceful termination
-	if len(runningRuns) > 0 {
-		deadline := time.Now().Add(10 * time.Second)
-		for time.Now().Before(deadline) {
-			allStopped := true
-			for _, run := range runningRuns {
-				if run.IsRunning() {
-					allStopped = false
-					break
-				}
-			}
-			if allStopped {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
+	// Wait for entire process trees to terminate
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		survivors := filterRunningPIDs(allTreePIDs)
+		if len(survivors) == 0 {
+			return len(runningRuns)
 		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
-		// SIGKILL any remaining
-		for _, run := range runningRuns {
-			if run.IsRunning() {
-				syscall.Kill(-run.PID, syscall.SIGKILL)
-			}
+	// SIGKILL any remaining - both process groups and individual survivors
+	for _, run := range runningRuns {
+		syscall.Kill(-run.PID, syscall.SIGKILL)
+	}
+	survivors := filterRunningPIDs(allTreePIDs)
+	killPIDs(survivors, syscall.SIGKILL)
+
+	// Wait for SIGKILL to take effect
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		survivors = filterRunningPIDs(allTreePIDs)
+		if len(survivors) == 0 {
+			break
 		}
-
-		// Wait for SIGKILL to take effect
 		time.Sleep(100 * time.Millisecond)
 	}
 

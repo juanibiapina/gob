@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Daemon polls ports at 2s, 5s, 10s after job starts and emits `ports_updated` events
   - Supports Linux and macOS
 
+### Changed
+
+- **Process tree verification on stop**: Stop commands now verify that all child processes terminate, not just the parent
+  - `stop`, `restart`, and `shutdown` now snapshot the entire process tree before signaling
+  - After SIGKILL, survivors are killed individually (handles processes that escaped the process group)
+  - Returns detailed error with surviving PIDs if processes cannot be terminated
+
 ## [2.0.4] - 2025-12-15
 
 ### Changed

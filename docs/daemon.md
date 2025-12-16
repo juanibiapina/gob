@@ -68,6 +68,20 @@ The daemon handles multiple simultaneous clients:
 - **Multiple TUIs**: All stay in sync via event broadcasts
 - **Event-driven updates**: No polling required for job state changes
 
+## Process Management
+
+Jobs run in their own process groups (`setpgid`), allowing signals to be sent to the entire tree. When stopping a job:
+
+1. **Snapshot**: Daemon captures all PIDs in the process tree before signaling
+2. **SIGTERM**: Sent to the process group for graceful shutdown
+3. **Wait**: Up to 10 seconds for all processes in the tree to terminate
+4. **SIGKILL**: If processes survive, SIGKILL is sent to both the process group and each surviving PID individually
+5. **Verification**: Final check ensures all child processes terminated
+
+This handles edge cases where child processes escape the process group (e.g., via `setsid`) or ignore signals. If any processes survive SIGKILL, an error is returned with the surviving PIDs.
+
+The same process tree verification is used by `stop`, `restart`, and `shutdown` commands.
+
 ## Job Output
 
 The daemon writes job output to log files, and clients tail those files directly:
@@ -124,8 +138,9 @@ This allows the daemon to conserve resources while preserving job history.
 `gob shutdown` performs a clean shutdown:
 
 1. Stops all running jobs (SIGTERM, then SIGKILL after timeout)
-2. Sets `shutdown_clean = true` in database
-3. Shuts down the daemon
+2. Verifies all child processes in each job's process tree have terminated
+3. Sets `shutdown_clean = true` in database
+4. Shuts down the daemon
 
 Job history and log files are preserved.
 

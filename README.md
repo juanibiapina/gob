@@ -22,12 +22,15 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ## Features
 
-- **Interactive TUI** - Full-screen terminal interface with real-time job status and log streaming
+- **Interactive TUI** - Full-screen terminal interface with real-time job status
+- **Real-time log streaming** - Follow stdout/stderr from CLI, TUI, MCP, or AI agents without copying output
 - **MCP server** - Native Model Context Protocol support for AI agents like Claude Code
 - **AI agent friendly** - Shared view of all processes for you and your coding agent
 - **Real-time sync** - Changes from CLI instantly appear in TUI, and vice-versa
 - **Per-directory jobs** - Jobs are scoped to directories, keeping projects organized
 - **Process lifecycle control** - Start, stop, restart, send signals to any job
+- **Port monitoring** - Inspect listening ports across a job's entire process tree
+- **Reliable shutdowns** - Stop, restart, and shutdown verify every child process in the tree is gone
 - **Job persistence** - Jobs survive daemon restarts with SQLite-backed state
 - **Run history** - Track execution history and statistics for repeated commands
 
