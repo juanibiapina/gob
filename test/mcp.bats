@@ -357,3 +357,66 @@ load 'test_helper.bash'
     echo "$call_response" | jq -e ".result.content[0].text | fromjson | .success_rate == 100"
     echo "$call_response" | jq -e ".result.content[0].text | fromjson | .expected_duration_ms"
 }
+
+@test "mcp gob_ports tool returns ports for running job" {
+    local port=$(get_random_port)
+    
+    # Create a job that listens on a port
+    "$JOB_CLI" add -- python3 "$BATS_TEST_DIRNAME/fixtures/port_listener.py" "$port"
+    job_id=$(get_job_field id)
+    
+    # Wait for port
+    wait_for_port "$port"
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call gob_ports tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_ports\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify the response contains the port
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .ports[] | select(.port == $port)"
+    
+    # Cleanup
+    "$JOB_CLI" stop "$job_id"
+}
+
+@test "mcp gob_ports tool shows message for stopped job" {
+    "$JOB_CLI" add sleep 300
+    job_id=$(get_job_field id)
+    "$JOB_CLI" stop "$job_id"
+    
+    # Create a coprocess for the MCP server
+    coproc MCP { "$JOB_CLI" mcp 2>/dev/null; }
+    
+    # Send initialize
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' >&${MCP[1]}
+    read -r init_response <&${MCP[0]}
+    
+    # Send initialized notification
+    echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&${MCP[1]}
+    
+    # Call gob_ports tool
+    echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gob_ports\",\"arguments\":{\"job_id\":\"$job_id\"}}}" >&${MCP[1]}
+    read -r call_response <&${MCP[0]}
+    
+    # Close the server
+    exec {MCP[1]}>&-
+    wait $MCP_PID 2>/dev/null || true
+    
+    # Verify response shows stopped status
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .status == \"stopped\""
+    echo "$call_response" | jq -e ".result.content[0].text | fromjson | .message | contains(\"not running\")"
+}

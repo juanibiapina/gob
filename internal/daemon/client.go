@@ -464,6 +464,74 @@ func (c *Client) Stats(jobID string) (*StatsResponse, error) {
 	return &stats, nil
 }
 
+// Ports returns the listening ports for a job
+func (c *Client) Ports(jobID string) (*JobPorts, error) {
+	req := NewRequest(RequestTypePorts)
+	req.Payload["job_id"] = jobID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse ports from response
+	portsRaw, ok := resp.Data["ports"]
+	if !ok {
+		return nil, fmt.Errorf("no ports in response")
+	}
+
+	portsJSON, err := json.Marshal(portsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal ports: %w", err)
+	}
+
+	var ports JobPorts
+	if err := json.Unmarshal(portsJSON, &ports); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ports: %w", err)
+	}
+
+	return &ports, nil
+}
+
+// AllPorts returns the listening ports for all running jobs
+func (c *Client) AllPorts(workdir string) ([]JobPorts, error) {
+	req := NewRequest(RequestTypePorts)
+	if workdir != "" {
+		req.Payload["workdir"] = workdir
+	}
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+
+	// Parse ports from response
+	portsRaw, ok := resp.Data["ports"]
+	if !ok {
+		return []JobPorts{}, nil
+	}
+
+	portsJSON, err := json.Marshal(portsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal ports: %w", err)
+	}
+
+	var ports []JobPorts
+	if err := json.Unmarshal(portsJSON, &ports); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ports: %w", err)
+	}
+
+	return ports, nil
+}
+
 // Close closes the connection to the daemon
 func (c *Client) Close() error {
 	if c.conn != nil {

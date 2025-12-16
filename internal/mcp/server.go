@@ -71,6 +71,7 @@ func (s *Server) registerTools() {
 	s.registerJobStderr()
 	s.registerJobRuns()
 	s.registerJobStats()
+	s.registerJobPorts()
 }
 
 // connectToDaemon creates and connects a daemon client.
@@ -1058,5 +1059,49 @@ func (s *Server) registerJobStats() {
 			"min_duration_ms":   stats.MinDurationMs,
 			"max_duration_ms":   stats.MaxDurationMs,
 		})
+	})
+}
+
+// registerJobPorts registers the gob_ports tool.
+func (s *Server) registerJobPorts() {
+	tool := mcp.NewTool("gob_ports",
+		mcp.WithDescription("List listening ports for a job's process tree"),
+		mcp.WithString("job_id",
+			mcp.Description("Job ID (optional, lists all running jobs if omitted)"),
+		),
+	)
+
+	s.addTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		client, err := connectToDaemon()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		defer client.Close()
+
+		jobID := request.GetString("job_id", "")
+
+		if jobID != "" {
+			// Get ports for specific job
+			ports, err := client.Ports(jobID)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get ports: %v", err)), nil
+			}
+
+			// Return result (includes status/message for stopped jobs)
+			return jsonResult(ports)
+		}
+
+		// Get ports for all running jobs in current directory
+		workdir, err := os.Getwd()
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get current directory: %v", err)), nil
+		}
+
+		allPorts, err := client.AllPorts(workdir)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get ports: %v", err)), nil
+		}
+
+		return jsonResult(map[string]any{"jobs": allPorts})
 	})
 }

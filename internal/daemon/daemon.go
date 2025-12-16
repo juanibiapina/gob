@@ -360,6 +360,8 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleRuns(req)
 	case RequestTypeStats:
 		return d.handleStats(req)
+	case RequestTypePorts:
+		return d.handlePorts(req)
 	default:
 		return NewErrorResponse(fmt.Errorf("unknown request type: %s", req.Type))
 	}
@@ -691,6 +693,32 @@ func (d *Daemon) handleStats(req *Request) *Response {
 
 	resp := NewSuccessResponse()
 	resp.Data["stats"] = jobToStats(job)
+	return resp
+}
+
+// handlePorts handles a ports request
+func (d *Daemon) handlePorts(req *Request) *Response {
+	jobID, _ := req.Payload["job_id"].(string)
+	workdir, _ := req.Payload["workdir"].(string)
+
+	resp := NewSuccessResponse()
+
+	if jobID != "" {
+		// Get ports for specific job
+		jobPorts, err := d.jobManager.GetJobPorts(jobID)
+		if err != nil {
+			return NewErrorResponse(err)
+		}
+		resp.Data["ports"] = jobPorts
+	} else {
+		// Get ports for all running jobs
+		allPorts, err := d.jobManager.GetAllJobPorts(workdir)
+		if err != nil {
+			return NewErrorResponse(err)
+		}
+		resp.Data["ports"] = allPorts
+	}
+
 	return resp
 }
 

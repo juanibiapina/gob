@@ -46,6 +46,7 @@ const (
 	RequestTypeStats     RequestType = "stats"
 	RequestTypeSubscribe RequestType = "subscribe"
 	RequestTypeVersion   RequestType = "version"
+	RequestTypePorts     RequestType = "ports"
 )
 
 // EventType represents the type of event emitted by the daemon

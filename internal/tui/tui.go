@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ type panel int
 
 const (
 	panelJobs panel = iota
+	panelPorts
 	panelRuns
 	panelStdout
 	panelStderr
@@ -48,6 +50,7 @@ type Job struct {
 	ExitCode   *int
 	StartedAt  time.Time
 	StoppedAt  time.Time
+	Ports      []daemon.PortInfo // Listening ports (only for running jobs)
 }
 
 // Run represents a single execution of a job
@@ -110,6 +113,18 @@ type subscriptionErrorMsg struct {
 
 // reconnectMsg triggers a reconnection attempt
 type reconnectMsg struct{}
+
+// portsUpdatedMsg is sent when ports are fetched for a job
+type portsUpdatedMsg struct {
+	jobID string
+	ports []daemon.PortInfo
+}
+
+// fetchPortsMsg triggers port fetching for a specific job
+type fetchPortsMsg struct {
+	jobID string
+	delay time.Duration
+}
 
 // Model is the main TUI model
 type Model struct {
@@ -257,6 +272,31 @@ func waitForEvent(events <-chan daemon.Event, errs <-chan error) tea.Cmd {
 func reconnectCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return reconnectMsg{}
+	})
+}
+
+// fetchJobPorts fetches ports for a specific job
+func fetchJobPorts(jobID string) tea.Cmd {
+	return func() tea.Msg {
+		client, err := connectClient()
+		if err != nil {
+			return portsUpdatedMsg{jobID: jobID, ports: nil}
+		}
+		defer client.Close()
+
+		portsInfo, err := client.Ports(jobID)
+		if err != nil {
+			return portsUpdatedMsg{jobID: jobID, ports: nil}
+		}
+
+		return portsUpdatedMsg{jobID: jobID, ports: portsInfo.Ports}
+	}
+}
+
+// scheduleFetchPorts schedules a port fetch after a delay
+func scheduleFetchPorts(jobID string, delay time.Duration) tea.Cmd {
+	return tea.Tick(delay, func(t time.Time) tea.Msg {
+		return fetchPortsMsg{jobID: jobID, delay: delay}
 	})
 }
 
@@ -423,6 +463,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.fetchRuns(jobID))
 			}
 		}
+		// Schedule port fetches on job start (1s and 3s after start)
+		if msg.event.Type == daemon.EventTypeJobStarted {
+			cmds = append(cmds, scheduleFetchPorts(msg.event.JobID, 1*time.Second))
+			cmds = append(cmds, scheduleFetchPorts(msg.event.JobID, 3*time.Second))
+		}
 		// Continue waiting for more events
 		if m.subscribed && m.eventChan != nil {
 			cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
@@ -452,13 +497,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cursor < 0 {
 			m.cursor = 0
 		}
-		// Fetch runs for the selected job
+		// Fetch runs and ports for the selected job
 		if len(m.jobs) > 0 {
 			jobID := m.jobs[m.cursor].ID
 			if jobID != m.runsForJobID {
 				m.runsForJobID = jobID
 				m.runCursor = 0
-				cmds = append(cmds, m.fetchRuns(jobID))
+				cmds = append(cmds, m.fetchRuns(jobID), fetchJobPorts(jobID))
 			}
 		}
 
@@ -490,6 +535,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isError = msg.isError
 		m.messageTime = time.Now()
 		// No need to refresh jobs - events will handle that
+
+	case portsUpdatedMsg:
+		// Update ports for a specific job
+		for i := range m.jobs {
+			if m.jobs[i].ID == msg.jobID {
+				m.jobs[i].Ports = msg.ports
+				break
+			}
+		}
+
+	case fetchPortsMsg:
+		// Trigger port fetch for a specific job (used for scheduled fetches)
+		cmds = append(cmds, fetchJobPorts(msg.jobID))
 
 	case tea.KeyMsg:
 		// Clear old messages
@@ -570,6 +628,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 				m.jobs[i].Running = false
 				m.jobs[i].ExitCode = event.Job.ExitCode
 				m.jobs[i].StoppedAt = parseTime(event.Job.StoppedAt)
+				m.jobs[i].Ports = nil // Clear ports when job stops
 				break
 			}
 		}
@@ -691,20 +750,26 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "2":
-		m.activePanel = panelRuns
+		m.activePanel = panelPorts
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "3":
-		m.activePanel = panelStdout
+		m.activePanel = panelRuns
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "4":
+		m.activePanel = panelStdout
+		telemetry.TUIActionExecute("switch_panel")
+
+	case "5":
 		m.activePanel = panelStderr
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "tab":
 		switch m.activePanel {
 		case panelJobs:
+			m.activePanel = panelPorts
+		case panelPorts:
 			m.activePanel = panelRuns
 		case panelRuns:
 			m.activePanel = panelStdout
@@ -719,8 +784,10 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch m.activePanel {
 		case panelJobs:
 			m.activePanel = panelStderr
-		case panelRuns:
+		case panelPorts:
 			m.activePanel = panelJobs
+		case panelRuns:
+			m.activePanel = panelPorts
 		case panelStdout:
 			m.activePanel = panelRuns
 		case panelStderr:
@@ -756,6 +823,8 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.activePanel {
 	case panelJobs:
 		return m.updateJobsPanel(msg)
+	case panelPorts:
+		return m.updatePortsPanel(msg)
 	case panelRuns:
 		return m.updateRunsPanel(msg)
 	default:
@@ -890,14 +959,45 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// fetchRunsForSelectedJob returns commands to read logs and fetch runs for the selected job
+// fetchRunsForSelectedJob returns commands to read logs, fetch runs, and fetch ports for the selected job
 // Note: caller must set m.runsForJobID before calling this
 func (m Model) fetchRunsForSelectedJob() tea.Cmd {
 	if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
 		return m.readLogs()
 	}
 	jobID := m.jobs[m.cursor].ID
-	return tea.Batch(m.readLogs(), m.fetchRuns(jobID))
+	return tea.Batch(m.readLogs(), m.fetchRuns(jobID), fetchJobPorts(jobID))
+}
+
+func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Display-only panel for now - just handle common keys
+	switch msg.String() {
+	case "f":
+		m.followLogs = !m.followLogs
+		telemetry.TUIActionExecute("toggle_follow")
+		if m.followLogs {
+			m.stdoutView.GotoBottom()
+			m.stderrView.GotoBottom()
+		}
+
+	case "H":
+		m.stdoutView.ScrollLeft(4)
+		m.stderrView.ScrollLeft(4)
+
+	case "L":
+		m.stdoutView.ScrollRight(4)
+		m.stderrView.ScrollRight(4)
+
+	case "w":
+		m.wrapLines = !m.wrapLines
+		telemetry.TUIActionExecute("toggle_wrap")
+		m.stdoutView.SetContent(m.formatStdout())
+		m.stderrView.SetContent(m.formatStderr())
+		m.stdoutView.SetXOffset(0)
+		m.stderrView.SetXOffset(0)
+	}
+
+	return m, nil
 }
 
 func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1259,12 +1359,16 @@ func (m Model) renderPanels() string {
 		totalH = 8
 	}
 
-	// Left side: Jobs (60%) + Runs (40%)
-	runsH := totalH * 40 / 100
+	// Left side: Jobs (50%) + Ports (20%) + Runs (30%)
+	portsH := totalH * 20 / 100
+	if portsH < 4 {
+		portsH = 4
+	}
+	runsH := totalH * 30 / 100
 	if runsH < 5 {
 		runsH = 5
 	}
-	jobsH := totalH - runsH
+	jobsH := totalH - portsH - runsH
 
 	// Right side: Stdout (80%) + Stderr (20%)
 	stderrH := totalH * 20 / 100
@@ -1277,10 +1381,18 @@ func (m Model) renderPanels() string {
 	jobContent := m.renderJobList(leftPanelW-4, jobsH-2)
 	jobPanel := m.renderPanel("1 Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
 
-	// Runs panel
-	runsTitle := "2 Runs"
+	// Ports panel
+	portsTitle := "2 Ports"
 	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-		runsTitle = fmt.Sprintf("2 Runs: %s", m.jobs[m.cursor].ID)
+		portsTitle = fmt.Sprintf("2 Ports: %s", m.jobs[m.cursor].ID)
+	}
+	portsContent := m.renderPortsList(leftPanelW-4, portsH-2)
+	portsPanel := m.renderPanel(portsTitle, portsContent, leftPanelW, portsH, m.activePanel == panelPorts)
+
+	// Runs panel
+	runsTitle := "3 Runs"
+	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
+		runsTitle = fmt.Sprintf("3 Runs: %s", m.jobs[m.cursor].ID)
 	}
 	runsContent := m.renderRunsList(leftPanelW-4, runsH-2)
 	runsPanel := m.renderPanel(runsTitle, runsContent, leftPanelW, runsH, m.activePanel == panelRuns)
@@ -1345,8 +1457,8 @@ func (m Model) renderPanels() string {
 			}
 		}
 
-		stdoutTitle = fmt.Sprintf("3 stdout: %s %s%s", showingRunID, runStatus, durationStr)
-		stderrTitle = "4 stderr"
+		stdoutTitle = fmt.Sprintf("4 stdout: %s %s%s", showingRunID, runStatus, durationStr)
+		stderrTitle = "5 stderr"
 		if m.followLogs {
 			stdoutTitle += " [following]"
 			stderrTitle += " [following]"
@@ -1356,8 +1468,8 @@ func (m Model) renderPanels() string {
 			stderrTitle += " [wrap]"
 		}
 	} else {
-		stdoutTitle = "3 stdout"
-		stderrTitle = "4 stderr"
+		stdoutTitle = "4 stdout"
+		stderrTitle = "5 stderr"
 		if m.wrapLines {
 			stdoutTitle += " [wrap]"
 			stderrTitle += " [wrap]"
@@ -1377,7 +1489,7 @@ func (m Model) renderPanels() string {
 	stderrPanel := m.renderPanel(stderrTitle, stderrContent, rightPanelW, stderrH, m.activePanel == panelStderr)
 
 	// Stack panels
-	leftPanels := lipgloss.JoinVertical(lipgloss.Left, jobPanel, runsPanel)
+	leftPanels := lipgloss.JoinVertical(lipgloss.Left, jobPanel, portsPanel, runsPanel)
 	rightPanels := lipgloss.JoinVertical(lipgloss.Left, stdoutPanel, stderrPanel)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanels, rightPanels)
@@ -1409,6 +1521,42 @@ func (m Model) renderRunsList(width, height int) string {
 		isSelected := i == m.runCursor && m.activePanel == panelRuns
 		runLine := m.formatRunListLine(run, isSelected, width)
 		lines = append(lines, runLine)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// renderPortsList renders the ports list for the selected job
+func (m Model) renderPortsList(width, height int) string {
+	if len(m.jobs) == 0 {
+		return mutedStyle.Render("No job selected")
+	}
+
+	job := m.jobs[m.cursor]
+
+	if !job.Running {
+		return mutedStyle.Render("Job is not running")
+	}
+
+	if len(job.Ports) == 0 {
+		return mutedStyle.Render("No open ports")
+	}
+
+	// Sort ports by port number (lower first)
+	ports := make([]daemon.PortInfo, len(job.Ports))
+	copy(ports, job.Ports)
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
+
+	// Table header
+	header := fmt.Sprintf("%-6s %-6s %-15s %s", "PORT", "PROTO", "ADDRESS", "PID")
+	lines := []string{mutedStyle.Render(header)}
+
+	// Port rows
+	for _, p := range ports {
+		line := fmt.Sprintf("%-6d %-6s %-15s %d", p.Port, p.Protocol, p.Address, p.PID)
+		lines = append(lines, line)
 	}
 
 	return strings.Join(lines, "\n")
@@ -1598,7 +1746,7 @@ func (m Model) renderJobList(width, height int) string {
 			cmdStyled = cmd
 		}
 
-		// Build line 1: symbol + command
+		// Build line: symbol + command
 		var line string
 		if isSelected {
 			sp := jobSelectedBgStyle.Render(" ")
@@ -1707,6 +1855,13 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("w", "wrap"),
 				m.renderKey("a", "all dirs"),
 			)
+		case panelPorts:
+			parts = append(parts,
+				m.renderKey("H/L", "scroll log"),
+				m.renderKey("f", "follow"),
+				m.renderKey("w", "wrap"),
+				m.renderKey("1-5", "panels"),
+			)
 		case panelRuns:
 			parts = append(parts,
 				m.renderKey("↑↓", "select run"),
@@ -1714,7 +1869,7 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("H/L", "scroll log"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
-				m.renderKey("1/2/3/4", "panels"),
+				m.renderKey("1-5", "panels"),
 			)
 		case panelStdout:
 			parts = append(parts,
@@ -1723,7 +1878,7 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("g/G", "top/bottom"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
-				m.renderKey("1/2/3/4", "panels"),
+				m.renderKey("1-5", "panels"),
 			)
 		case panelStderr:
 			parts = append(parts,
@@ -1732,7 +1887,7 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("g/G", "top/bottom"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
-				m.renderKey("1/2/3/4", "panels"),
+				m.renderKey("1-5", "panels"),
 			)
 		}
 		parts = append(parts, m.renderKey("?", "help"), m.renderKey("q", "quit"))
@@ -1785,7 +1940,7 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("↑/k ↓/j", "move cursor"),
 		"  " + m.renderKey("g/G", "first/last"),
 		"  " + m.renderKey("tab", "switch panel"),
-		"  " + m.renderKey("1/2/3/4", "panels"),
+		"  " + m.renderKey("1-5", "panels"),
 		"",
 		helpKeyStyle.Render("Job Actions"),
 		"  " + m.renderKey("s", "stop (SIGTERM)"),
