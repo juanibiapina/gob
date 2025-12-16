@@ -50,3 +50,30 @@ func FitToWidth(s string, width int) string {
 
 	return s
 }
+
+// FitCellContent ensures a string fits within the specified width for table cells.
+// If the string is too long, it truncates with an ellipsis (…).
+// If the string is too short, it pads with spaces.
+// Color codes are preserved in both cases.
+func FitCellContent(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	currentWidth := lipgloss.Width(s)
+
+	if currentWidth > width {
+		// Truncate with ellipsis using ANSI-aware function
+		if width <= 1 {
+			return "…"
+		}
+		return ansi.Truncate(s, width-1, "") + "…"
+	}
+
+	if currentWidth < width {
+		// Pad with spaces to reach exact width
+		return s + strings.Repeat(" ", width-currentWidth)
+	}
+
+	return s
+}

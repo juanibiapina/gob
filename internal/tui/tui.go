@@ -1564,10 +1564,34 @@ func (m Model) renderRunsList(width, height int) string {
 	lines = append(lines, mutedStyle.Render(statsLine))
 	lines = append(lines, "")
 
+	// Calculate column widths based on panel width
+	// Layout: [space][status 3][space][id 30%][space][time 35%][space][duration 35%]
+	// Account for spacing: 1 leading space + 3 separating spaces = 4 total
+	const statusWidth = 3
+	const numSpaces = 4
+	remainingWidth := width - statusWidth - numSpaces
+	if remainingWidth < 9 {
+		remainingWidth = 9 // Minimum: 3 chars per column
+	}
+	idWidth := remainingWidth * 30 / 100
+	timeWidth := remainingWidth * 35 / 100
+	durationWidth := remainingWidth - idWidth - timeWidth // Give remainder to duration
+
+	// Ensure minimum widths
+	if idWidth < 3 {
+		idWidth = 3
+	}
+	if timeWidth < 3 {
+		timeWidth = 3
+	}
+	if durationWidth < 3 {
+		durationWidth = 3
+	}
+
 	// Run list
 	for i, run := range m.runs {
 		isSelected := i == m.runCursor && m.activePanel == panelRuns
-		runLine := m.formatRunListLine(run, isSelected, width)
+		runLine := m.formatRunListLine(run, isSelected, width, statusWidth, idWidth, timeWidth, durationWidth)
 		lines = append(lines, runLine)
 	}
 
@@ -1645,36 +1669,38 @@ func (m Model) formatPortLine(p daemon.PortInfo, isSelected bool, width int) str
 }
 
 // formatRunListLine formats a single run line for the runs panel
-func (m Model) formatRunListLine(run Run, isSelected bool, width int) string {
-	// Status indicator
-	var status string
+func (m Model) formatRunListLine(run Run, isSelected bool, width, statusWidth, idWidth, timeWidth, durationWidth int) string {
+	// Status indicator (3 chars: icon padded, or right-aligned exit code)
+	var statusText string
+	var statusStyle, statusSelectedStyle lipgloss.Style
+
 	if run.Status == "running" {
-		if isSelected {
-			status = jobRunningSelectedStyle.Render("◉")
-		} else {
-			status = jobRunningStyle.Render("◉")
-		}
+		statusText = "◉"
+		statusStyle = jobRunningStyle
+		statusSelectedStyle = jobRunningSelectedStyle
 	} else if run.ExitCode != nil {
 		if *run.ExitCode == 0 {
-			if isSelected {
-				status = jobSuccessSelectedStyle.Render("✓")
-			} else {
-				status = jobSuccessStyle.Render("✓")
-			}
+			statusText = "✓"
+			statusStyle = jobSuccessStyle
+			statusSelectedStyle = jobSuccessSelectedStyle
 		} else {
-			exitStr := fmt.Sprintf("✗ (%d)", *run.ExitCode)
-			if isSelected {
-				status = jobFailedSelectedStyle.Render(exitStr)
-			} else {
-				status = jobFailedStyle.Render(exitStr)
+			// Right-align exit code in 3 chars
+			statusText = fmt.Sprintf("%3d", *run.ExitCode)
+			if *run.ExitCode > 999 {
+				statusText = "999" // Cap display at 999
 			}
+			statusStyle = jobFailedStyle
+			statusSelectedStyle = jobFailedSelectedStyle
 		}
 	} else {
-		if isSelected {
-			status = jobStoppedSelectedStyle.Render("◼")
-		} else {
-			status = jobStoppedStyle.Render("◼")
-		}
+		statusText = "◼"
+		statusStyle = jobStoppedStyle
+		statusSelectedStyle = jobStoppedSelectedStyle
+	}
+
+	// Pad status to statusWidth (for non-exit-code statuses)
+	if len(statusText) < statusWidth {
+		statusText = statusText + strings.Repeat(" ", statusWidth-len(statusText))
 	}
 
 	// Relative time
@@ -1688,21 +1714,26 @@ func (m Model) formatRunListLine(run Run, isSelected bool, width int) string {
 		duration = formatDuration(time.Duration(run.DurationMs) * time.Millisecond)
 	}
 
-	// Build the line
+	// Build the line with fixed-width columns
 	if isSelected {
 		sp := jobSelectedBgStyle.Render(" ")
-		idStyled := jobIDSelectedStyle.Render(run.ID)
-		timeStyled := jobTimeSelectedStyle.Render(relTime)
-		durationStyled := jobTimeSelectedStyle.Render(duration)
-		line := sp + status + sp + idStyled + jobSelectedBgStyle.Render("  ") + timeStyled + jobSelectedBgStyle.Render("  ") + durationStyled
-		padding := width - lipgloss.Width(line)
-		if padding > 0 {
-			line = line + jobSelectedBgStyle.Render(strings.Repeat(" ", padding))
+		statusStyled := statusSelectedStyle.Render(statusText)
+		idStyled := jobIDSelectedStyle.Render(FitCellContent(run.ID, idWidth))
+		timeStyled := jobTimeSelectedStyle.Render(FitCellContent(relTime, timeWidth))
+		durationStyled := jobTimeSelectedStyle.Render(FitCellContent(duration, durationWidth))
+		line := sp + statusStyled + sp + idStyled + sp + timeStyled + sp + durationStyled
+		lineWidth := lipgloss.Width(line)
+		if lineWidth < width {
+			line = line + jobSelectedBgStyle.Render(strings.Repeat(" ", width-lineWidth))
 		}
 		return line
 	}
 
-	return fmt.Sprintf(" %s %s  %s  %s", status, jobIDStyle.Render(run.ID), jobTimeStyle.Render(relTime), jobTimeStyle.Render(duration))
+	statusStyled := statusStyle.Render(statusText)
+	idStyled := jobIDStyle.Render(FitCellContent(run.ID, idWidth))
+	timeStyled := jobTimeStyle.Render(FitCellContent(relTime, timeWidth))
+	durationStyled := jobTimeStyle.Render(FitCellContent(duration, durationWidth))
+	return " " + statusStyled + " " + idStyled + " " + timeStyled + " " + durationStyled
 }
 
 func (m Model) renderPanel(num int, title, content string, width, height int, active bool) string {

@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **TUI visual refresh**: Updated panel styling with new color scheme and info panel showing directory and version
+- **TUI visual refresh**:
+  - Updated panel styling with new color scheme
+  - Add info panel showing directory and version
+  - Remove top banners
+  - Runs panel columns now have fixed percentage-based widths with proper truncation
 
 ## [2.1.1] - 2025-12-16
 
