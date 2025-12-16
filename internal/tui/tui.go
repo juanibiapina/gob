@@ -1997,8 +1997,107 @@ func (m Model) renderModal(background string) string {
 		content = m.renderHelpModal()
 	}
 
-	// Center modal on screen
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	// Calculate center position for overlay
+	modalWidth := lipgloss.Width(content)
+	modalHeight := lipgloss.Height(content)
+	x := (m.width - modalWidth) / 2
+	y := (m.height - modalHeight) / 2
+
+	// Overlay modal on top of background
+	return placeOverlay(x, y, content, background)
+}
+
+// placeOverlay places the foreground string on top of the background string
+// at position (x, y). Characters from fg replace characters in bg.
+func placeOverlay(x, y int, fg, bg string) string {
+	bgLines := strings.Split(bg, "\n")
+	fgLines := strings.Split(fg, "\n")
+
+	for i, fgLine := range fgLines {
+		bgY := y + i
+		if bgY < 0 || bgY >= len(bgLines) {
+			continue
+		}
+
+		bgLine := bgLines[bgY]
+		bgLineWidth := ansi.StringWidth(bgLine)
+
+		// Build the new line: left part + fg line + right part
+		var newLine strings.Builder
+
+		// Left part of background (before overlay)
+		if x > 0 {
+			left := ansi.Truncate(bgLine, x, "")
+			newLine.WriteString(left)
+			// Pad if background line is shorter than x
+			leftWidth := ansi.StringWidth(left)
+			if leftWidth < x {
+				newLine.WriteString(strings.Repeat(" ", x-leftWidth))
+			}
+		}
+
+		// Foreground content
+		newLine.WriteString(fgLine)
+		fgLineWidth := ansi.StringWidth(fgLine)
+
+		// Right part of background (after overlay)
+		rightStart := x + fgLineWidth
+		if rightStart < bgLineWidth {
+			// We need to skip 'rightStart' visual columns and take the rest
+			right := truncateLeft(bgLine, rightStart)
+			newLine.WriteString(right)
+		}
+
+		bgLines[bgY] = newLine.String()
+	}
+
+	return strings.Join(bgLines, "\n")
+}
+
+// truncateLeft removes the first n visual columns from a string,
+// preserving ANSI escape sequences.
+func truncateLeft(s string, n int) string {
+	if n <= 0 {
+		return s
+	}
+
+	var result strings.Builder
+	width := 0
+	inEscape := false
+	escapeSeq := strings.Builder{}
+
+	for _, r := range s {
+		if inEscape {
+			escapeSeq.WriteRune(r)
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+				inEscape = false
+				// If we're past the truncation point, include this escape sequence
+				if width >= n {
+					result.WriteString(escapeSeq.String())
+				}
+				escapeSeq.Reset()
+			}
+			continue
+		}
+
+		if r == '\x1b' {
+			inEscape = true
+			escapeSeq.WriteRune(r)
+			continue
+		}
+
+		charWidth := 1
+		if r > 127 {
+			charWidth = ansi.StringWidth(string(r))
+		}
+
+		if width >= n {
+			result.WriteRune(r)
+		}
+		width += charWidth
+	}
+
+	return result.String()
 }
 
 func (m Model) renderNewJobModal() string {
