@@ -119,7 +119,6 @@ type reconnectMsg struct{}
 type Model struct {
 	// State
 	jobs        []Job
-	cursor      int
 	showAll     bool
 	activePanel panel
 	modal       modalMode
@@ -149,18 +148,12 @@ type Model struct {
 	// Run history state
 	runs         []Run
 	stats        *daemon.StatsResponse
-	runCursor    int
 	runsForJobID string // tracks which job the runs are for
 
-	// Job list scroll state
-	jobOffset int // first visible job index (for scrolling)
-
-	// Port list state
-	portCursor int // selected port index
-	portOffset int // first visible port index (for scrolling)
-
-	// Run list scroll state
-	runOffset int // first visible run index (for scrolling)
+	// Scrollable list states
+	jobScroll  ScrollState
+	portScroll ScrollState
+	runScroll  ScrollState
 
 	// Subscription state
 	subscribed bool
@@ -184,7 +177,6 @@ func New() Model {
 
 	return Model{
 		jobs:        []Job{},
-		cursor:      0,
 		showAll:     false,
 		activePanel: panelJobs,
 		modal:       modalNone,
@@ -317,18 +309,18 @@ func (m Model) refreshJobs() tea.Cmd {
 // readLogs reads the log files for the selected job or run
 func (m Model) readLogs() tea.Cmd {
 	return func() tea.Msg {
-		if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
+		if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
 			return logUpdateMsg{stdout: "", stderr: ""}
 		}
 
 		// Use the selected run's log paths if available
 		var stdoutPath, stderrPath string
-		if len(m.runs) > 0 && m.runCursor >= 0 && m.runCursor < len(m.runs) {
-			run := m.runs[m.runCursor]
+		if len(m.runs) > 0 && m.runScroll.Cursor >= 0 && m.runScroll.Cursor < len(m.runs) {
+			run := m.runs[m.runScroll.Cursor]
 			stdoutPath = run.StdoutPath
 			stderrPath = run.StderrPath
 		} else {
-			job := m.jobs[m.cursor]
+			job := m.jobs[m.jobScroll.Cursor]
 			stdoutPath = job.StdoutPath
 			stderrPath = job.StderrPath
 		}
@@ -414,6 +406,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stdoutView.SetHorizontalStep(4)
 		m.stderrView.SetHorizontalStep(4)
 
+		// Calculate visible rows for scrollable panels (matches renderPanels layout)
+		totalH := m.height - 1 // height - status bar
+		if totalH < 8 {
+			totalH = 8
+		}
+		infoH := 3
+		leftH := totalH - infoH
+		portsH := leftH * 20 / 100
+		if portsH < 4 {
+			portsH = 4
+		}
+		runsH := leftH * 30 / 100
+		if runsH < 5 {
+			runsH = 5
+		}
+		jobsH := leftH - portsH - runsH
+
+		// Set visible rows for each scroll state
+		m.jobScroll.VisibleRows = jobsH - 2   // panel height - border (2)
+		m.portScroll.VisibleRows = portsH - 3 // panel height - border (2) - header (1)
+		m.runScroll.VisibleRows = runsH - 4   // panel height - border (2) - stats (1) - empty line (1)
+		if m.jobScroll.VisibleRows < 1 {
+			m.jobScroll.VisibleRows = 1
+		}
+		if m.portScroll.VisibleRows < 1 {
+			m.portScroll.VisibleRows = 1
+		}
+		if m.runScroll.VisibleRows < 1 {
+			m.runScroll.VisibleRows = 1
+		}
+
 	case logTickMsg:
 		// Update logs only - job status is handled by events
 		cmds = append(cmds, m.readLogs(), logTickCmd())
@@ -430,11 +453,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle the event by updating the job list and runs
 		m.handleDaemonEvent(msg.event)
 		// Fetch runs if the selected job changed (e.g., first job added)
-		if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-			jobID := m.jobs[m.cursor].ID
+		if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) {
+			jobID := m.jobs[m.jobScroll.Cursor].ID
 			if jobID != m.runsForJobID {
 				m.runsForJobID = jobID
-				m.runCursor = 0
+				m.runScroll.Reset()
 				cmds = append(cmds, m.fetchRuns(jobID))
 			}
 		}
@@ -461,25 +484,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jobsUpdatedMsg:
 		m.jobs = msg.jobs
-		if m.cursor >= len(m.jobs) {
-			m.cursor = len(m.jobs) - 1
-		}
-		if m.cursor < 0 {
-			m.cursor = 0
-		}
-		// Ensure jobOffset stays valid
-		if m.jobOffset > m.cursor {
-			m.jobOffset = m.cursor
-		}
+		m.jobScroll.ClampToCount(len(m.jobs))
 		// Fetch runs for the selected job (ports come from events)
 		if len(m.jobs) > 0 {
-			jobID := m.jobs[m.cursor].ID
+			jobID := m.jobs[m.jobScroll.Cursor].ID
 			if jobID != m.runsForJobID {
 				m.runsForJobID = jobID
-				m.runCursor = 0
-				m.runOffset = 0
-				m.portCursor = 0
-				m.portOffset = 0
+				m.runScroll.Reset()
+				m.portScroll.Reset()
 				cmds = append(cmds, m.fetchRuns(jobID))
 			}
 		}
@@ -489,16 +501,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.jobID == m.runsForJobID {
 			m.runs = msg.runs
 			m.stats = msg.stats
-			if m.runCursor >= len(m.runs) {
-				m.runCursor = len(m.runs) - 1
-			}
-			if m.runCursor < 0 {
-				m.runCursor = 0
-			}
-			// Ensure runOffset stays valid
-			if m.runOffset > m.runCursor {
-				m.runOffset = m.runCursor
-			}
+			m.runScroll.ClampToCount(len(m.runs))
 		}
 
 	case logUpdateMsg:
@@ -555,11 +558,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 		// Only adjust cursor and offset if there are existing jobs (keep selection on same job)
 		// When list was empty, cursor stays at 0 to select the new job
 		if len(m.jobs) > 0 {
-			m.cursor++
-			// Also adjust offset to keep current view stable
-			if m.jobOffset > 0 || m.cursor > 0 {
-				m.jobOffset++
-			}
+			m.jobScroll.ShiftForInsertAt(0)
 		}
 		m.jobs = append([]Job{newJob}, m.jobs...)
 
@@ -581,17 +580,12 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 					// Prepend to list
 					m.jobs = append([]Job{job}, m.jobs...)
 					// Adjust cursor and offset to keep selection on same job
-					if m.cursor == i {
+					if m.jobScroll.Cursor == i {
 						// Selected job moved to top
-						m.cursor = 0
-						m.jobOffset = 0
-					} else if m.cursor < i {
+						m.jobScroll.SetCursorTo(0)
+					} else if m.jobScroll.Cursor < i {
 						// Selected job was above the moved job, shift down by 1
-						m.cursor++
-						// Also adjust offset to keep current view stable
-						if m.jobOffset > 0 || m.cursor > 0 {
-							m.jobOffset++
-						}
+						m.jobScroll.ShiftForInsertAt(0)
 					}
 					// If cursor > i, the selected job stays at same index
 				}
@@ -616,25 +610,12 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 		for i := range m.jobs {
 			if m.jobs[i].ID == event.JobID {
 				m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
-				// Adjust cursor if needed
-				if m.cursor >= len(m.jobs) {
-					m.cursor = len(m.jobs) - 1
-				}
-				if m.cursor < 0 {
-					m.cursor = 0
-				}
-				// Adjust offset if needed
-				if m.jobOffset > m.cursor {
-					m.jobOffset = m.cursor
-				}
-				if m.jobOffset < 0 {
-					m.jobOffset = 0
-				}
+				m.jobScroll.ClampToCount(len(m.jobs))
 				// Clear runs if this was the selected job
 				if event.JobID == m.runsForJobID {
 					m.runs = nil
 					m.stats = nil
-					m.runOffset = 0
+					m.runScroll.Reset()
 					m.runsForJobID = ""
 				}
 				break
@@ -688,17 +669,8 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			if m.jobs[i].ID == event.JobID {
 				m.jobs[i].Ports = event.Ports
 				// Bounds check port cursor if this is the selected job
-				if i == m.cursor {
-					portCount := len(event.Ports)
-					if m.portCursor >= portCount {
-						m.portCursor = portCount - 1
-					}
-					if m.portCursor < 0 {
-						m.portCursor = 0
-					}
-					if m.portOffset > m.portCursor {
-						m.portOffset = m.portCursor
-					}
+				if i == m.jobScroll.Cursor {
+					m.portScroll.ClampToCount(len(event.Ports))
 				}
 				break
 			}
@@ -814,12 +786,9 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "a":
 		m.showAll = !m.showAll
-		m.cursor = 0
-		m.jobOffset = 0
-		m.runCursor = 0
-		m.runOffset = 0
-		m.portCursor = 0
-		m.portOffset = 0
+		m.jobScroll.Reset()
+		m.runScroll.Reset()
+		m.portScroll.Reset()
 		telemetry.TUIActionExecute("toggle_all_dirs")
 		// Restart subscription with new filter
 		if m.subClient != nil {
@@ -848,109 +817,83 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-			// Scroll up if cursor goes above visible area
-			if m.cursor < m.jobOffset {
-				m.jobOffset = m.cursor
-			}
+		if m.jobScroll.Up() {
 			m.followLogs = true
-			m.runCursor = 0
-			m.runOffset = 0
+			m.runScroll.Reset()
 			m.runs = nil
 			m.stats = nil
-			m.portCursor = 0
-			m.portOffset = 0
+			m.portScroll.Reset()
 			if len(m.jobs) > 0 {
-				m.runsForJobID = m.jobs[m.cursor].ID
+				m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
 			}
 			return m, m.fetchRunsForSelectedJob()
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.jobs)-1 {
-			m.cursor++
-			// Scroll down if cursor goes below visible area
-			visibleRows := m.jobsVisibleRows()
-			if m.cursor >= m.jobOffset+visibleRows {
-				m.jobOffset = m.cursor - visibleRows + 1
-			}
+		if m.jobScroll.Down(len(m.jobs)) {
 			m.followLogs = true
-			m.runCursor = 0
-			m.runOffset = 0
+			m.runScroll.Reset()
 			m.runs = nil
 			m.stats = nil
-			m.portCursor = 0
-			m.portOffset = 0
+			m.portScroll.Reset()
 			if len(m.jobs) > 0 {
-				m.runsForJobID = m.jobs[m.cursor].ID
+				m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
 			}
 			return m, m.fetchRunsForSelectedJob()
 		}
 
 	case "g":
-		m.cursor = 0
-		m.jobOffset = 0
+		m.jobScroll.First()
 		m.followLogs = true
-		m.runCursor = 0
-		m.runOffset = 0
+		m.runScroll.Reset()
 		m.runs = nil
 		m.stats = nil
-		m.portCursor = 0
-		m.portOffset = 0
+		m.portScroll.Reset()
 		if len(m.jobs) > 0 {
-			m.runsForJobID = m.jobs[m.cursor].ID
+			m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
 		}
 		return m, m.fetchRunsForSelectedJob()
 
 	case "G":
 		if len(m.jobs) > 0 {
-			m.cursor = len(m.jobs) - 1
-			visibleRows := m.jobsVisibleRows()
-			if m.cursor >= visibleRows {
-				m.jobOffset = m.cursor - visibleRows + 1
-			} else {
-				m.jobOffset = 0
-			}
+			m.jobScroll.Last(len(m.jobs))
 			m.followLogs = true
-			m.runCursor = 0
-			m.runOffset = 0
+			m.runScroll.Reset()
 			m.runs = nil
 			m.stats = nil
-			m.portCursor = 0
-			m.portOffset = 0
-			m.runsForJobID = m.jobs[m.cursor].ID
+			m.portScroll.Reset()
+			m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
 			return m, m.fetchRunsForSelectedJob()
 		}
 
 	case "s":
-		if len(m.jobs) > 0 && m.jobs[m.cursor].Running {
+		if len(m.jobs) > 0 && m.jobs[m.jobScroll.Cursor].Running {
 			telemetry.TUIActionExecute("stop_job")
-			return m, m.stopJob(m.jobs[m.cursor].ID, false)
+			return m, m.stopJob(m.jobs[m.jobScroll.Cursor].ID, false)
 		}
 
 	case "S":
-		if len(m.jobs) > 0 && m.jobs[m.cursor].Running {
+		if len(m.jobs) > 0 && m.jobs[m.jobScroll.Cursor].Running {
 			telemetry.TUIActionExecute("kill_job")
-			return m, m.stopJob(m.jobs[m.cursor].ID, true)
+			return m, m.stopJob(m.jobs[m.jobScroll.Cursor].ID, true)
 		}
 
 	case "r":
 		if len(m.jobs) > 0 {
 			telemetry.TUIActionExecute("restart_job")
-			return m, m.restartJob(m.jobs[m.cursor].ID)
+			return m, m.restartJob(m.jobs[m.jobScroll.Cursor].ID)
 		}
 
 	case "d":
-		if len(m.jobs) > 0 && !m.jobs[m.cursor].Running {
+		if len(m.jobs) > 0 && !m.jobs[m.jobScroll.Cursor].Running {
 			telemetry.TUIActionExecute("remove_job")
-			return m, m.removeJob(m.jobs[m.cursor].ID)
+			return m, m.removeJob(m.jobs[m.jobScroll.Cursor].ID)
 		}
 
 	case "c":
 		if len(m.jobs) > 0 {
 			telemetry.TUIActionExecute("copy_command")
-			err := clipboard.WriteAll(m.jobs[m.cursor].Command)
+			err := clipboard.WriteAll(m.jobs[m.jobScroll.Cursor].Command)
 			if err != nil {
 				m.message = fmt.Sprintf("Failed to copy: %v", err)
 				m.isError = true
@@ -1004,54 +947,32 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // Note: caller must set m.runsForJobID before calling this
 // Ports are received via daemon events (EventTypePortsUpdated)
 func (m Model) fetchRunsForSelectedJob() tea.Cmd {
-	if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
 		return m.readLogs()
 	}
-	jobID := m.jobs[m.cursor].ID
+	jobID := m.jobs[m.jobScroll.Cursor].ID
 	return tea.Batch(m.readLogs(), m.fetchRuns(jobID))
 }
 
 func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Get current job's port count for bounds checking
 	portCount := 0
-	if len(m.jobs) > 0 && m.cursor < len(m.jobs) && m.jobs[m.cursor].Running {
-		portCount = len(m.jobs[m.cursor].Ports)
+	if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) && m.jobs[m.jobScroll.Cursor].Running {
+		portCount = len(m.jobs[m.jobScroll.Cursor].Ports)
 	}
 
 	switch msg.String() {
 	case "up", "k":
-		if m.portCursor > 0 {
-			m.portCursor--
-			// Scroll up if cursor goes above visible area
-			if m.portCursor < m.portOffset {
-				m.portOffset = m.portCursor
-			}
-		}
+		m.portScroll.Up()
 
 	case "down", "j":
-		if m.portCursor < portCount-1 {
-			m.portCursor++
-			// Scroll down if cursor goes below visible area
-			visibleRows := m.portsVisibleRows()
-			if m.portCursor >= m.portOffset+visibleRows {
-				m.portOffset = m.portCursor - visibleRows + 1
-			}
-		}
+		m.portScroll.Down(portCount)
 
 	case "g":
-		m.portCursor = 0
-		m.portOffset = 0
+		m.portScroll.First()
 
 	case "G":
-		if portCount > 0 {
-			m.portCursor = portCount - 1
-			visibleRows := m.portsVisibleRows()
-			if m.portCursor >= visibleRows {
-				m.portOffset = m.portCursor - visibleRows + 1
-			} else {
-				m.portOffset = 0
-			}
-		}
+		m.portScroll.Last(portCount)
 
 	case "f":
 		m.followLogs = !m.followLogs
@@ -1084,43 +1005,25 @@ func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
-		if m.runCursor > 0 {
-			m.runCursor--
-			// Scroll up if cursor goes above visible area
-			if m.runCursor < m.runOffset {
-				m.runOffset = m.runCursor
-			}
+		if m.runScroll.Up() {
 			m.followLogs = true
 			return m, m.readLogs()
 		}
 
 	case "down", "j":
-		if m.runCursor < len(m.runs)-1 {
-			m.runCursor++
-			// Scroll down if cursor goes below visible area
-			visibleRows := m.runsVisibleRows()
-			if m.runCursor >= m.runOffset+visibleRows {
-				m.runOffset = m.runCursor - visibleRows + 1
-			}
+		if m.runScroll.Down(len(m.runs)) {
 			m.followLogs = true
 			return m, m.readLogs()
 		}
 
 	case "g":
-		m.runCursor = 0
-		m.runOffset = 0
+		m.runScroll.First()
 		m.followLogs = true
 		return m, m.readLogs()
 
 	case "G":
 		if len(m.runs) > 0 {
-			m.runCursor = len(m.runs) - 1
-			visibleRows := m.runsVisibleRows()
-			if m.runCursor >= visibleRows {
-				m.runOffset = m.runCursor - visibleRows + 1
-			} else {
-				m.runOffset = 0
-			}
+			m.runScroll.Last(len(m.runs))
 			m.followLogs = true
 			return m, m.readLogs()
 		}
@@ -1316,7 +1219,7 @@ func (m Model) addJob(command string) tea.Cmd {
 // Formatting
 
 func (m Model) formatStdout() string {
-	if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
 		return mutedStyle.Render("No job selected")
 	}
 
@@ -1343,7 +1246,7 @@ func (m Model) formatStdout() string {
 }
 
 func (m Model) formatStderr() string {
-	if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
 		return ""
 	}
 
@@ -1382,74 +1285,6 @@ func (m Model) jobPanelWidth() int {
 		w = 60
 	}
 	return w
-}
-
-// portsVisibleRows returns the number of port rows visible in the ports panel
-// This must match the calculation in renderPanels() to ensure scroll logic is accurate
-func (m Model) portsVisibleRows() int {
-	totalH := m.height - 1 // height - status bar (matching renderPanels)
-	if totalH < 8 {
-		totalH = 8
-	}
-	infoH := 3
-	leftH := totalH - infoH
-	portsH := leftH * 20 / 100
-	if portsH < 4 {
-		portsH = 4
-	}
-	// Panel height - border (2) - header row (1) = content rows for ports
-	visibleRows := portsH - 3
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-	return visibleRows
-}
-
-// jobsVisibleRows returns the number of job rows visible in the jobs panel
-// This must match the calculation in renderPanels() to ensure scroll logic is accurate
-func (m Model) jobsVisibleRows() int {
-	totalH := m.height - 1 // height - status bar (matching renderPanels)
-	if totalH < 8 {
-		totalH = 8
-	}
-	infoH := 3
-	leftH := totalH - infoH
-	portsH := leftH * 20 / 100
-	if portsH < 4 {
-		portsH = 4
-	}
-	runsH := leftH * 30 / 100
-	if runsH < 5 {
-		runsH = 5
-	}
-	jobsH := leftH - portsH - runsH
-	// Panel height - border (2) = content rows for jobs
-	visibleRows := jobsH - 2
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-	return visibleRows
-}
-
-// runsVisibleRows returns the number of run rows visible in the runs panel
-// This must match the calculation in renderPanels() to ensure scroll logic is accurate
-func (m Model) runsVisibleRows() int {
-	totalH := m.height - 1 // height - status bar (matching renderPanels)
-	if totalH < 8 {
-		totalH = 8
-	}
-	infoH := 3
-	leftH := totalH - infoH
-	runsH := leftH * 30 / 100
-	if runsH < 5 {
-		runsH = 5
-	}
-	// Panel height - border (2) - stats line (1) - empty line (1) = content rows for runs
-	visibleRows := runsH - 4
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-	return visibleRows
 }
 
 // View renders the UI
@@ -1515,38 +1350,38 @@ func (m Model) renderPanels() string {
 	infoPanel := m.renderInfoPanel("gob", dir, version.Version, leftPanelW, infoH)
 
 	// Jobs panel
-	jobContent := m.renderJobList(leftPanelW-4, jobsH-2)
+	jobContent := m.renderJobList(leftPanelW - 4)
 	jobPanel := m.renderPanel(1, "Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
 
 	// Ports panel
 	portsTitle := "Ports"
-	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-		portsTitle = fmt.Sprintf("Ports: %s", m.jobs[m.cursor].ID)
+	if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) {
+		portsTitle = fmt.Sprintf("Ports: %s", m.jobs[m.jobScroll.Cursor].ID)
 	}
-	portsContent := m.renderPortsList(leftPanelW-4, portsH-2)
+	portsContent := m.renderPortsList(leftPanelW - 4)
 	portsPanel := m.renderPanel(2, portsTitle, portsContent, leftPanelW, portsH, m.activePanel == panelPorts)
 
 	// Runs panel
 	runsTitle := "Runs"
-	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-		runsTitle = fmt.Sprintf("Runs: %s", m.jobs[m.cursor].ID)
+	if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) {
+		runsTitle = fmt.Sprintf("Runs: %s", m.jobs[m.jobScroll.Cursor].ID)
 	}
-	runsContent := m.renderRunsList(leftPanelW-4, runsH-2)
+	runsContent := m.renderRunsList(leftPanelW - 4)
 	runsPanel := m.renderPanel(3, runsTitle, runsContent, leftPanelW, runsH, m.activePanel == panelRuns)
 
 	// Build titles for log panels
 	var stdoutTitle, stderrTitle string
-	if len(m.jobs) > 0 && m.cursor < len(m.jobs) {
-		job := m.jobs[m.cursor]
+	if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) {
+		job := m.jobs[m.jobScroll.Cursor]
 
 		// Check if showing a specific run
 		var showingRunID string
 		var runStatus string
 		var durationStr string
 
-		if len(m.runs) > 0 && m.runCursor >= 0 && m.runCursor < len(m.runs) {
+		if len(m.runs) > 0 && m.runScroll.Cursor >= 0 && m.runScroll.Cursor < len(m.runs) {
 			// Showing a specific run
-			run := m.runs[m.runCursor]
+			run := m.runs[m.runScroll.Cursor]
 			showingRunID = run.ID
 
 			if run.Status == "running" {
@@ -1670,7 +1505,7 @@ func (m Model) renderInfoPanel(logo, dir, ver string, width, height int) string 
 }
 
 // renderRunsList renders the runs list for the selected job
-func (m Model) renderRunsList(width, height int) string {
+func (m Model) renderRunsList(width int) string {
 	if len(m.jobs) == 0 {
 		return mutedStyle.Render("No job selected")
 	}
@@ -1714,22 +1549,11 @@ func (m Model) renderRunsList(width, height int) string {
 		durationWidth = 3
 	}
 
-	// Calculate visible range (height - 2 for stats line and empty line)
-	visibleRows := height - 2
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-
-	startIdx := m.runOffset
-	endIdx := m.runOffset + visibleRows
-	if endIdx > len(m.runs) {
-		endIdx = len(m.runs)
-	}
-
 	// Run list (only visible runs)
-	for i := startIdx; i < endIdx; i++ {
+	start, end := m.runScroll.VisibleRange(len(m.runs))
+	for i := start; i < end; i++ {
 		run := m.runs[i]
-		isSelected := i == m.runCursor && m.activePanel == panelRuns
+		isSelected := i == m.runScroll.Cursor && m.activePanel == panelRuns
 		runLine := m.formatRunListLine(run, isSelected, width, statusWidth, idWidth, timeWidth, durationWidth)
 		lines = append(lines, runLine)
 	}
@@ -1738,12 +1562,12 @@ func (m Model) renderRunsList(width, height int) string {
 }
 
 // renderPortsList renders the ports list for the selected job
-func (m Model) renderPortsList(width, height int) string {
+func (m Model) renderPortsList(width int) string {
 	if len(m.jobs) == 0 {
 		return mutedStyle.Render("No job selected")
 	}
 
-	job := m.jobs[m.cursor]
+	job := m.jobs[m.jobScroll.Cursor]
 
 	if !job.Running {
 		return mutedStyle.Render("Job is not running")
@@ -1764,22 +1588,11 @@ func (m Model) renderPortsList(width, height int) string {
 	header := fmt.Sprintf("%-6s %-6s %-15s %s", "PORT", "PROTO", "ADDRESS", "PID")
 	lines := []string{mutedStyle.Render(header)}
 
-	// Calculate visible range (height - 1 for header row)
-	visibleRows := height - 1
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-
-	startIdx := m.portOffset
-	endIdx := m.portOffset + visibleRows
-	if endIdx > len(ports) {
-		endIdx = len(ports)
-	}
-
 	// Port rows (only visible ones)
-	for i := startIdx; i < endIdx; i++ {
+	start, end := m.portScroll.VisibleRange(len(ports))
+	for i := start; i < end; i++ {
 		p := ports[i]
-		isSelected := i == m.portCursor && m.activePanel == panelPorts
+		isSelected := i == m.portScroll.Cursor && m.activePanel == panelPorts
 		line := m.formatPortLine(p, isSelected, width)
 		lines = append(lines, line)
 	}
@@ -1945,27 +1758,16 @@ func (m Model) renderPanel(num int, title, content string, width, height int, ac
 	return result
 }
 
-func (m Model) renderJobList(width, height int) string {
+func (m Model) renderJobList(width int) string {
 	if len(m.jobs) == 0 {
 		return mutedStyle.Render("No jobs. Press 'n' to start one.")
 	}
 
-	// Calculate visible range
-	visibleRows := height
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-
-	startIdx := m.jobOffset
-	endIdx := m.jobOffset + visibleRows
-	if endIdx > len(m.jobs) {
-		endIdx = len(m.jobs)
-	}
-
 	var lines []string
-	for i := startIdx; i < endIdx; i++ {
+	start, end := m.jobScroll.VisibleRange(len(m.jobs))
+	for i := start; i < end; i++ {
 		job := m.jobs[i]
-		isSelected := i == m.cursor
+		isSelected := i == m.jobScroll.Cursor
 
 		// Status indicator with semantic symbols
 		var status string

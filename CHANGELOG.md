@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Remove top banners
   - Runs panel columns now have fixed percentage-based widths with proper truncation
   - fix: Remove daemon restart message that was printed to stdout, corrupting the TUI display
-- **TUI scrolling for Jobs and Runs panels**: Jobs and Runs panels now scroll when the list exceeds the visible area, matching the existing Ports panel behavior
+- **TUI scrolling for Jobs and Runs panels**: Jobs and Runs panels now scroll when the list exceeds the visible area, matching the existing Ports panel behavior. Scroll logic refactored into reusable `ScrollState` abstraction.
 
 ### Fixed
 
