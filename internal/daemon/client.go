@@ -617,8 +617,6 @@ func (c *Client) handleOldDaemon() error {
 
 // restartDaemon shuts down the current daemon and starts a new one
 func (c *Client) restartDaemon(reason string) error {
-	fmt.Printf("Restarting daemon (%s)...\n", reason)
-
 	// Send shutdown to old daemon
 	c.Shutdown() // Ignore error - daemon may already be gone
 

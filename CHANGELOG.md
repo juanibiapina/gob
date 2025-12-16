@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add info panel showing directory and version
   - Remove top banners
   - Runs panel columns now have fixed percentage-based widths with proper truncation
+  - fix: Remove daemon restart message that was printed to stdout, corrupting the TUI display
 
 ## [2.1.1] - 2025-12-16
 
