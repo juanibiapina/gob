@@ -179,7 +179,7 @@ var (
 			Foreground(primaryColor)
 
 	helpDescStyle = lipgloss.NewStyle().
-			Foreground(colorBrightBlack)
+			Foreground(fgColor)
 
 	// Job detail line styles (for expanded view)
 	jobDetailStyle = lipgloss.NewStyle().
