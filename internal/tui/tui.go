@@ -299,6 +299,7 @@ func (m Model) refreshJobs() tea.Cmd {
 				ExitCode:   jr.ExitCode,
 				StartedAt:  parseTime(jr.StartedAt),
 				StoppedAt:  parseTime(jr.StoppedAt),
+				Ports:      jr.Ports,
 			}
 		}
 
