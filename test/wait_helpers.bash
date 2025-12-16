@@ -67,3 +67,22 @@ wait_for_job_to_stop() {
     local timeout=${2:-5}
     wait_for_job_state "$job_id" "stopped" "$timeout"
 }
+
+# Wait for a port to be listening
+# Usage: wait_for_port <port> [timeout_seconds]
+wait_for_port() {
+    local port=$1
+    local timeout=${2:-5}
+    local elapsed=0
+    local interval=0.1
+
+    while ! nc -z localhost "$port" 2>/dev/null; do
+        sleep "$interval"
+        elapsed=$(awk "BEGIN {print $elapsed + $interval}")
+        if (( $(awk "BEGIN {print ($elapsed >= $timeout)}") )); then
+            echo "Timeout waiting for port $port" >&2
+            return 1
+        fi
+    done
+    return 0
+}

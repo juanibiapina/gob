@@ -22,6 +22,11 @@ get_runtime_dir() {
   echo "$XDG_RUNTIME_DIR/gob"
 }
 
+# Get a random available port
+get_random_port() {
+  python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()"
+}
+
 # Helper to kill daemon if running.
 # Used in teardown and in daemon-specific tests that need to test signal handling.
 kill_daemon() {
