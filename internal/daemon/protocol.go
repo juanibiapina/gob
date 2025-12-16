@@ -53,12 +53,13 @@ const (
 type EventType string
 
 const (
-	EventTypeJobAdded   EventType = "job_added"
-	EventTypeJobStarted EventType = "job_started"
-	EventTypeJobStopped EventType = "job_stopped"
-	EventTypeJobRemoved EventType = "job_removed"
-	EventTypeRunStarted EventType = "run_started"
-	EventTypeRunStopped EventType = "run_stopped"
+	EventTypeJobAdded     EventType = "job_added"
+	EventTypeJobStarted   EventType = "job_started"
+	EventTypeJobStopped   EventType = "job_stopped"
+	EventTypeJobRemoved   EventType = "job_removed"
+	EventTypeRunStarted   EventType = "run_started"
+	EventTypeRunStopped   EventType = "run_stopped"
+	EventTypePortsUpdated EventType = "ports_updated"
 )
 
 // Event represents a job/run state change event
@@ -68,6 +69,7 @@ type Event struct {
 	Job             JobResponse    `json:"job"`
 	Run             *RunResponse   `json:"run,omitempty"`
 	Stats           *StatsResponse `json:"stats,omitempty"`
+	Ports           []PortInfo     `json:"ports,omitempty"` // For EventTypePortsUpdated
 	JobCount        int            `json:"job_count"`
 	RunningJobCount int            `json:"running_job_count"`
 }
@@ -87,17 +89,18 @@ type Response struct {
 
 // JobResponse represents a job in API responses
 type JobResponse struct {
-	ID         string   `json:"id"`
-	PID        int      `json:"pid"`
-	Status     string   `json:"status"`
-	Command    []string `json:"command"`
-	Workdir    string   `json:"workdir"`
-	CreatedAt  string   `json:"created_at"`
-	StartedAt  string   `json:"started_at"`
-	StoppedAt  string   `json:"stopped_at,omitempty"`
-	StdoutPath string   `json:"stdout_path"`
-	StderrPath string   `json:"stderr_path"`
-	ExitCode   *int     `json:"exit_code,omitempty"`
+	ID         string     `json:"id"`
+	PID        int        `json:"pid"`
+	Status     string     `json:"status"`
+	Command    []string   `json:"command"`
+	Workdir    string     `json:"workdir"`
+	CreatedAt  string     `json:"created_at"`
+	StartedAt  string     `json:"started_at"`
+	StoppedAt  string     `json:"stopped_at,omitempty"`
+	StdoutPath string     `json:"stdout_path"`
+	StderrPath string     `json:"stderr_path"`
+	ExitCode   *int       `json:"exit_code,omitempty"`
+	Ports      []PortInfo `json:"ports,omitempty"` // Listening ports (only for running jobs)
 }
 
 // RunResponse represents a run in API responses

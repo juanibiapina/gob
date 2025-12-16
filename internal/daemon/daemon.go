@@ -704,15 +704,15 @@ func (d *Daemon) handlePorts(req *Request) *Response {
 	resp := NewSuccessResponse()
 
 	if jobID != "" {
-		// Get ports for specific job
-		jobPorts, err := d.jobManager.GetJobPorts(jobID)
+		// Refresh and get ports for specific job (triggers event if changed)
+		jobPorts, err := d.jobManager.RefreshJobPorts(jobID)
 		if err != nil {
 			return NewErrorResponse(err)
 		}
 		resp.Data["ports"] = jobPorts
 	} else {
-		// Get ports for all running jobs
-		allPorts, err := d.jobManager.GetAllJobPorts(workdir)
+		// Refresh and get ports for all running jobs (triggers events if changed)
+		allPorts, err := d.jobManager.RefreshAllJobPorts(workdir)
 		if err != nil {
 			return NewErrorResponse(err)
 		}

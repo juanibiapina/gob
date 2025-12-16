@@ -305,3 +305,91 @@ func TestDaemon_handleVersion_WithRunningJobs(t *testing.T) {
 		t.Errorf("expected 2 running jobs, got %v", runningJobs)
 	}
 }
+
+func TestDaemon_handlePorts(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	job, _ := jm.AddJob([]string{"echo"}, "/workdir", nil)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypePorts,
+		Payload: map[string]interface{}{
+			"job_id": job.ID,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	// Ports will be empty since FakeProcessExecutor doesn't have real PIDs
+	ports := resp.Data["ports"]
+	if ports == nil {
+		t.Error("expected ports in response")
+	}
+}
+
+func TestDaemon_handlePorts_StoppedJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	job, _ := jm.AddJob([]string{"echo"}, "/workdir", nil)
+
+	// Stop the job
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypePorts,
+		Payload: map[string]interface{}{
+			"job_id": job.ID,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	// For stopped jobs, should get a JobPorts with status="stopped"
+	portsData := resp.Data["ports"].(*JobPorts)
+	if portsData.Status != "stopped" {
+		t.Errorf("expected status 'stopped', got %s", portsData.Status)
+	}
+}
+
+func TestDaemon_handlePorts_AllJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add multiple jobs
+	jm.AddJob([]string{"echo", "1"}, "/workdir", nil)
+	jm.AddJob([]string{"echo", "2"}, "/workdir", nil)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypePorts,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	// Should return a slice of ports for all running jobs
+	portsData := resp.Data["ports"]
+	if portsData == nil {
+		t.Error("expected ports in response")
+	}
+}

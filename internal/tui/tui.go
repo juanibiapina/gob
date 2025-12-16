@@ -114,18 +114,6 @@ type subscriptionErrorMsg struct {
 // reconnectMsg triggers a reconnection attempt
 type reconnectMsg struct{}
 
-// portsUpdatedMsg is sent when ports are fetched for a job
-type portsUpdatedMsg struct {
-	jobID string
-	ports []daemon.PortInfo
-}
-
-// fetchPortsMsg triggers port fetching for a specific job
-type fetchPortsMsg struct {
-	jobID string
-	delay time.Duration
-}
-
 // Model is the main TUI model
 type Model struct {
 	// State
@@ -276,31 +264,6 @@ func waitForEvent(events <-chan daemon.Event, errs <-chan error) tea.Cmd {
 func reconnectCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return reconnectMsg{}
-	})
-}
-
-// fetchJobPorts fetches ports for a specific job
-func fetchJobPorts(jobID string) tea.Cmd {
-	return func() tea.Msg {
-		client, err := connectClient()
-		if err != nil {
-			return portsUpdatedMsg{jobID: jobID, ports: nil}
-		}
-		defer client.Close()
-
-		portsInfo, err := client.Ports(jobID)
-		if err != nil {
-			return portsUpdatedMsg{jobID: jobID, ports: nil}
-		}
-
-		return portsUpdatedMsg{jobID: jobID, ports: portsInfo.Ports}
-	}
-}
-
-// scheduleFetchPorts schedules a port fetch after a delay
-func scheduleFetchPorts(jobID string, delay time.Duration) tea.Cmd {
-	return tea.Tick(delay, func(t time.Time) tea.Msg {
-		return fetchPortsMsg{jobID: jobID, delay: delay}
 	})
 }
 
@@ -467,11 +430,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.fetchRuns(jobID))
 			}
 		}
-		// Schedule port fetches on job start (1s and 3s after start)
-		if msg.event.Type == daemon.EventTypeJobStarted {
-			cmds = append(cmds, scheduleFetchPorts(msg.event.JobID, 1*time.Second))
-			cmds = append(cmds, scheduleFetchPorts(msg.event.JobID, 3*time.Second))
-		}
 		// Continue waiting for more events
 		if m.subscribed && m.eventChan != nil {
 			cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
@@ -501,7 +459,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cursor < 0 {
 			m.cursor = 0
 		}
-		// Fetch runs and ports for the selected job
+		// Fetch runs for the selected job (ports come from events)
 		if len(m.jobs) > 0 {
 			jobID := m.jobs[m.cursor].ID
 			if jobID != m.runsForJobID {
@@ -509,7 +467,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.runCursor = 0
 				m.portCursor = 0
 				m.portOffset = 0
-				cmds = append(cmds, m.fetchRuns(jobID), fetchJobPorts(jobID))
+				cmds = append(cmds, m.fetchRuns(jobID))
 			}
 		}
 
@@ -541,32 +499,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isError = msg.isError
 		m.messageTime = time.Now()
 		// No need to refresh jobs - events will handle that
-
-	case portsUpdatedMsg:
-		// Update ports for a specific job
-		for i := range m.jobs {
-			if m.jobs[i].ID == msg.jobID {
-				m.jobs[i].Ports = msg.ports
-				// Bounds check port cursor if this is the selected job
-				if i == m.cursor {
-					portCount := len(msg.ports)
-					if m.portCursor >= portCount {
-						m.portCursor = portCount - 1
-					}
-					if m.portCursor < 0 {
-						m.portCursor = 0
-					}
-					if m.portOffset > m.portCursor {
-						m.portOffset = m.portCursor
-					}
-				}
-				break
-			}
-		}
-
-	case fetchPortsMsg:
-		// Trigger port fetch for a specific job (used for scheduled fetches)
-		cmds = append(cmds, fetchJobPorts(msg.jobID))
 
 	case tea.KeyMsg:
 		// Clear old messages
@@ -601,6 +533,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			ExitCode:   event.Job.ExitCode,
 			StartedAt:  parseTime(event.Job.StartedAt),
 			StoppedAt:  parseTime(event.Job.StoppedAt),
+			Ports:      event.Job.Ports,
 		}
 		// Only adjust cursor if there are existing jobs (keep selection on same job)
 		// When list was empty, cursor stays at 0 to select the new job
@@ -712,6 +645,28 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			// Update stats from event
 			if event.Stats != nil {
 				m.stats = event.Stats
+			}
+		}
+
+	case daemon.EventTypePortsUpdated:
+		// Update ports for a specific job
+		for i := range m.jobs {
+			if m.jobs[i].ID == event.JobID {
+				m.jobs[i].Ports = event.Ports
+				// Bounds check port cursor if this is the selected job
+				if i == m.cursor {
+					portCount := len(event.Ports)
+					if m.portCursor >= portCount {
+						m.portCursor = portCount - 1
+					}
+					if m.portCursor < 0 {
+						m.portCursor = 0
+					}
+					if m.portOffset > m.portCursor {
+						m.portOffset = m.portCursor
+					}
+				}
+				break
 			}
 		}
 	}
@@ -986,14 +941,15 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// fetchRunsForSelectedJob returns commands to read logs, fetch runs, and fetch ports for the selected job
+// fetchRunsForSelectedJob returns commands to read logs and fetch runs for the selected job
 // Note: caller must set m.runsForJobID before calling this
+// Ports are received via daemon events (EventTypePortsUpdated)
 func (m Model) fetchRunsForSelectedJob() tea.Cmd {
 	if len(m.jobs) == 0 || m.cursor >= len(m.jobs) {
 		return m.readLogs()
 	}
 	jobID := m.jobs[m.cursor].ID
-	return tea.Batch(m.readLogs(), m.fetchRuns(jobID), fetchJobPorts(jobID))
+	return tea.Batch(m.readLogs(), m.fetchRuns(jobID))
 }
 
 func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

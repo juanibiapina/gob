@@ -240,3 +240,35 @@ load 'test_helper'
   assert_output --partial '"type":"job_stopped"'
   assert_output --partial '"type":"job_removed"'
 }
+
+@test "events command outputs JSON for ports_updated event" {
+  local port=$(get_random_port)
+
+  # Start events command in background
+  "$JOB_CLI" events --all > "$BATS_TEST_TMPDIR/events_output.txt" 2>&1 &
+  events_pid=$!
+
+  # Give it time to subscribe
+  sleep 0.3
+
+  # Add a job that listens on a port
+  run "$JOB_CLI" add -- python3 "$BATS_TEST_DIRNAME/fixtures/port_listener.py" "$port"
+  assert_success
+  local job_id=$(get_job_field id)
+
+  # Wait for port to be available
+  wait_for_port "$port"
+
+  # Wait for port polling (first poll at 2s)
+  sleep 3
+
+  # Kill the events process
+  kill $events_pid 2>/dev/null || true
+  wait $events_pid 2>/dev/null || true
+
+  # Check the captured output
+  run cat "$BATS_TEST_TMPDIR/events_output.txt"
+  assert_output --partial '"type":"ports_updated"'
+  assert_output --partial "\"job_id\":\"$job_id\""
+  assert_output --partial "\"port\":$port"
+}

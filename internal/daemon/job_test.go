@@ -575,3 +575,93 @@ func TestJob_Statistics_NoRuns(t *testing.T) {
 		t.Error("expected 0 success rate with no runs")
 	}
 }
+
+func TestPortsEqual(t *testing.T) {
+	tests := []struct {
+		name     string
+		a, b     []PortInfo
+		expected bool
+	}{
+		{"both empty", []PortInfo{}, []PortInfo{}, true},
+		{"both nil", nil, nil, true},
+		{"one nil one empty", nil, []PortInfo{}, true},
+		{"equal single", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, true},
+		{"equal multiple", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}, {Port: 3000, Protocol: "tcp", Address: "127.0.0.1", PID: 1235}}, []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}, {Port: 3000, Protocol: "tcp", Address: "127.0.0.1", PID: 1235}}, true},
+		{"equal different order", []PortInfo{{Port: 3000, Protocol: "tcp", Address: "127.0.0.1", PID: 1235}, {Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}, {Port: 3000, Protocol: "tcp", Address: "127.0.0.1", PID: 1235}}, true},
+		{"different length", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{}, false},
+		{"different port", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{{Port: 9090, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, false},
+		{"different protocol", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{{Port: 8080, Protocol: "udp", Address: "0.0.0.0", PID: 1234}}, false},
+		{"different address", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{{Port: 8080, Protocol: "tcp", Address: "127.0.0.1", PID: 1234}}, false},
+		{"different PID", []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 1234}}, []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: 5678}}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := portsEqual(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("portsEqual(%v, %v) = %v, expected %v", tt.a, tt.b, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestJobManager_PortsClearedOnStop(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	job, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Get the current run and set some fake ports
+	run := jm.GetCurrentRun(job.ID)
+	if run == nil {
+		t.Fatal("expected current run to exist")
+	}
+	run.Ports = []PortInfo{{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: run.PID}}
+
+	// Stop the fake process
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify ports are cleared
+	latestRun := jm.GetLatestRun(job.ID)
+	if latestRun.Ports != nil {
+		t.Error("expected ports to be cleared after stop")
+	}
+}
+
+func TestJobToResponse_IncludesPorts(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	job, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Get the current run and set some fake ports
+	run := jm.GetCurrentRun(job.ID)
+	if run == nil {
+		t.Fatal("expected current run to exist")
+	}
+	run.Ports = []PortInfo{
+		{Port: 8080, Protocol: "tcp", Address: "0.0.0.0", PID: run.PID},
+		{Port: 3000, Protocol: "tcp", Address: "127.0.0.1", PID: run.PID},
+	}
+
+	// Get job response and verify ports are included
+	jm.mu.RLock()
+	resp := jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if len(resp.Ports) != 2 {
+		t.Errorf("expected 2 ports in response, got %d", len(resp.Ports))
+	}
+	if resp.Ports[0].Port != 8080 {
+		t.Errorf("expected port 8080, got %d", resp.Ports[0].Port)
+	}
+}

@@ -18,6 +18,7 @@ type Run struct {
 
 	// Internal fields for process management
 	process ProcessHandle
+	Ports   []PortInfo // In-memory only, not persisted - listening ports for this run
 }
 
 // IsRunning checks if the run's process is still running

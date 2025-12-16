@@ -203,6 +203,7 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 			resp.StdoutPath = run.StdoutPath
 			resp.StderrPath = run.StderrPath
 			resp.ExitCode = run.ExitCode
+			resp.Ports = run.Ports // Include ports for running jobs
 			if run.StoppedAt != nil {
 				resp.StoppedAt = run.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
 			}
@@ -426,6 +427,9 @@ func (jm *JobManager) startRunLocked(job *Job, env []string) (*Run, error) {
 	// Start goroutine to wait for process exit
 	go jm.waitForProcessExit(job, run)
 
+	// Schedule port polling at 2s, 5s, 10s
+	jm.schedulePortPolling(job, run)
+
 	return run, nil
 }
 
@@ -444,6 +448,7 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 	now := time.Now()
 	run.StoppedAt = &now
 	run.Status = "stopped"
+	run.Ports = nil // Clear ports when run stops
 
 	// Extract exit code from the error
 	if err != nil {
@@ -981,6 +986,70 @@ func (jm *JobManager) ListRunsForJob(jobID string) ([]*Run, error) {
 	})
 
 	return runs, nil
+}
+
+// schedulePortPolling schedules port polling at 2s, 5s, and 10s after run starts
+func (jm *JobManager) schedulePortPolling(job *Job, run *Run) {
+	delays := []time.Duration{2 * time.Second, 5 * time.Second, 10 * time.Second}
+	for _, delay := range delays {
+		go func(d time.Duration) {
+			time.Sleep(d)
+			jm.refreshPorts(job.ID, run.ID)
+		}(delay)
+	}
+}
+
+// refreshPorts queries ports for a run and emits an event if they changed
+func (jm *JobManager) refreshPorts(jobID, runID string) {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+
+	job, ok := jm.jobs[jobID]
+	if !ok || job.CurrentRunID == nil || *job.CurrentRunID != runID {
+		return // Job gone or different run now
+	}
+
+	run := jm.runs[runID]
+	ports, _ := getProcessTreePorts(run.PID)
+
+	if len(ports) == 0 {
+		return // Don't emit for empty ports
+	}
+
+	if portsEqual(run.Ports, ports) {
+		return // No change
+	}
+
+	run.Ports = ports
+
+	jm.emitEvent(Event{
+		Type:            EventTypePortsUpdated,
+		JobID:           jobID,
+		Job:             jm.jobToResponse(job),
+		Ports:           ports,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
+	})
+}
+
+// portsEqual compares two port slices for equality
+func portsEqual(a, b []PortInfo) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	// Create maps for comparison (order-independent)
+	aMap := make(map[string]bool)
+	for _, p := range a {
+		key := fmt.Sprintf("%d:%s:%s:%d", p.Port, p.Protocol, p.Address, p.PID)
+		aMap[key] = true
+	}
+	for _, p := range b {
+		key := fmt.Sprintf("%d:%s:%s:%d", p.Port, p.Protocol, p.Address, p.PID)
+		if !aMap[key] {
+			return false
+		}
+	}
+	return true
 }
 
 // runToResponse converts a Run to RunResponse
