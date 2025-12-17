@@ -36,18 +36,18 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 
 ## Installation
 
-### Using Homebrew
-
-Install gob via Homebrew:
+<details>
+<summary>Homebrew</summary>
 
 ```bash
 brew tap juanibiapina/taps
 brew install gob
 ```
 
-### Using Go Install
+</details>
 
-If you have Go installed, you can install `gob` with a single command:
+<details>
+<summary>Go Install</summary>
 
 ```bash
 go install github.com/juanibiapina/gob@latest
@@ -58,7 +58,44 @@ Requirements:
 
 The binary will be installed to `$GOPATH/bin` (or `$GOBIN` if set). Make sure this directory is in your `PATH`.
 
-### Pre-built Binaries
+</details>
+
+<details>
+<summary>Nix</summary>
+
+Run directly without installing:
+
+```bash
+nix run github:juanibiapina/gob -- --help
+```
+
+Or install to your profile:
+
+```bash
+nix profile install github:juanibiapina/gob
+```
+
+Or add to your flake:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    gob.url = "github:juanibiapina/gob";
+    # Optional: use your nixpkgs instead of gob's pinned version
+    # gob.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, gob, ... }: {
+    # Use gob.packages.${system}.default
+  };
+}
+```
+
+</details>
+
+<details>
+<summary>Pre-built Binaries</summary>
 
 Download the latest release for your platform from the [Releases page](https://github.com/juanibiapina/gob/releases).
 
@@ -79,46 +116,14 @@ sudo mv gob /usr/local/bin/
 gob --version
 ```
 
-### Build from Source
+</details>
 
-For build instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
+<details>
+<summary>Build from Source</summary>
 
-## Shell Completion
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions.
 
-`gob` supports shell completion for Bash, Zsh, Fish, and PowerShell. Completions include dynamic job ID suggestions with command descriptions.
-
-### Bash
-
-```bash
-# Add to ~/.bashrc
-source <(gob completion bash)
-```
-
-### Zsh
-
-```bash
-# Add to ~/.zshrc
-source <(gob completion zsh)
-```
-
-If you get "command not found: compdef", add this before the source line:
-```bash
-autoload -Uz compinit && compinit
-```
-
-### Fish
-
-```bash
-# Add to ~/.config/fish/config.fish
-gob completion fish | source
-```
-
-### PowerShell
-
-```powershell
-# Add to your PowerShell profile
-gob completion powershell | Out-String | Invoke-Expression
-```
+</details>
 
 ## Quick Start
 
@@ -492,6 +497,45 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `shutdown` | Stop all running jobs, shutdown daemon |
 | `tui` | Launch interactive TUI |
 | `mcp` | Start MCP server for AI agents |
+
+## Shell Completion
+
+`gob` supports shell completion for Bash, Zsh, and Fish. Completions include dynamic job ID suggestions with command descriptions.
+
+<details>
+<summary>Bash</summary>
+
+```bash
+# Add to ~/.bashrc
+source <(gob completion bash)
+```
+
+</details>
+
+<details>
+<summary>Zsh</summary>
+
+```bash
+# Add to ~/.zshrc
+source <(gob completion zsh)
+```
+
+If you get "command not found: compdef", add this before the source line:
+```bash
+autoload -Uz compinit && compinit
+```
+
+</details>
+
+<details>
+<summary>Fish</summary>
+
+```bash
+# Add to ~/.config/fish/config.fish
+gob completion fish | source
+```
+
+</details>
 
 ## Telemetry
 
