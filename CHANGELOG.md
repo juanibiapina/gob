@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Repo is now a nix flake
 
+### Fixed
+
+- **TUI: New jobs now appear in the job list**: Fixed a bug where jobs added via the TUI (pressing 'N') wouldn't appear in the job list due to incorrect scroll state management. The new job is now selected and visible immediately.
+
 ## [2.2.0] - 2025-12-16
 
 ### Changed

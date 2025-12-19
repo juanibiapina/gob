@@ -284,51 +284,6 @@ func TestScrollState_Reset(t *testing.T) {
 	}
 }
 
-func TestScrollState_ShiftForInsertAt(t *testing.T) {
-	tests := []struct {
-		name        string
-		initial     ScrollState
-		insertIndex int
-		wantCursor  int
-		wantOffset  int
-	}{
-		{
-			name:        "insert before cursor",
-			initial:     ScrollState{Cursor: 5, Offset: 3, VisibleRows: 10},
-			insertIndex: 2,
-			wantCursor:  6,
-			wantOffset:  4,
-		},
-		{
-			name:        "insert at cursor",
-			initial:     ScrollState{Cursor: 5, Offset: 3, VisibleRows: 10},
-			insertIndex: 5,
-			wantCursor:  6,
-			wantOffset:  4,
-		},
-		{
-			name:        "insert after cursor",
-			initial:     ScrollState{Cursor: 5, Offset: 3, VisibleRows: 10},
-			insertIndex: 7,
-			wantCursor:  5,
-			wantOffset:  3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := tt.initial
-			s.ShiftForInsertAt(tt.insertIndex)
-			if s.Cursor != tt.wantCursor {
-				t.Errorf("ShiftForInsertAt() Cursor = %v, want %v", s.Cursor, tt.wantCursor)
-			}
-			if s.Offset != tt.wantOffset {
-				t.Errorf("ShiftForInsertAt() Offset = %v, want %v", s.Offset, tt.wantOffset)
-			}
-		})
-	}
-}
-
 func TestScrollState_SetCursorTo(t *testing.T) {
 	tests := []struct {
 		name       string

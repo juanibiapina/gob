@@ -90,15 +90,6 @@ func (s *ScrollState) Reset() {
 	s.Offset = 0
 }
 
-// ShiftForInsertAt adjusts cursor and offset when an item is inserted at the given index.
-// This keeps the selection on the same item after insertion.
-func (s *ScrollState) ShiftForInsertAt(index int) {
-	if index <= s.Cursor {
-		s.Cursor++
-		s.Offset++
-	}
-}
-
 // SetCursorTo moves cursor to the specified index, adjusting offset to keep it visible.
 func (s *ScrollState) SetCursorTo(index int) {
 	s.Cursor = index

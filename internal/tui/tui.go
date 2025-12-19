@@ -555,12 +555,9 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			StoppedAt:  parseTime(event.Job.StoppedAt),
 			Ports:      event.Job.Ports,
 		}
-		// Only adjust cursor and offset if there are existing jobs (keep selection on same job)
-		// When list was empty, cursor stays at 0 to select the new job
-		if len(m.jobs) > 0 {
-			m.jobScroll.ShiftForInsertAt(0)
-		}
 		m.jobs = append([]Job{newJob}, m.jobs...)
+		// Select the new job and scroll to top
+		m.jobScroll.First()
 
 	case daemon.EventTypeJobStarted:
 		// Find the job, update its status, and move it to the top
@@ -579,13 +576,14 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 					m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
 					// Prepend to list
 					m.jobs = append([]Job{job}, m.jobs...)
-					// Adjust cursor and offset to keep selection on same job
+					// Adjust cursor to keep selection on same job
+					// Note: We only shift cursor, not offset, so the moved job is visible at top
 					if m.jobScroll.Cursor == i {
 						// Selected job moved to top
 						m.jobScroll.SetCursorTo(0)
 					} else if m.jobScroll.Cursor < i {
-						// Selected job was above the moved job, shift down by 1
-						m.jobScroll.ShiftForInsertAt(0)
+						// Selected job was above the moved job, shift cursor down by 1
+						m.jobScroll.Cursor++
 					}
 					// If cursor > i, the selected job stays at same index
 				}
