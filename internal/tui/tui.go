@@ -41,17 +41,15 @@ const (
 
 // Job represents a job with its runtime status
 type Job struct {
-	ID         string
-	PID        int
-	Command    string
-	Workdir    string
-	Running    bool
-	StdoutPath string
-	StderrPath string
-	ExitCode   *int
-	StartedAt  time.Time
-	StoppedAt  time.Time
-	Ports      []daemon.PortInfo // Listening ports (only for running jobs)
+	ID        string
+	PID       int
+	Command   string
+	Workdir   string
+	Running   bool
+	ExitCode  *int
+	StartedAt time.Time
+	StoppedAt time.Time
+	Ports     []daemon.PortInfo // Listening ports (only for running jobs)
 }
 
 // Run represents a single execution of a job
@@ -288,17 +286,15 @@ func (m Model) refreshJobs() tea.Cmd {
 		jobs := make([]Job, len(jobResponses))
 		for i, jr := range jobResponses {
 			jobs[i] = Job{
-				ID:         jr.ID,
-				PID:        jr.PID,
-				Command:    strings.Join(jr.Command, " "),
-				Workdir:    jr.Workdir,
-				Running:    jr.Status == "running",
-				StdoutPath: jr.StdoutPath,
-				StderrPath: jr.StderrPath,
-				ExitCode:   jr.ExitCode,
-				StartedAt:  parseTime(jr.StartedAt),
-				StoppedAt:  parseTime(jr.StoppedAt),
-				Ports:      jr.Ports,
+				ID:        jr.ID,
+				PID:       jr.PID,
+				Command:   strings.Join(jr.Command, " "),
+				Workdir:   jr.Workdir,
+				Running:   jr.Status == "running",
+				ExitCode:  jr.ExitCode,
+				StartedAt: parseTime(jr.StartedAt),
+				StoppedAt: parseTime(jr.StoppedAt),
+				Ports:     jr.Ports,
 			}
 		}
 
@@ -306,27 +302,16 @@ func (m Model) refreshJobs() tea.Cmd {
 	}
 }
 
-// readLogs reads the log files for the selected job or run
+// readLogs reads the log files for the selected run
 func (m Model) readLogs() tea.Cmd {
 	return func() tea.Msg {
-		if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
+		if len(m.runs) == 0 || m.runScroll.Cursor < 0 || m.runScroll.Cursor >= len(m.runs) {
 			return logUpdateMsg{stdout: "", stderr: ""}
 		}
 
-		// Use the selected run's log paths if available
-		var stdoutPath, stderrPath string
-		if len(m.runs) > 0 && m.runScroll.Cursor >= 0 && m.runScroll.Cursor < len(m.runs) {
-			run := m.runs[m.runScroll.Cursor]
-			stdoutPath = run.StdoutPath
-			stderrPath = run.StderrPath
-		} else {
-			job := m.jobs[m.jobScroll.Cursor]
-			stdoutPath = job.StdoutPath
-			stderrPath = job.StderrPath
-		}
-
-		stdout, _ := os.ReadFile(stdoutPath)
-		stderr, _ := os.ReadFile(stderrPath)
+		run := m.runs[m.runScroll.Cursor]
+		stdout, _ := os.ReadFile(run.StdoutPath)
+		stderr, _ := os.ReadFile(run.StderrPath)
 
 		return logUpdateMsg{
 			stdout: string(stdout),
@@ -502,6 +487,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.runs = msg.runs
 			m.stats = msg.stats
 			m.runScroll.ClampToCount(len(m.runs))
+			// Read logs now that runs are loaded
+			cmds = append(cmds, m.readLogs())
 		}
 
 	case logUpdateMsg:
@@ -543,17 +530,15 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 	case daemon.EventTypeJobAdded:
 		// Add job to the beginning of the list (newest first)
 		newJob := Job{
-			ID:         event.Job.ID,
-			PID:        event.Job.PID,
-			Command:    strings.Join(event.Job.Command, " "),
-			Workdir:    event.Job.Workdir,
-			Running:    event.Job.Status == "running",
-			StdoutPath: event.Job.StdoutPath,
-			StderrPath: event.Job.StderrPath,
-			ExitCode:   event.Job.ExitCode,
-			StartedAt:  parseTime(event.Job.StartedAt),
-			StoppedAt:  parseTime(event.Job.StoppedAt),
-			Ports:      event.Job.Ports,
+			ID:        event.Job.ID,
+			PID:       event.Job.PID,
+			Command:   strings.Join(event.Job.Command, " "),
+			Workdir:   event.Job.Workdir,
+			Running:   event.Job.Status == "running",
+			ExitCode:  event.Job.ExitCode,
+			StartedAt: parseTime(event.Job.StartedAt),
+			StoppedAt: parseTime(event.Job.StoppedAt),
+			Ports:     event.Job.Ports,
 		}
 		m.jobs = append([]Job{newJob}, m.jobs...)
 		// Select the new job and scroll to top
@@ -820,6 +805,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runScroll.Reset()
 			m.runs = nil
 			m.stats = nil
+			m.stdoutContent = ""
+			m.stderrContent = ""
 			m.portScroll.Reset()
 			if len(m.jobs) > 0 {
 				m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
@@ -833,6 +820,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runScroll.Reset()
 			m.runs = nil
 			m.stats = nil
+			m.stdoutContent = ""
+			m.stderrContent = ""
 			m.portScroll.Reset()
 			if len(m.jobs) > 0 {
 				m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
@@ -846,6 +835,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.runScroll.Reset()
 		m.runs = nil
 		m.stats = nil
+		m.stdoutContent = ""
+		m.stderrContent = ""
 		m.portScroll.Reset()
 		if len(m.jobs) > 0 {
 			m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
@@ -859,6 +850,8 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runScroll.Reset()
 			m.runs = nil
 			m.stats = nil
+			m.stdoutContent = ""
+			m.stderrContent = ""
 			m.portScroll.Reset()
 			m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
 			return m, m.fetchRunsForSelectedJob()
@@ -941,15 +934,15 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// fetchRunsForSelectedJob returns commands to read logs and fetch runs for the selected job
+// fetchRunsForSelectedJob returns a command to fetch runs for the selected job
 // Note: caller must set m.runsForJobID before calling this
 // Ports are received via daemon events (EventTypePortsUpdated)
 func (m Model) fetchRunsForSelectedJob() tea.Cmd {
 	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
-		return m.readLogs()
+		return nil
 	}
 	jobID := m.jobs[m.jobScroll.Cursor].ID
-	return tea.Batch(m.readLogs(), m.fetchRuns(jobID))
+	return m.fetchRuns(jobID)
 }
 
 func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
