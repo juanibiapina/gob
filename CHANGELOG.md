@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-01-09
+
 ### Fixed
 
 - **TUI: Fix log flicker when switching jobs**: When switching between jobs with j/k keys, the log panel no longer briefly shows logs from an old run. Removed legacy `StdoutPath`/`StderrPath` fields from TUI's Job struct that became stale when jobs were restarted. Logs are now cleared immediately when switching jobs and loaded after runs are fetched.
