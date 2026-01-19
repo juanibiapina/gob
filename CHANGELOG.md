@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **MCP server**: Removed the Model Context Protocol server (`gob mcp` command) and all related functionality. AI agents should use the CLI directly instead.
+
 ## [2.2.2] - 2026-01-09
 
 ### Fixed
@@ -52,7 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Port tracking**: Track listening ports for running jobs and their child processes
   - `ports [job_id]` command - list listening ports for a job or all running jobs
-  - `gob_ports` MCP tool for AI agents
   - TUI: New Ports panel (panel 2) showing listening ports for selected job
   - Daemon polls ports at 2s, 5s, 10s after job starts and emits `ports_updated` events
   - Supports Linux and macOS
@@ -68,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Job ordering**: Jobs are now ordered by most recent run everywhere (CLI, TUI, MCP), not just when a job starts in the TUI
+- **Job ordering**: Jobs are now ordered by most recent run everywhere (CLI, TUI), not just when a job starts in the TUI
 
 ## [2.0.3] - 2025-12-15
 
@@ -83,7 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run` command - Add a job and wait for completion in one command
   - Combines `add` + `await` for convenience
   - Shows stats from previous runs, streams output, exits with job's exit code
-- `gob_run` MCP tool - Same functionality for AI agents
 - **TUI horizontal scrolling**: Navigate long log lines with `h`/`l` keys in log panels, or `H`/`L` from jobs/runs panels
 - **TUI line wrap toggle**: Press `w` to toggle between truncated and wrapped log display
 
@@ -127,7 +129,6 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
 - `runs <job_id>` command - show run history for a job
 - `stats <job_id>` command - show statistics (success rate, avg/min/max duration)
 - `add` shows previous run count, success rate, and expected duration for repeat jobs
-- `gob_runs` and `gob_stats` MCP tools
 - TUI: Dedicated Runs panel showing run history for selected job
   - Panel navigation: 1=Jobs, 2=Runs, 3=Stdout, 4=Stderr
   - Select historical runs to view their logs
@@ -155,7 +156,6 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
 - `cleanup` command - use `gob remove <id>` to remove individual jobs
 - `nuke` command - replaced by `shutdown` (which preserves job history)
 - `run` command - use `gob add` + `gob await`
-- `gob_cleanup` MCP tool
 
 ### Fixed
 
@@ -189,18 +189,9 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
 ### Added
 
 - Anonymous telemetry to understand usage patterns
-  - Tracks CLI commands, MCP tool calls, and TUI actions
+  - Tracks CLI commands and TUI actions
   - Disabled with `GOB_TELEMETRY_DISABLED=1` or `DO_NOT_TRACK=1`
   - See `docs/telemetry.md` for details
-
-## [1.1.0] - 2025-12-08
-
-### Added
-
-- MCP (Model Context Protocol) server for AI agent integration (`gob mcp`)
-  - 12 tools: `gob_add`, `gob_list`, `gob_stop`, `gob_start`, `gob_remove`, `gob_restart`, `gob_signal`, `gob_await`, `gob_await_any`, `gob_await_all`, `gob_stdout`, `gob_stderr`
-  - All tools filter by current directory by default
-  - Compatible with Claude Code and other MCP clients
 
 ## [1.0.0] - 2025-12-06
 

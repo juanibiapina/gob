@@ -20,12 +20,6 @@ func CLICommandEnd() {
 	send("cli:command_run", "command_name", cliCommandName, "duration_ms", durationMs)
 }
 
-// MCP
-
-func MCPToolCall(toolName string) {
-	send("mcp:tool_call", "tool_name", toolName)
-}
-
 // TUI
 
 var tuiStartTime time.Time

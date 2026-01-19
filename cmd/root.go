@@ -10,7 +10,6 @@ import (
 
 // skipTelemetry lists commands that handle their own telemetry or shouldn't be tracked
 var skipTelemetry = map[string]bool{
-	"mcp":        true, // has own telemetry
 	"tui":        true, // has own telemetry
 	"completion": true, // shell completion
 	"__complete": true, // internal completion

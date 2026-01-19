@@ -14,7 +14,6 @@ Every event includes basic context:
 | Event | When | Additional Data |
 |-------|------|-----------------|
 | `cli:command_run` | CLI command executes | Command name, duration |
-| `mcp:tool_call` | MCP tool is invoked | Tool name |
 | `tui:session_start` | TUI opens | - |
 | `tui:session_end` | TUI exits | Session duration |
 | `tui:action_execute` | TUI action performed | Action name |

@@ -2,7 +2,7 @@
 
 ## Overview
 
-When a job runs, it executes with a specific set of environment variables. `gob` captures the environment from the client (CLI, TUI, or MCP) at the time of each operation and passes it to the daemon, which starts the process with that exact environment.
+When a job runs, it executes with a specific set of environment variables. `gob` captures the environment from the client (CLI or TUI) at the time of each operation and passes it to the daemon, which starts the process with that exact environment.
 
 **Key principle:** Jobs run with the client's environment, not the daemon's environment.
 
@@ -54,10 +54,6 @@ Standard environment variables like `PATH`, `HOME`, `USER`, etc., are included a
 ## TUI Behavior
 
 The TUI captures the environment when it starts. Operations initiated from the TUI (add, restart) use the environment that was captured at TUI startup, not the current shell environment.
-
-## MCP Server Behavior
-
-The MCP server captures the environment when it starts. All jobs created through MCP tools use the environment that was present when the MCP server was launched.
 
 ## Implementation Details
 
