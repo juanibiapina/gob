@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Gobfile auto-start/stop**: TUI automatically starts jobs listed in `.config/gobfile` on launch and stops them on exit
+  - One command per line in the gobfile
+  - Already-running jobs are skipped (not restarted)
+  - Stopped jobs matching gobfile commands are started
+  - Handles SIGHUP for cleanup when terminal/tmux pane is killed
+
 ### Changed
 
 - **AI agent instructions**: Updated to recommend selective gob usage - only for servers, long-running commands, and builds. Quick commands like `git status` should run directly without gob.

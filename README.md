@@ -254,6 +254,23 @@ The TUI has an info bar and five panels:
 | `?` | Show all shortcuts |
 | `q` | Quit |
 
+### Auto-Start with Gobfile
+
+Create a `.config/gobfile` in your project directory to automatically start jobs when the TUI launches:
+
+```
+npm run dev
+npm run watch
+```
+
+**Behavior:**
+- Jobs are started asynchronously when TUI opens
+- Jobs are stopped when TUI exits (including when terminal is killed)
+- Already-running jobs are skipped
+- Stopped jobs with matching commands are restarted
+
+**Tip:** Add `.config/gobfile` to `.gitignore` if you don't want to share it.
+
 ## CLI Reference
 
 Run `gob <command> --help` for detailed usage, examples, and flags.

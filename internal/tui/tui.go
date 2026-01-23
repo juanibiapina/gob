@@ -3,8 +3,10 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -2199,7 +2201,40 @@ func Start() error {
 	telemetry.TUISessionStart()
 	defer telemetry.TUISessionEnd()
 
+	cwd, _ := os.Getwd()
+	env := os.Environ()
+
+	// Read gobfile
+	commands, _ := ReadGobfile(cwd)
+
+	// Cleanup function for gobfile jobs
+	cleanup := func() {
+		if commands != nil {
+			StopGobfileJobs(cwd, commands)
+		}
+	}
+
+	// Handle signals to ensure cleanup runs even on SIGHUP (tmux kill)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		cleanup()
+		os.Exit(0)
+	}()
+	defer signal.Stop(sigChan)
+
+	// Auto-start gobfile jobs (async, don't block TUI startup)
+	if commands != nil {
+		go StartGobfileJobs(cwd, commands, env)
+	}
+
+	// Run TUI
 	p := tea.NewProgram(New(), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
+
+	// Auto-stop gobfile jobs (after TUI exits normally)
+	cleanup()
+
 	return err
 }
