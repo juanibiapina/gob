@@ -2,6 +2,7 @@
 
 ## Build and Test
 
+- run check with `gob run make`
 - `make test` already depends on `make build`
 - No need to run `make build` separately before running tests
 
