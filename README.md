@@ -157,180 +157,63 @@ gob remove abc
 
 For AI agents, add the following instructions to your agent's configuration file (`CLAUDE.md`, `AGENTS.md`, etc).
 
-<details>
-<summary>General instructions for AI agents</summary>
-
 ````markdown
 ## Background Jobs with `gob`
 
-Use `gob` to manage background processes.
+Use `gob` for servers, long-running commands, and builds.
 
-### Running Commands
+### When to Use gob
 
-- `gob run <cmd>` - Run command, wait for completion, stream output
-  - Equivalent to `gob add` + `gob await`
-  - Best for: builds, tests, any command where you need the result
-- `gob add <cmd>` - Starts command, returns job ID immediately
-  - Supports flags directly: `gob add npm run --flag`
-  - Supports quoted strings: `gob add "make test"`
-- `gob await <job_id>` - Wait for job to finish, stream output, return exit code
+Use `gob` for:
+- **Servers**: `gob add npm run dev`
+- **Long-running processes**: `gob add npm run watch`
+- **Builds**: `gob run make build`
+- **Parallel build steps**: Run multiple builds concurrently
 
-### Sequential Execution
+Do NOT use `gob` for:
+- Quick commands: `git status`, `ls`, `cat`
+- CLI tools: `jira`, `kubectl`, `todoist`
+- File operations: `mv`, `cp`, `rm`
 
-For commands that must complete before proceeding:
+### gob Commands
 
-```
-gob run make build
-```
-
-Or use add + await for more control:
-
-```
-gob add make build
-gob await <job_id>
-```
-
-Use for: builds, installs, any command where you need the result.
-
-### Parallel Execution
-
-For independent commands, start all jobs first:
-
-```
-gob add npm run lint
-gob add npm run typecheck
-gob add npm test
-```
-
-Then collect results using either:
-
-- `gob await <job_id>` - Wait for a specific job by ID
+- `gob add <cmd>` - Start command in background, returns job ID
+- `gob run <cmd>` - Run and wait for completion (equivalent to `gob add` + `gob await`)
+- `gob await <job_id>` - Wait for job to finish, stream output
 - `gob await-any` - Wait for whichever job finishes first
-
-Example with await-any:
-
-```
-gob await-any   # Returns when first job finishes
-gob await-any   # Returns when second job finishes
-gob await-any   # Returns when third job finishes
-```
-
-Use for: linting + typechecking, running tests across packages, independent build steps.
-
-### Job Monitoring
-
-**Status:**
 - `gob list` - List jobs with IDs and status
-
-**Output:**
-- `gob await <job_id>` - Wait for completion, stream output (preferred)
-
-**Control:**
 - `gob stop <job_id>` - Graceful stop
-- `gob stop --force <job_id>` - Force kill
 - `gob restart <job_id>` - Stop + start
-- `gob remove <job_id>` - Remove stopped job
 
 ### Examples
 
-Good:
-  gob run make test         # Run and wait for completion
-  gob add npm run dev       # Start background server
-  gob add make build && gob await <job_id>  # Add + await for more control
-
-Bad:
-  make test                 # Missing gob prefix
-  npm run dev &             # Never use & - use gob add
-````
-
-</details>
-
-<details>
-<summary>Instructions for Crush (AI assistant)</summary>
-
+Servers and long-running:
 ```
-<shell_commands>
-ALWAYS use `gob` to run shell commands through the Bash tool.
+gob add npm run dev       # Start dev server
+gob add npm run watch     # Start file watcher
+```
 
-- `gob run <cmd>` - Run command, wait for completion, stream output
-  - Best for: builds, tests, any command where you need the result
-- `gob add <cmd>` - Starts command, returns job ID immediately
-  - Supports flags directly: `gob add npm run --flag`
-  - Supports quoted strings: `gob add "make test"`
-- `gob await <job_id>` - Wait for job to finish, stream output, return exit code
-</shell_commands>
+Builds:
+```
+gob run make build        # Run build, wait for completion
+gob run npm run test      # Run tests, wait for completion
+```
 
-<sequential_execution>
-For commands that must complete before proceeding:
-
-gob run make build
-
-Or use add + await for more control:
-
-gob add make build
-gob await <job_id>
-
-Use for: builds, installs, any command where you need the result.
-</sequential_execution>
-
-<parallel_execution>
-For independent commands, start all jobs first:
-
+Parallel builds:
+```
 gob add npm run lint
 gob add npm run typecheck
-gob add npm test
-
-Then collect results using either:
-
-- `gob await <job_id>` - Wait for a specific job by ID
-- `gob await-any` - Wait for whichever job finishes first
-
-Example with await-any:
-
-gob await-any   # Returns when first job finishes
-gob await-any   # Returns when second job finishes
-gob await-any   # Returns when third job finishes
-
-Use for: linting + typechecking, running tests across packages, independent build steps.
-</parallel_execution>
-
-<job_monitoring>
-**Status:**
-- `gob list` - List jobs with IDs and status
-
-**Output:**
-- `gob await <job_id>` - Wait for completion, stream output (preferred)
-
-**Control:**
-- `gob stop <job_id>` - Graceful stop
-- `gob stop --force <job_id>` - Force kill
-- `gob restart <job_id>` - Stop + start
-- `gob remove <job_id>` - Remove stopped job
-</job_monitoring>
-
-<auto_background_handling>
-The Bash tool automatically backgrounds commands that exceed 1 minute.
-
-When this happens, IGNORE the shell ID returned by the Bash tool. Instead:
-
-1. Use `gob await <job_id>` to wait for completion again
-2. Do NOT use Crush's job_output or job_kill tools
-</auto_background_handling>
-
-<examples>
-Good:
-  gob run make test         # Run and wait for completion
-  gob add npm run dev       # Start background server
-  gob await V3x             # Wait for specific job
-  gob add timeout 30 make build
-
-Bad:
-  make test                 # Missing gob prefix
-  npm run dev &             # Never use & - use gob add
-</examples>
+gob await-any             # Wait for first to finish
+gob await-any             # Wait for second to finish
 ```
 
-</details>
+Regular commands (no gob):
+```
+git status
+kubectl get pods
+jira issue list
+```
+````
 
 ## Interactive TUI
 

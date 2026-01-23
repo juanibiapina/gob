@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **AI agent instructions**: Updated to recommend selective gob usage - only for servers, long-running commands, and builds. Quick commands like `git status` should run directly without gob.
+
 ### Removed
 
 - **MCP server**: Removed the Model Context Protocol server (`gob mcp` command) and all related functionality. AI agents should use the CLI directly instead.
