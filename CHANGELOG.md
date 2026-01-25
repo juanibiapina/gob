@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Job descriptions**: Jobs can now have descriptions that provide context for AI agents and users
-  - Add via CLI: `gob add --description "Dev server" -- npm run dev`
+  - Add via CLI: `gob add --description "Dev server" npm run dev`
+  - Run via CLI: `gob run --description "Build" make build`
   - Add via gobfile: `description = "Dev server"`
   - Displayed in `gob list` output (indented below job)
   - Displayed in TUI as a dedicated panel (when selected job has description)
+  - Descriptions are updated when running the same command with a new description
+  - Running without `--description` preserves the existing description
 
 - **TOML gobfile format**: Gobfile now uses TOML format (`.config/gobfile.toml`) with support for:
   - `command`: The command to run (required)

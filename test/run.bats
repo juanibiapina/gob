@@ -133,3 +133,99 @@ load 'test_helper'
   assert_output --partial "second"
   assert_output --partial "completed"
 }
+
+@test "run command with --description stores description" {
+  run "$JOB_CLI" run --description "Run test description" true
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Run test description"
+}
+
+@test "run command with -d short flag stores description" {
+  run "$JOB_CLI" run -d "Run short flag" true
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Run short flag"
+}
+
+@test "run command with --description= syntax stores description" {
+  run "$JOB_CLI" run --description="Run equals syntax" true
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Run equals syntax"
+}
+
+@test "run command with -d= syntax stores description" {
+  run "$JOB_CLI" run -d="Run short equals" true
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Run short equals"
+}
+
+@test "run command description appears in JSON output" {
+  run "$JOB_CLI" run --description "Run JSON description" true
+  assert_success
+
+  run "$JOB_CLI" list --json
+  assert_success
+
+  # Verify description field is present
+  local description=$(echo "$output" | jq -r '.[0].description')
+  assert_equal "$description" "Run JSON description"
+}
+
+@test "run command without description has empty description field" {
+  run "$JOB_CLI" run true
+  assert_success
+
+  run "$JOB_CLI" list --json
+  assert_success
+
+  # Verify description field is null or empty
+  local description=$(echo "$output" | jq '.[0].description')
+  assert_equal "$description" "null"
+}
+
+@test "run command updates description on subsequent run" {
+  # Run with initial description
+  run "$JOB_CLI" run --description "First description" true
+  assert_success
+
+  # Run same command with new description
+  run "$JOB_CLI" run --description "Updated description" true
+  assert_success
+
+  # Verify description was updated
+  run "$JOB_CLI" list --json
+  assert_success
+  local description=$(echo "$output" | jq -r '.[0].description')
+  assert_equal "$description" "Updated description"
+}
+
+@test "run command preserves description when not provided on subsequent run" {
+  # Run with description
+  run "$JOB_CLI" run --description "Keep this description" true
+  assert_success
+
+  # Run same command without description
+  run "$JOB_CLI" run true
+  assert_success
+
+  # Verify description was preserved
+  run "$JOB_CLI" list --json
+  assert_success
+  local description=$(echo "$output" | jq -r '.[0].description')
+  assert_equal "$description" "Keep this description"
+}

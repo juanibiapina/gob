@@ -286,6 +286,18 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 		if job.IsRunning() {
 			return nil, fmt.Errorf("job %s is already running", job.ID)
 		}
+
+		// Update description if provided and different from current
+		if description != "" && job.Description != description {
+			job.Description = description
+			// Persist updated description to database
+			if jm.store != nil {
+				if err := jm.store.UpdateJob(job); err != nil {
+					Logger.Warn("failed to update job description", "id", job.ID, "error", err)
+				}
+			}
+		}
+
 		// Start a new run for existing job with the provided environment
 		run, err := jm.startRunLocked(job, env)
 		if err != nil {
@@ -398,8 +410,20 @@ func (jm *JobManager) CreateJob(command []string, workdir string, description st
 
 	// Check if job already exists for this command+workdir
 	if existingJobID, ok := jm.jobIndex[indexKey]; ok {
-		// Return existing job without starting it
-		return jm.jobs[existingJobID], nil
+		job := jm.jobs[existingJobID]
+
+		// Update description if provided and different from current
+		if description != "" && job.Description != description {
+			job.Description = description
+			// Persist updated description to database
+			if jm.store != nil {
+				if err := jm.store.UpdateJob(job); err != nil {
+					Logger.Warn("failed to update job description", "id", job.ID, "error", err)
+				}
+			}
+		}
+
+		return job, nil
 	}
 
 	// Create new job

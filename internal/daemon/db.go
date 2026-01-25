@@ -135,10 +135,12 @@ func (s *Store) UpdateJob(job *Job) error {
 			success_count = ?,
 			total_duration_ms = ?,
 			min_duration_ms = ?,
-			max_duration_ms = ?
+			max_duration_ms = ?,
+			description = ?
 		WHERE id = ?
 	`, job.NextRunSeq, job.RunCount, job.SuccessCount,
-		job.TotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs), job.ID)
+		job.TotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs),
+		nullableString(job.Description), job.ID)
 	return err
 }
 

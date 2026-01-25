@@ -180,6 +180,7 @@ Do NOT use `gob` for:
 - `gob add <cmd>` - Start command in background, returns job ID
 - `gob add --description "context" <cmd>` - Start with description for context
 - `gob run <cmd>` - Run and wait for completion (equivalent to `gob add` + `gob await`)
+- `gob run --description "context" <cmd>` - Run with description for context
 - `gob await <job_id>` - Wait for job to finish, stream output
 - `gob await-any` - Wait for whichever job finishes first
 - `gob list` - List jobs with IDs, status, and descriptions
@@ -196,8 +197,9 @@ gob add --description "File watcher" npm run watch  # With description
 
 Builds:
 ```
-gob run make build        # Run build, wait for completion
-gob run npm run test      # Run tests, wait for completion
+gob run make build                           # Run build, wait for completion
+gob run npm run test                         # Run tests, wait for completion
+gob run --description "Type check" npm run typecheck  # With description
 ```
 
 Parallel builds:
@@ -296,7 +298,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 
 | Command | Description |
 |---------|-------------|
-| `run <cmd>` | Run command and wait for completion (add + await) |
+| `run <cmd>` | Run command and wait for completion (`--description` to add context) |
 | `add <cmd>` | Start background job (`--description` to add context) |
 | `await <id>` | Wait for job, stream output, show summary |
 | `await-any` | Wait for any job to complete (`--timeout`) |

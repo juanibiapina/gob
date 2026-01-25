@@ -188,3 +188,107 @@ load 'test_helper'
   assert_output --partial "100% success rate"
   assert_output --partial "Expected duration:"
 }
+
+@test "add command with --description stores description" {
+  run "$JOB_CLI" add --description "Test job description" sleep 300
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Test job description"
+}
+
+@test "add command with -d short flag stores description" {
+  run "$JOB_CLI" add -d "Short flag description" sleep 300
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Short flag description"
+}
+
+@test "add command with --description= syntax stores description" {
+  run "$JOB_CLI" add --description="Equals syntax" sleep 300
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Equals syntax"
+}
+
+@test "add command with -d= syntax stores description" {
+  run "$JOB_CLI" add -d="Short equals syntax" sleep 300
+  assert_success
+
+  # Verify description appears in list
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --partial "Short equals syntax"
+}
+
+@test "add command description appears in JSON output" {
+  run "$JOB_CLI" add --description "JSON description" sleep 300
+  assert_success
+
+  run "$JOB_CLI" list --json
+  assert_success
+
+  # Verify description field is present
+  local description=$(echo "$output" | jq -r '.[0].description')
+  assert_equal "$description" "JSON description"
+}
+
+@test "add command without description has empty description field" {
+  run "$JOB_CLI" add sleep 300
+  assert_success
+
+  run "$JOB_CLI" list --json
+  assert_success
+
+  # Verify description field is null or empty
+  local description=$(echo "$output" | jq '.[0].description')
+  assert_equal "$description" "null"
+}
+
+@test "add command updates description on subsequent run" {
+  # Add job with initial description
+  run "$JOB_CLI" add --description "First description" sleep 0.01
+  assert_success
+  local job_id=$(get_job_field id)
+
+  # Wait for job to complete
+  "$JOB_CLI" await "$job_id"
+
+  # Add same command with new description
+  run "$JOB_CLI" add --description "Updated description" sleep 0.01
+  assert_success
+
+  # Verify description was updated
+  run "$JOB_CLI" list --json
+  assert_success
+  local description=$(echo "$output" | jq -r '.[0].description')
+  assert_equal "$description" "Updated description"
+}
+
+@test "add command preserves description when not provided on subsequent run" {
+  # Add job with description
+  run "$JOB_CLI" add --description "Keep this description" sleep 0.01
+  assert_success
+  local job_id=$(get_job_field id)
+
+  # Wait for job to complete
+  "$JOB_CLI" await "$job_id"
+
+  # Add same command without description
+  run "$JOB_CLI" add sleep 0.01
+  assert_success
+
+  # Verify description was preserved
+  run "$JOB_CLI" list --json
+  assert_success
+  local description=$(echo "$output" | jq -r '.[0].description')
+  assert_equal "$description" "Keep this description"
+}
