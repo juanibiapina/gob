@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-rc.2] - 2026-01-25
+
 ### Changed
 
 - **Idempotent `add` and `run` commands**: These commands no longer error when a job is already running
@@ -20,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`job_updated` event**: New event type emitted when a job's metadata changes (e.g., description update for running job)
   - TUI automatically refreshes job descriptions when this event is received
 
-## [3.0.0-rc1] - 2026-01-25
+## [3.0.0-rc.1] - 2026-01-25
 
 **Breaking change:** Gobfile format changed from plain text to TOML (`.config/gobfile` → `.config/gobfile.toml`).
 
