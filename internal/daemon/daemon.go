@@ -449,13 +449,14 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 		}
 	}
 
-	job, err := d.jobManager.AddJob(command, workdir, description, env)
+	job, action, err := d.jobManager.AddJob(command, workdir, description, env)
 	if err != nil {
 		return NewErrorResponse(err)
 	}
 
 	resp := NewSuccessResponse()
 	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["action"] = action
 
 	// Include stats if job has previous completed runs
 	// RunCount is updated on completion, so check if > 0

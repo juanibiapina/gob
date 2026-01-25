@@ -285,7 +285,7 @@ autostart = false  # Add but don't start automatically
 **Behavior:**
 - Jobs are started asynchronously when TUI opens (if `autostart = true`)
 - Jobs are stopped when TUI exits (including when terminal is killed)
-- Already-running jobs are skipped
+- Already-running jobs have their descriptions updated if different
 - Stopped jobs with matching commands are restarted
 - Jobs with `autostart = false` are added but not started
 

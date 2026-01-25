@@ -55,9 +55,10 @@ func ReadGobfile(cwd string) (*GobfileConfig, error) {
 }
 
 // StartGobfileJobs starts jobs for gobfile commands.
-// - If job exists and is running → skip
-// - If job exists and is stopped → start it (if autostart=true)
-// - If job doesn't exist → add it (with or without starting based on autostart)
+// Uses idempotent Add/Create operations:
+// - Add for autostart=true jobs (creates, starts, or returns already_running)
+// - Create for autostart=false jobs (creates or returns existing)
+// Both operations update the description if it differs from the current one.
 // Continues on error, logs failures.
 func StartGobfileJobs(cwd string, config *GobfileConfig, env []string) error {
 	if config == nil || len(config.Jobs) == 0 {
@@ -75,20 +76,6 @@ func StartGobfileJobs(cwd string, config *GobfileConfig, env []string) error {
 	}
 	defer client.Close()
 
-	// Get existing jobs for this workdir
-	existingJobs, err := client.List(cwd)
-	if err != nil {
-		log.Printf("gobfile: failed to list jobs: %v", err)
-		return err
-	}
-
-	// Build a map of command -> job
-	existingByCommand := make(map[string]daemon.JobResponse)
-	for _, job := range existingJobs {
-		cmdStr := strings.Join(job.Command, " ")
-		existingByCommand[cmdStr] = job
-	}
-
 	// Process each gobfile job
 	for _, gobJob := range config.Jobs {
 		cmd := gobJob.Command
@@ -97,34 +84,21 @@ func StartGobfileJobs(cwd string, config *GobfileConfig, env []string) error {
 			continue
 		}
 
-		if job, exists := existingByCommand[cmd]; exists {
-			// Job exists - start it if stopped and autostart=true, skip if running
-			if job.Status == "running" {
-				continue
-			}
-			if gobJob.ShouldAutostart() {
-				_, err := client.Start(job.ID, env)
-				if err != nil {
-					log.Printf("gobfile: failed to start '%s': %v", cmd, err)
-					// Continue on error
-				}
+		if gobJob.ShouldAutostart() {
+			// Add is idempotent: creates + starts, or returns already_running
+			// Also updates description if different
+			_, err := client.Add(parts, cwd, env, gobJob.Description)
+			if err != nil {
+				log.Printf("gobfile: failed to add '%s': %v", cmd, err)
+				// Continue on error
 			}
 		} else {
-			// Job doesn't exist - add it
-			if gobJob.ShouldAutostart() {
-				// Add and start the job
-				_, err := client.Add(parts, cwd, env, gobJob.Description)
-				if err != nil {
-					log.Printf("gobfile: failed to add '%s': %v", cmd, err)
-					// Continue on error
-				}
-			} else {
-				// Add without starting (create only)
-				_, err := client.Create(parts, cwd, gobJob.Description)
-				if err != nil {
-					log.Printf("gobfile: failed to create '%s': %v", cmd, err)
-					// Continue on error
-				}
+			// Create is idempotent: creates without starting, or returns existing
+			// Also updates description if different
+			_, err := client.Create(parts, cwd, gobJob.Description)
+			if err != nil {
+				log.Printf("gobfile: failed to create '%s': %v", cmd, err)
+				// Continue on error
 			}
 		}
 	}

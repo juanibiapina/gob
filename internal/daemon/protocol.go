@@ -58,6 +58,7 @@ const (
 	EventTypeJobStarted   EventType = "job_started"
 	EventTypeJobStopped   EventType = "job_stopped"
 	EventTypeJobRemoved   EventType = "job_removed"
+	EventTypeJobUpdated   EventType = "job_updated"
 	EventTypeRunStarted   EventType = "run_started"
 	EventTypeRunStopped   EventType = "run_stopped"
 	EventTypePortsUpdated EventType = "ports_updated"
@@ -134,8 +135,9 @@ type StatsResponse struct {
 
 // AddResponse represents the response from adding a job
 type AddResponse struct {
-	Job   JobResponse    `json:"job"`
-	Stats *StatsResponse `json:"stats,omitempty"` // nil if no previous runs
+	Job    JobResponse    `json:"job"`
+	Stats  *StatsResponse `json:"stats,omitempty"` // nil if no previous runs
+	Action string         `json:"action"`          // "created", "started", or "already_running"
 }
 
 // NewRequest creates a new request with the given type

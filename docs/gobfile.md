@@ -37,7 +37,7 @@ command = "docker compose up db"
 
 1. Gobfile is parsed from `.config/gobfile.toml`
 2. For each job in the file:
-   - If a job with the same command exists and is running: skip
+   - If a job with the same command exists and is running: update description if different
    - If a job with the same command exists and is stopped: restart it (if `autostart = true`)
    - If no matching job exists: create and start it (if `autostart = true`)
    - If `autostart = false`: create but don't start (shows as stopped)
@@ -54,7 +54,10 @@ Jobs that were already running before TUI opened are **not** stopped.
 
 ### Description Updates
 
-Descriptions from the gobfile are applied when jobs are created. Currently, descriptions are not updated for existing jobs when the gobfile changes (see Future Enhancements in the project plan).
+Descriptions from the gobfile are synced to jobs every time the TUI opens:
+- New jobs get the description from the gobfile
+- Existing jobs (running or stopped) have their description updated if the gobfile specifies a different one
+- The TUI receives a `job_updated` event and refreshes the display automatically
 
 ## Use Cases
 

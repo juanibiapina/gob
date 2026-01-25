@@ -116,16 +116,23 @@ Exit codes:
 			return fmt.Errorf("failed to add job: %w", err)
 		}
 
-		// Print confirmation message
 		commandStr := strings.Join(commandArgs, " ")
-		fmt.Printf("Running job %s: %s\n", result.Job.ID, commandStr)
 
-		// Show stats if job has previous runs
-		if result.Stats != nil && result.Stats.RunCount > 0 {
-			fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
-				result.Stats.RunCount, result.Stats.SuccessRate)
-			fmt.Printf("  Expected duration: ~%s\n",
-				formatDuration(time.Duration(result.Stats.AvgDurationMs)*time.Millisecond))
+		// Print message based on action
+		if result.Action == "already_running" {
+			startedAt, _ := time.Parse(time.RFC3339, result.Job.StartedAt)
+			duration := formatDuration(time.Since(startedAt))
+			fmt.Printf("Job %s already running (since %s ago), attaching...\n", result.Job.ID, duration)
+		} else {
+			fmt.Printf("Running job %s: %s\n", result.Job.ID, commandStr)
+
+			// Show stats if job has previous runs
+			if result.Stats != nil && result.Stats.RunCount > 0 {
+				fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
+					result.Stats.RunCount, result.Stats.SuccessRate)
+				fmt.Printf("  Expected duration: ~%s\n",
+					formatDuration(time.Duration(result.Stats.AvgDurationMs)*time.Millisecond))
+			}
 		}
 
 		// Follow the output until completion

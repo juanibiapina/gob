@@ -96,15 +96,19 @@ load 'test_helper'
   assert_output --partial "stderr message"
 }
 
-@test "run command fails if same command is already running" {
+@test "run command attaches to already running job" {
   # Add a job with add command first
   "$JOB_CLI" add sleep 300
   local job_id=$(get_job_field id)
 
-  # Try to run the same command - should fail
-  run "$JOB_CLI" run sleep 300
-  assert_failure
-  assert_output --partial "is already running"
+  # Try to run the same command - should succeed and attach
+  # Use timeout since it will wait for the job
+  run timeout 2 "$JOB_CLI" run sleep 300 || true
+  
+  # Should indicate it attached to the running job
+  assert_output --partial "already running"
+  assert_output --partial "attaching"
+  assert_output --partial "$job_id"
 }
 
 @test "run command shows stats for job with previous runs" {

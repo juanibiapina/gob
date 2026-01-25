@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Idempotent `add` and `run` commands**: These commands no longer error when a job is already running
+  - `gob add` returns success with "Job abc already running (since 2m ago)" message
+  - `gob run` returns success with "Job abc already running (since 2m ago), attaching..." and follows output
+  - Both commands update the job's description if a different one is provided
+  - This improves UX and allows gobfiles to sync descriptions without requiring job restarts
+
+### Added
+
+- **`job_updated` event**: New event type emitted when a job's metadata changes (e.g., description update for running job)
+  - TUI automatically refreshes job descriptions when this event is received
+
 ## [3.0.0] - 2026-01-25
 
 **Breaking change:** Gobfile format changed from plain text to TOML (`.config/gobfile` → `.config/gobfile.toml`).
@@ -186,7 +199,6 @@ Job state is stored in a SQLite database and survives daemon crashes or restarts
 - **Log location**: Job logs moved from `$XDG_RUNTIME_DIR/gob/` to `$XDG_STATE_HOME/gob/logs/` for persistence across reboots
 - **Database location**: Job state stored in `$XDG_STATE_HOME/gob/state.db`
 - `add` reuses existing job for same command in same directory (creates new run)
-- `add` errors if same command is already running (no parallel runs of same job)
 - `add` no longer requires `--` separator for commands with flags
 - `add` supports quoted command strings (e.g., `gob add "make test"`)
 - `signal` requires job to be running (returns error for stopped jobs)

@@ -99,6 +99,77 @@ func TestDaemon_handleAdd(t *testing.T) {
 	}
 }
 
+func TestDaemon_handleAdd_ReturnsAction(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeAdd,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo", "hello"},
+			"workdir": "/workdir",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	action, ok := resp.Data["action"].(string)
+	if !ok {
+		t.Fatal("expected action in response")
+	}
+	if action != "created" {
+		t.Errorf("expected action 'created', got %s", action)
+	}
+}
+
+func TestDaemon_handleAdd_AlreadyRunning(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeAdd,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo", "hello"},
+			"workdir": "/workdir",
+		},
+	}
+
+	// First add
+	resp := d.handleRequest(req)
+	if !resp.Success {
+		t.Fatalf("expected success, got error: %s", resp.Error)
+	}
+	firstJob := resp.Data["job"].(JobResponse)
+
+	// Second add - same command while running
+	resp = d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success for already running job, got error: %s", resp.Error)
+	}
+
+	action, ok := resp.Data["action"].(string)
+	if !ok {
+		t.Fatal("expected action in response")
+	}
+	if action != "already_running" {
+		t.Errorf("expected action 'already_running', got %s", action)
+	}
+
+	secondJob := resp.Data["job"].(JobResponse)
+	if secondJob.ID != firstJob.ID {
+		t.Errorf("expected same job ID, got %s and %s", firstJob.ID, secondJob.ID)
+	}
+}
+
 func TestDaemon_handleAdd_MissingCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
@@ -145,7 +216,7 @@ func TestDaemon_handleGetJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -192,7 +263,7 @@ func TestDaemon_handleStop(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
 
 	// Stop the fake process so Stop() can succeed
 	executor.LastHandle().Stop()
@@ -311,7 +382,7 @@ func TestDaemon_handlePorts(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -339,7 +410,7 @@ func TestDaemon_handlePorts_StoppedJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
 
 	// Stop the job
 	executor.LastHandle().Stop()

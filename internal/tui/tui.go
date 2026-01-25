@@ -663,6 +663,15 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 				break
 			}
 		}
+
+	case daemon.EventTypeJobUpdated:
+		// Update job properties (e.g., description change)
+		for i := range m.jobs {
+			if m.jobs[i].ID == event.JobID {
+				m.jobs[i].Description = event.Job.Description
+				break
+			}
+		}
 	}
 }
 

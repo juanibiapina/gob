@@ -210,6 +210,11 @@ func (c *Client) Add(command []string, workdir string, env []string, description
 
 	result := &AddResponse{Job: job}
 
+	// Parse action
+	if action, ok := resp.Data["action"].(string); ok {
+		result.Action = action
+	}
+
 	// Parse stats if present (job has previous completed runs)
 	if statsRaw, ok := resp.Data["stats"]; ok {
 		statsJSON, err := json.Marshal(statsRaw)

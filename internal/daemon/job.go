@@ -268,10 +268,11 @@ func generateJobID(existingIDs map[string]bool) string {
 	}
 }
 
-// AddJob finds or creates a job for the command, then starts a new run
-func (jm *JobManager) AddJob(command []string, workdir string, description string, env []string) (*Job, error) {
+// AddJob finds or creates a job for the command, then starts a new run.
+// Returns the job, the action taken ("created", "started", or "already_running"), and any error.
+func (jm *JobManager) AddJob(command []string, workdir string, description string, env []string) (*Job, string, error) {
 	if len(command) == 0 {
-		return nil, fmt.Errorf("empty command")
+		return nil, "", fmt.Errorf("empty command")
 	}
 
 	jm.mu.Lock()
@@ -284,7 +285,31 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 	if existingJobID, ok := jm.jobIndex[indexKey]; ok {
 		job := jm.jobs[existingJobID]
 		if job.IsRunning() {
-			return nil, fmt.Errorf("job %s is already running", job.ID)
+			// Job is already running - update description if different and return success
+			descriptionChanged := false
+			if description != "" && job.Description != description {
+				job.Description = description
+				descriptionChanged = true
+				// Persist updated description to database
+				if jm.store != nil {
+					if err := jm.store.UpdateJob(job); err != nil {
+						Logger.Warn("failed to update job description", "id", job.ID, "error", err)
+					}
+				}
+			}
+
+			// Emit job updated event if description changed
+			if descriptionChanged {
+				jm.emitEvent(Event{
+					Type:            EventTypeJobUpdated,
+					JobID:           job.ID,
+					Job:             jm.jobToResponse(job),
+					JobCount:        len(jm.jobs),
+					RunningJobCount: jm.countRunningJobsLocked(),
+				})
+			}
+
+			return job, "already_running", nil
 		}
 
 		// Update description if provided and different from current
@@ -301,7 +326,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 		// Start a new run for existing job with the provided environment
 		run, err := jm.startRunLocked(job, env)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		// Emit job started event (reusing existing job)
@@ -326,7 +351,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 			RunningJobCount: jm.countRunningJobsLocked(),
 		})
 
-		return job, nil
+		return job, "started", nil
 	}
 
 	// Create new job
@@ -355,7 +380,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 		if err := jm.store.InsertJob(job); err != nil {
 			delete(jm.jobs, jobID)
 			delete(jm.jobIndex, indexKey)
-			return nil, fmt.Errorf("failed to persist job: %w", err)
+			return nil, "", fmt.Errorf("failed to persist job: %w", err)
 		}
 	}
 
@@ -368,7 +393,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 		}
 		delete(jm.jobs, jobID)
 		delete(jm.jobIndex, indexKey)
-		return nil, err
+		return nil, "", err
 	}
 
 	// Emit job added event
@@ -393,7 +418,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 		RunningJobCount: jm.countRunningJobsLocked(),
 	})
 
-	return job, nil
+	return job, "created", nil
 }
 
 // CreateJob creates a job without starting it (for autostart=false in gobfile)

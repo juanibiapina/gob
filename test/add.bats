@@ -129,7 +129,7 @@ load 'test_helper'
   assert [ "$(echo "$job" | jq -r '.command[2]')" = "world" ]
 }
 
-@test "add command fails if same command is already running" {
+@test "add command returns already_running for same command" {
   # Add a job
   run "$JOB_CLI" add sleep 300
   assert_success
@@ -137,12 +137,13 @@ load 'test_helper'
   # Get the job ID
   local job_id=$(get_job_field id)
 
-  # Try to add the same command again - should fail
+  # Try to add the same command again - should succeed with "already running" message
   run "$JOB_CLI" add sleep 300
-  assert_failure
-  assert_output --partial "is already running"
+  assert_success
+  assert_output --partial "already running"
+  assert_output --partial "$job_id"
 
-  # Different command should succeed
+  # Different command should also succeed (creates new job)
   run "$JOB_CLI" add sleep 301
   assert_success
 }
