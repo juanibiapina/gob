@@ -1,0 +1,4 @@
+[[job]]
+command = "make"
+description = "Build, run unit tests and integration tests"
+autostart = false
