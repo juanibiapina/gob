@@ -35,6 +35,7 @@ const (
 	RequestTypeShutdown  RequestType = "shutdown"
 	RequestTypeList      RequestType = "list"
 	RequestTypeAdd       RequestType = "add"
+	RequestTypeCreate    RequestType = "create" // Add job without starting
 	RequestTypeStop      RequestType = "stop"
 	RequestTypeStart     RequestType = "start"
 	RequestTypeRestart   RequestType = "restart"
@@ -89,18 +90,19 @@ type Response struct {
 
 // JobResponse represents a job in API responses
 type JobResponse struct {
-	ID         string     `json:"id"`
-	PID        int        `json:"pid"`
-	Status     string     `json:"status"`
-	Command    []string   `json:"command"`
-	Workdir    string     `json:"workdir"`
-	CreatedAt  string     `json:"created_at"`
-	StartedAt  string     `json:"started_at"`
-	StoppedAt  string     `json:"stopped_at,omitempty"`
-	StdoutPath string     `json:"stdout_path"`
-	StderrPath string     `json:"stderr_path"`
-	ExitCode   *int       `json:"exit_code,omitempty"`
-	Ports      []PortInfo `json:"ports,omitempty"` // Listening ports (only for running jobs)
+	ID          string     `json:"id"`
+	PID         int        `json:"pid"`
+	Status      string     `json:"status"`
+	Command     []string   `json:"command"`
+	Workdir     string     `json:"workdir"`
+	Description string     `json:"description,omitempty"`
+	CreatedAt   string     `json:"created_at"`
+	StartedAt   string     `json:"started_at"`
+	StoppedAt   string     `json:"stopped_at,omitempty"`
+	StdoutPath  string     `json:"stdout_path"`
+	StderrPath  string     `json:"stderr_path"`
+	ExitCode    *int       `json:"exit_code,omitempty"`
+	Ports       []PortInfo `json:"ports,omitempty"` // Listening ports (only for running jobs)
 }
 
 // RunResponse represents a run in API responses

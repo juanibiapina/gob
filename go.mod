@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.3
 	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/posthog/posthog-go v1.6.13
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/sevlyar/go-daemon v0.1.6

@@ -117,10 +117,10 @@ func (s *Store) InsertJob(job *Job) error {
 	}
 
 	_, err = s.db.Exec(`
-		INSERT INTO jobs (id, command_json, command_signature, workdir, next_run_seq, created_at,
+		INSERT INTO jobs (id, command_json, command_signature, workdir, description, next_run_seq, created_at,
 			run_count, success_count, total_duration_ms, min_duration_ms, max_duration_ms)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, job.ID, string(commandJSON), job.CommandSignature, job.Workdir, job.NextRunSeq,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, job.ID, string(commandJSON), job.CommandSignature, job.Workdir, nullableString(job.Description), job.NextRunSeq,
 		job.CreatedAt.Format(time.RFC3339), job.RunCount, job.SuccessCount,
 		job.TotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs))
 	return err
@@ -176,7 +176,7 @@ func (s *Store) UpdateRun(run *Run) error {
 // LoadJobs loads all jobs from the database
 func (s *Store) LoadJobs() ([]*Job, error) {
 	rows, err := s.db.Query(`
-		SELECT id, command_json, command_signature, workdir, next_run_seq, created_at,
+		SELECT id, command_json, command_signature, workdir, description, next_run_seq, created_at,
 			run_count, success_count, total_duration_ms, min_duration_ms, max_duration_ms
 		FROM jobs
 	`)
@@ -192,6 +192,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 			commandJSON      string
 			commandSignature string
 			workdir          string
+			description      sql.NullString
 			nextRunSeq       int
 			createdAtStr     string
 			runCount         int
@@ -201,7 +202,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 			maxDurationMs    sql.NullInt64
 		)
 
-		if err := rows.Scan(&id, &commandJSON, &commandSignature, &workdir, &nextRunSeq, &createdAtStr,
+		if err := rows.Scan(&id, &commandJSON, &commandSignature, &workdir, &description, &nextRunSeq, &createdAtStr,
 			&runCount, &successCount, &totalDurationMs, &minDurationMs, &maxDurationMs); err != nil {
 			return nil, err
 		}
@@ -221,6 +222,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 			Command:          command,
 			CommandSignature: commandSignature,
 			Workdir:          workdir,
+			Description:      description.String, // Empty if NULL
 			NextRunSeq:       nextRunSeq,
 			CreatedAt:        createdAt,
 			RunCount:         runCount,
@@ -456,6 +458,14 @@ func isOurProcess(pid int, expectedStartTime time.Time, expectedCmd []string) bo
 // nullableInt64 returns nil for zero values, otherwise the pointer
 func nullableInt64(v int64) interface{} {
 	if v == 0 {
+		return nil
+	}
+	return v
+}
+
+// nullableString returns nil for empty strings, otherwise the string
+func nullableString(v string) interface{} {
+	if v == "" {
 		return nil
 	}
 	return v

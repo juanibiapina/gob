@@ -173,12 +173,15 @@ func (c *Client) List(workdir string) ([]JobResponse, error) {
 	return jobs, nil
 }
 
-// Add creates and starts a new job with the given environment
-func (c *Client) Add(command []string, workdir string, env []string) (*AddResponse, error) {
+// Add creates and starts a new job with the given environment and optional description
+func (c *Client) Add(command []string, workdir string, env []string, description string) (*AddResponse, error) {
 	req := NewRequest(RequestTypeAdd)
 	req.Payload["command"] = command
 	req.Payload["workdir"] = workdir
 	req.Payload["env"] = env
+	if description != "" {
+		req.Payload["description"] = description
+	}
 
 	resp, err := c.SendRequest(req)
 	if err != nil {
@@ -222,6 +225,43 @@ func (c *Client) Add(command []string, workdir string, env []string) (*AddRespon
 	}
 
 	return result, nil
+}
+
+// Create creates a job without starting it (for autostart=false jobs)
+func (c *Client) Create(command []string, workdir string, description string) (*JobResponse, error) {
+	req := NewRequest(RequestTypeCreate)
+	req.Payload["command"] = command
+	req.Payload["workdir"] = workdir
+	if description != "" {
+		req.Payload["description"] = description
+	}
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("create failed: %s", resp.Error)
+	}
+
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
+	if !ok {
+		return nil, fmt.Errorf("no job in response")
+	}
+
+	jobJSON, err := json.Marshal(jobRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
 }
 
 // Stop stops a running job

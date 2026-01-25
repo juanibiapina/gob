@@ -7,9 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Job descriptions**: Jobs can now have descriptions that provide context for AI agents and users
+  - Add via CLI: `gob add --description "Dev server" -- npm run dev`
+  - Add via gobfile: `description = "Dev server"`
+  - Displayed in `gob list` output (indented below job)
+  - Displayed in TUI as a dedicated panel (when selected job has description)
+
+- **TOML gobfile format**: Gobfile now uses TOML format (`.config/gobfile.toml`) with support for:
+  - `command`: The command to run (required)
+  - `description`: Context for AI agents and users (optional)
+  - `autostart`: Whether to start on TUI launch, defaults to true (optional)
+  - Jobs with `autostart = false` are added but not started
+
 ### Fixed
 
 - **Restarted job showing old exit code**: Fixed a race condition where a restarted job could briefly appear as "stopped" with the previous run's exit code. This happened when the old run's cleanup goroutine ran after the new run had started, incorrectly clearing the job's current run reference.
+
+### Changed
+
+- **Gobfile location**: Changed from `.config/gobfile` to `.config/gobfile.toml`
 
 ## [2.3.0] - 2026-01-23
 

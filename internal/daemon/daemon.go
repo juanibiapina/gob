@@ -340,6 +340,8 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleList(req)
 	case RequestTypeAdd:
 		return d.handleAdd(req)
+	case RequestTypeCreate:
+		return d.handleCreate(req)
 	case RequestTypeStop:
 		return d.handleStop(req)
 	case RequestTypeStart:
@@ -431,6 +433,9 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing workdir"))
 	}
 
+	// Extract optional description
+	description, _ := req.Payload["description"].(string)
+
 	// Extract environment
 	var env []string
 	if envRaw, ok := req.Payload["env"]; ok {
@@ -444,7 +449,7 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 		}
 	}
 
-	job, err := d.jobManager.AddJob(command, workdir, env)
+	job, err := d.jobManager.AddJob(command, workdir, description, env)
 	if err != nil {
 		return NewErrorResponse(err)
 	}
@@ -458,6 +463,50 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 		stats := jobToStats(job)
 		resp.Data["stats"] = stats
 	}
+
+	return resp
+}
+
+// handleCreate handles a create request (add job without starting)
+func (d *Daemon) handleCreate(req *Request) *Response {
+	// Extract command
+	commandRaw, ok := req.Payload["command"]
+	if !ok {
+		return NewErrorResponse(fmt.Errorf("missing command"))
+	}
+
+	// Convert to []string
+	var command []string
+	switch v := commandRaw.(type) {
+	case []interface{}:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				command = append(command, s)
+			}
+		}
+	default:
+		return NewErrorResponse(fmt.Errorf("invalid command format"))
+	}
+
+	if len(command) == 0 {
+		return NewErrorResponse(fmt.Errorf("empty command"))
+	}
+
+	workdir, _ := req.Payload["workdir"].(string)
+	if workdir == "" {
+		return NewErrorResponse(fmt.Errorf("missing workdir"))
+	}
+
+	// Extract optional description
+	description, _ := req.Payload["description"].(string)
+
+	job, err := d.jobManager.CreateJob(command, workdir, description)
+	if err != nil {
+		return NewErrorResponse(err)
+	}
+
+	resp := NewSuccessResponse()
+	resp.Data["job"] = d.jobManager.jobToResponse(job)
 
 	return resp
 }

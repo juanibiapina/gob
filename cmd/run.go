@@ -79,8 +79,8 @@ Exit codes:
 		// Capture current environment
 		env := os.Environ()
 
-		// Add job via daemon
-		result, err := client.Add(args, cwd, env)
+		// Add job via daemon (no description for run command)
+		result, err := client.Add(args, cwd, env, "")
 		if err != nil {
 			return fmt.Errorf("failed to add job: %w", err)
 		}

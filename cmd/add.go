@@ -11,7 +11,7 @@ import (
 )
 
 var addCmd = &cobra.Command{
-	Use:                "add <command> [args...]",
+	Use:                "add [--description <desc>] [--] <command> [args...]",
 	Short:              "Create and start a new background job",
 	DisableFlagParsing: true,
 	Long: `Create and start a new background job that continues running after the CLI exits.
@@ -35,6 +35,10 @@ Examples:
   # Optional -- separator is also supported
   gob add -- npm run --flag
 
+  # Add with a description
+  gob add --description "Dev server" npm run dev
+  gob add -d "Build watcher" -- npm run build:watch
+
 Output:
   Added job <job_id> running: <command>
 
@@ -47,17 +51,44 @@ Exit codes:
 			return fmt.Errorf("requires at least 1 arg(s)")
 		}
 
-		// Strip leading -- if present (optional separator)
-		if args[0] == "--" {
-			args = args[1:]
-			if len(args) == 0 {
-				return fmt.Errorf("requires at least 1 arg(s)")
+		// Parse --description / -d flag manually (before --)
+		var description string
+		var commandArgs []string
+		for i := 0; i < len(args); i++ {
+			arg := args[i]
+			if arg == "--" {
+				// Everything after -- is the command
+				commandArgs = args[i+1:]
+				break
 			}
+			if arg == "--description" || arg == "-d" {
+				if i+1 >= len(args) {
+					return fmt.Errorf("--description requires a value")
+				}
+				description = args[i+1]
+				i++ // skip the value
+				continue
+			}
+			if strings.HasPrefix(arg, "--description=") {
+				description = strings.TrimPrefix(arg, "--description=")
+				continue
+			}
+			if strings.HasPrefix(arg, "-d=") {
+				description = strings.TrimPrefix(arg, "-d=")
+				continue
+			}
+			// Not a flag we recognize, treat rest as command
+			commandArgs = args[i:]
+			break
+		}
+
+		if len(commandArgs) == 0 {
+			return fmt.Errorf("requires at least 1 arg(s)")
 		}
 
 		// Handle quoted command string: "echo hello world" -> ["echo", "hello", "world"]
-		if len(args) == 1 && strings.Contains(args[0], " ") {
-			args = strings.Fields(args[0])
+		if len(commandArgs) == 1 && strings.Contains(commandArgs[0], " ") {
+			commandArgs = strings.Fields(commandArgs[0])
 		}
 
 		// Connect to daemon
@@ -81,13 +112,13 @@ Exit codes:
 		env := os.Environ()
 
 		// Add job via daemon
-		result, err := client.Add(args, cwd, env)
+		result, err := client.Add(commandArgs, cwd, env, description)
 		if err != nil {
 			return fmt.Errorf("failed to add job: %w", err)
 		}
 
 		// Print confirmation message
-		commandStr := strings.Join(args, " ")
+		commandStr := strings.Join(commandArgs, " ")
 		fmt.Printf("Added job %s running: %s\n", result.Job.ID, commandStr)
 
 		// Show stats if job has previous runs

@@ -20,6 +20,7 @@ type Job struct {
 	Command          []string  `json:"command"`           // the command + args
 	CommandSignature string    `json:"command_signature"` // hash for lookups
 	Workdir          string    `json:"workdir"`           // directory scope
+	Description      string    `json:"description"`       // optional human-readable description
 	CurrentRunID     *string   `json:"current_run_id"`    // nil if not running, points to active run
 	NextRunSeq       int       `json:"next_run_seq"`      // counter for internal run IDs
 	CreatedAt        time.Time `json:"created_at"`
@@ -188,11 +189,12 @@ func (jm *JobManager) emitEvent(event Event) {
 // jobToResponse converts a Job to JobResponse (for backward compatibility)
 func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 	resp := JobResponse{
-		ID:        job.ID,
-		Status:    job.Status(),
-		Command:   job.Command,
-		Workdir:   job.Workdir,
-		CreatedAt: job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:          job.ID,
+		Status:      job.Status(),
+		Command:     job.Command,
+		Workdir:     job.Workdir,
+		Description: job.Description,
+		CreatedAt:   job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	// If there's a current run, include its details
@@ -267,7 +269,7 @@ func generateJobID(existingIDs map[string]bool) string {
 }
 
 // AddJob finds or creates a job for the command, then starts a new run
-func (jm *JobManager) AddJob(command []string, workdir string, env []string) (*Job, error) {
+func (jm *JobManager) AddJob(command []string, workdir string, description string, env []string) (*Job, error) {
 	if len(command) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
@@ -328,6 +330,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, env []string) (*J
 		Command:          command,
 		CommandSignature: signature,
 		Workdir:          workdir,
+		Description:      description,
 		NextRunSeq:       1,
 		CreatedAt:        now,
 	}
@@ -374,6 +377,66 @@ func (jm *JobManager) AddJob(command []string, workdir string, env []string) (*J
 		Job:             jm.jobToResponse(job),
 		Run:             &runResp,
 		Stats:           &stats,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
+	})
+
+	return job, nil
+}
+
+// CreateJob creates a job without starting it (for autostart=false in gobfile)
+func (jm *JobManager) CreateJob(command []string, workdir string, description string) (*Job, error) {
+	if len(command) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+
+	signature := ComputeCommandSignature(command)
+	indexKey := makeJobIndexKey(signature, workdir)
+
+	// Check if job already exists for this command+workdir
+	if existingJobID, ok := jm.jobIndex[indexKey]; ok {
+		// Return existing job without starting it
+		return jm.jobs[existingJobID], nil
+	}
+
+	// Create new job
+	existingIDs := make(map[string]bool)
+	for id := range jm.jobs {
+		existingIDs[id] = true
+	}
+	jobID := generateJobID(existingIDs)
+
+	now := time.Now()
+	job := &Job{
+		ID:               jobID,
+		Command:          command,
+		CommandSignature: signature,
+		Workdir:          workdir,
+		Description:      description,
+		NextRunSeq:       1,
+		CreatedAt:        now,
+	}
+
+	jm.jobs[jobID] = job
+	jm.jobIndex[indexKey] = jobID
+
+	// Persist new job to database
+	if jm.store != nil {
+		if err := jm.store.InsertJob(job); err != nil {
+			delete(jm.jobs, jobID)
+			delete(jm.jobIndex, indexKey)
+			return nil, fmt.Errorf("failed to persist job: %w", err)
+		}
+	}
+
+	// Emit job added event
+	jm.emitEvent(Event{
+		Type:            EventTypeJobAdded,
+		JobID:           job.ID,
+		Job:             jm.jobToResponse(job),
 		JobCount:        len(jm.jobs),
 		RunningJobCount: jm.countRunningJobsLocked(),
 	})

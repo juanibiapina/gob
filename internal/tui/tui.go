@@ -43,15 +43,16 @@ const (
 
 // Job represents a job with its runtime status
 type Job struct {
-	ID        string
-	PID       int
-	Command   string
-	Workdir   string
-	Running   bool
-	ExitCode  *int
-	StartedAt time.Time
-	StoppedAt time.Time
-	Ports     []daemon.PortInfo // Listening ports (only for running jobs)
+	ID          string
+	PID         int
+	Command     string
+	Description string
+	Workdir     string
+	Running     bool
+	ExitCode    *int
+	StartedAt   time.Time
+	StoppedAt   time.Time
+	Ports       []daemon.PortInfo // Listening ports (only for running jobs)
 }
 
 // Run represents a single execution of a job
@@ -288,15 +289,16 @@ func (m Model) refreshJobs() tea.Cmd {
 		jobs := make([]Job, len(jobResponses))
 		for i, jr := range jobResponses {
 			jobs[i] = Job{
-				ID:        jr.ID,
-				PID:       jr.PID,
-				Command:   strings.Join(jr.Command, " "),
-				Workdir:   jr.Workdir,
-				Running:   jr.Status == "running",
-				ExitCode:  jr.ExitCode,
-				StartedAt: parseTime(jr.StartedAt),
-				StoppedAt: parseTime(jr.StoppedAt),
-				Ports:     jr.Ports,
+				ID:          jr.ID,
+				PID:         jr.PID,
+				Command:     strings.Join(jr.Command, " "),
+				Description: jr.Description,
+				Workdir:     jr.Workdir,
+				Running:     jr.Status == "running",
+				ExitCode:    jr.ExitCode,
+				StartedAt:   parseTime(jr.StartedAt),
+				StoppedAt:   parseTime(jr.StoppedAt),
+				Ports:       jr.Ports,
 			}
 		}
 
@@ -532,15 +534,16 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 	case daemon.EventTypeJobAdded:
 		// Add job to the beginning of the list (newest first)
 		newJob := Job{
-			ID:        event.Job.ID,
-			PID:       event.Job.PID,
-			Command:   strings.Join(event.Job.Command, " "),
-			Workdir:   event.Job.Workdir,
-			Running:   event.Job.Status == "running",
-			ExitCode:  event.Job.ExitCode,
-			StartedAt: parseTime(event.Job.StartedAt),
-			StoppedAt: parseTime(event.Job.StoppedAt),
-			Ports:     event.Job.Ports,
+			ID:          event.Job.ID,
+			PID:         event.Job.PID,
+			Command:     strings.Join(event.Job.Command, " "),
+			Description: event.Job.Description,
+			Workdir:     event.Job.Workdir,
+			Running:     event.Job.Status == "running",
+			ExitCode:    event.Job.ExitCode,
+			StartedAt:   parseTime(event.Job.StartedAt),
+			StoppedAt:   parseTime(event.Job.StoppedAt),
+			Ports:       event.Job.Ports,
 		}
 		m.jobs = append([]Job{newJob}, m.jobs...)
 		// Select the new job and scroll to top
@@ -1197,7 +1200,7 @@ func (m Model) addJob(command string) tea.Cmd {
 		}
 		defer client.Close()
 
-		result, err := client.Add(parts, m.cwd, m.env)
+		result, err := client.Add(parts, m.cwd, m.env, "")
 		if err != nil {
 			return actionResultMsg{message: fmt.Sprintf("Failed to add: %v", err), isError: true}
 		}
@@ -1315,7 +1318,15 @@ func (m Model) renderPanels() string {
 
 	// Info panel is fixed at 3 lines (border + 1 content + border)
 	infoH := 3
-	leftH := totalH - infoH
+
+	// Description panel is fixed at 3 lines when shown
+	hasDescription := m.selectedJobHasDescription()
+	descH := 0
+	if hasDescription {
+		descH = 3
+	}
+
+	leftH := totalH - infoH - descH
 
 	// Left side: Jobs (50%) + Ports (20%) + Runs (30%) of remaining height
 	portsH := leftH * 20 / 100
@@ -1345,6 +1356,13 @@ func (m Model) renderPanels() string {
 	// Jobs panel
 	jobContent := m.renderJobList(leftPanelW - 4)
 	jobPanel := m.renderPanel(1, "Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
+
+	// Description panel (only if selected job has a description)
+	var descPanel string
+	if hasDescription {
+		descContent := m.renderDescriptionContent(leftPanelW - 4)
+		descPanel = m.renderDescriptionPanel(descContent, leftPanelW, descH)
+	}
 
 	// Ports panel
 	portsTitle := "Ports"
@@ -1454,7 +1472,12 @@ func (m Model) renderPanels() string {
 	stderrPanel := m.renderPanel(5, stderrTitle, stderrContent, rightPanelW, stderrH, m.activePanel == panelStderr)
 
 	// Stack panels
-	leftPanels := lipgloss.JoinVertical(lipgloss.Left, infoPanel, jobPanel, portsPanel, runsPanel)
+	var leftPanels string
+	if hasDescription {
+		leftPanels = lipgloss.JoinVertical(lipgloss.Left, infoPanel, jobPanel, descPanel, portsPanel, runsPanel)
+	} else {
+		leftPanels = lipgloss.JoinVertical(lipgloss.Left, infoPanel, jobPanel, portsPanel, runsPanel)
+	}
 	rightPanels := lipgloss.JoinVertical(lipgloss.Left, stdoutPanel, stderrPanel)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanels, rightPanels)
@@ -1495,6 +1518,81 @@ func (m Model) renderInfoPanel(logo, dir, ver string, width, height int) string 
 	contentLine := vBorder + " " + FitToWidth(line, contentWidth) + " " + vBorder
 
 	return topLine + "\n" + contentLine + "\n" + bottomLine
+}
+
+// renderDescriptionContent renders the description text for the selected job
+func (m Model) renderDescriptionContent(width int) string {
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
+		return ""
+	}
+
+	job := m.jobs[m.jobScroll.Cursor]
+	if job.Description == "" {
+		return ""
+	}
+
+	// Truncate the description to fit the panel width
+	desc := job.Description
+	if len(desc) > width {
+		desc = desc[:width-1] + "…"
+	}
+	return desc
+}
+
+// selectedJobHasDescription returns true if the selected job has a description
+func (m Model) selectedJobHasDescription() bool {
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
+		return false
+	}
+	return m.jobs[m.jobScroll.Cursor].Description != ""
+}
+
+// renderDescriptionPanel renders a small panel showing the job description
+func (m Model) renderDescriptionPanel(content string, width, height int) string {
+	borderColor := colorBlue
+
+	// Border characters
+	tl, tr, bl, br := "╭", "╮", "╰", "╯"
+	h, v := "─", "│"
+
+	// Title
+	title := "Description"
+	styledTitle := lipgloss.NewStyle().Foreground(borderColor).Render(title)
+
+	// Top border with title
+	topBorderRight := width - 2 - len(title) - 1
+	if topBorderRight < 0 {
+		topBorderRight = 0
+	}
+	topLine := lipgloss.NewStyle().Foreground(borderColor).Render(tl+h) +
+		styledTitle +
+		lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat(h, topBorderRight)+tr)
+
+	// Bottom border
+	bottomLine := lipgloss.NewStyle().Foreground(borderColor).Render(bl + strings.Repeat(h, width-2) + br)
+
+	// Side borders
+	vBorder := lipgloss.NewStyle().Foreground(borderColor).Render(v)
+
+	// Content area
+	contentWidth := width - 4 // 2 for borders, 2 for padding
+	contentHeight := height - 2
+
+	// Description text uses normal foreground color for visibility
+	styledContent := content
+
+	// Build content lines
+	var paddedLines []string
+	for i := 0; i < contentHeight; i++ {
+		var line string
+		if i == 0 {
+			line = styledContent
+		}
+		line = FitToWidth(line, contentWidth)
+		paddedLines = append(paddedLines, vBorder+" "+line+" "+vBorder)
+	}
+
+	return topLine + "\n" + strings.Join(paddedLines, "\n") + "\n" + bottomLine
 }
 
 // renderRunsList renders the runs list for the selected job

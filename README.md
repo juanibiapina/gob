@@ -178,10 +178,11 @@ Do NOT use `gob` for:
 ### gob Commands
 
 - `gob add <cmd>` - Start command in background, returns job ID
+- `gob add --description "context" <cmd>` - Start with description for context
 - `gob run <cmd>` - Run and wait for completion (equivalent to `gob add` + `gob await`)
 - `gob await <job_id>` - Wait for job to finish, stream output
 - `gob await-any` - Wait for whichever job finishes first
-- `gob list` - List jobs with IDs and status
+- `gob list` - List jobs with IDs, status, and descriptions
 - `gob stop <job_id>` - Graceful stop
 - `gob restart <job_id>` - Stop + start
 
@@ -189,8 +190,8 @@ Do NOT use `gob` for:
 
 Servers and long-running:
 ```
-gob add npm run dev       # Start dev server
-gob add npm run watch     # Start file watcher
+gob add npm run dev                              # Start dev server
+gob add --description "File watcher" npm run watch  # With description
 ```
 
 Builds:
@@ -231,6 +232,7 @@ The TUI has an info bar and five panels:
 
 - **Info bar**: Shows working directory and version
 - **Panel 1 (Jobs)**: List of all jobs with status (◉ running, ✓ success, ✗ failed)
+- **Description**: Shows job description (only visible when selected job has one)
 - **Panel 2 (Ports)**: Listening ports for the selected job
 - **Panel 3 (Runs)**: Run history for the selected job
 - **Panel 4 (stdout)**: Standard output of selected run
@@ -256,20 +258,37 @@ The TUI has an info bar and five panels:
 
 ### Auto-Start with Gobfile
 
-Create a `.config/gobfile` in your project directory to automatically start jobs when the TUI launches:
+Create a `.config/gobfile.toml` in your project directory to automatically start jobs when the TUI launches:
 
+```toml
+[[job]]
+command = "npm run dev"
+description = "Development server for the frontend app"
+
+[[job]]
+command = "npm run build:watch"
+description = "Watches TypeScript and rebuilds on change"
+autostart = false  # Add but don't start automatically
+
+[[job]]
+command = "docker compose up db"
+# description is optional
+# autostart defaults to true
 ```
-npm run dev
-npm run watch
-```
+
+**Fields:**
+- `command` (required): The command to run
+- `description` (optional): Shown in TUI and CLI list output, useful for AI agents
+- `autostart` (optional): Whether to start the job when TUI opens (default: `true`)
 
 **Behavior:**
-- Jobs are started asynchronously when TUI opens
+- Jobs are started asynchronously when TUI opens (if `autostart = true`)
 - Jobs are stopped when TUI exits (including when terminal is killed)
 - Already-running jobs are skipped
 - Stopped jobs with matching commands are restarted
+- Jobs with `autostart = false` are added but not started
 
-**Tip:** Add `.config/gobfile` to `.gitignore` if you don't want to share it.
+**Tip:** Add `.config/gobfile.toml` to `.gitignore` if you don't want to share it.
 
 ## CLI Reference
 
@@ -278,7 +297,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | Command | Description |
 |---------|-------------|
 | `run <cmd>` | Run command and wait for completion (add + await) |
-| `add <cmd>` | Start background job (use `--` before flags: `add -- cmd --flag`) |
+| `add <cmd>` | Start background job (`--description` to add context) |
 | `await <id>` | Wait for job, stream output, show summary |
 | `await-any` | Wait for any job to complete (`--timeout`) |
 | `await-all` | Wait for all jobs to complete (`--timeout`) |
