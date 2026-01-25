@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-01-25
+
+**Breaking change:** Gobfile format changed from plain text to TOML (`.config/gobfile` → `.config/gobfile.toml`).
+
 ### Added
 
 - **Job descriptions**: Jobs can now have descriptions that provide context for AI agents and users
