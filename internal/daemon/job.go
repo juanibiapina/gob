@@ -446,6 +446,14 @@ func (jm *JobManager) CreateJob(command []string, workdir string, description st
 					Logger.Warn("failed to update job description", "id", job.ID, "error", err)
 				}
 			}
+			// Emit event for description change
+			jm.emitEvent(Event{
+				Type:            EventTypeJobUpdated,
+				JobID:           job.ID,
+				Job:             jm.jobToResponse(job),
+				JobCount:        len(jm.jobs),
+				RunningJobCount: jm.countRunningJobsLocked(),
+			})
 		}
 
 		return job, nil

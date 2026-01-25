@@ -558,6 +558,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 				m.jobs[i].PID = event.Job.PID
 				m.jobs[i].StartedAt = parseTime(event.Job.StartedAt)
 				m.jobs[i].StoppedAt = time.Time{}
+				m.jobs[i].Description = event.Job.Description
 
 				// Move job to the top of the list (most recently run first)
 				if i > 0 {
