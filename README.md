@@ -265,22 +265,21 @@ Create a `.config/gobfile.toml` in your project directory to automatically start
 ```toml
 [[job]]
 command = "npm run dev"
-description = "Development server for the frontend app"
+description = "Frontend on http://localhost:3000. Check here for UI errors."
 
 [[job]]
-command = "npm run build:watch"
-description = "Watches TypeScript and rebuilds on change"
+command = "npm run api"
+description = "API server on http://localhost:4000. Check logs for request debugging."
+
+[[job]]
+command = "npm run storybook"
+description = "Component library on http://localhost:6006"
 autostart = false  # Add but don't start automatically
-
-[[job]]
-command = "docker compose up db"
-# description is optional
-# autostart defaults to true
 ```
 
 **Fields:**
 - `command` (required): The command to run
-- `description` (optional): Shown in TUI and CLI list output, useful for AI agents
+- `description` (optional): Context for AI agents (ports, URLs, what to check for)
 - `autostart` (optional): Whether to start the job when TUI opens (default: `true`)
 
 **Behavior:**
