@@ -1751,8 +1751,9 @@ func (m Model) formatRunListLine(run Run, isSelected bool, width, statusWidth, i
 	}
 
 	// Pad status to statusWidth (for non-exit-code statuses)
-	if len(statusText) < statusWidth {
-		statusText = statusText + strings.Repeat(" ", statusWidth-len(statusText))
+	statusVisualWidth := lipgloss.Width(statusText)
+	if statusVisualWidth < statusWidth {
+		statusText = statusText + strings.Repeat(" ", statusWidth-statusVisualWidth)
 	}
 
 	// Relative time
