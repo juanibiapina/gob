@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Restarted job showing old exit code**: Fixed a race condition where a restarted job could briefly appear as "stopped" with the previous run's exit code. This happened when the old run's cleanup goroutine ran after the new run had started, incorrectly clearing the job's current run reference.
+
 ## [2.3.0] - 2026-01-23
 
 ### Added

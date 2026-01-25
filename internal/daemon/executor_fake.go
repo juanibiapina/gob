@@ -48,6 +48,20 @@ func (h *FakeProcessHandle) Stop() {
 	}
 }
 
+// StopWithExitCode simulates the process stopping with a specific exit code
+// Note: This sets the waitErr which will be processed by waitForProcessExit,
+// but since it's not a real exec.ExitError, the exit code won't be extracted.
+// Use SetExitCode on the run directly for testing specific exit codes.
+func (h *FakeProcessHandle) StopWithExitCode(exitCode int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.running {
+		h.running = false
+		// Store exit code for testing purposes (caller should set on run)
+		close(h.waitCh)
+	}
+}
+
 // IsRunningFake returns the fake running state
 func (h *FakeProcessHandle) IsRunningFake() bool {
 	h.mu.Lock()

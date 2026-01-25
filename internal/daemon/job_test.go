@@ -633,6 +633,234 @@ func TestJobManager_PortsClearedOnStop(t *testing.T) {
 	}
 }
 
+func TestJobToResponse_RunningJobDoesNotShowPreviousExitCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job
+	job, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Stop the first run (simulating job completion)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Manually set the exit code on the completed run to simulate a failure
+	latestRun := jm.GetLatestRun(job.ID)
+	if latestRun == nil {
+		t.Fatal("expected latest run to exist")
+	}
+	exitCode := 1
+	latestRun.ExitCode = &exitCode
+
+	// Verify the stopped job shows the exit code
+	jm.mu.RLock()
+	resp := jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.ExitCode == nil || *resp.ExitCode != 1 {
+		t.Errorf("stopped job should show exit code 1, got %v", resp.ExitCode)
+	}
+
+	// Start the job again
+	err = jm.StartJob(job.ID, nil)
+	if err != nil {
+		t.Fatalf("StartJob failed: %v", err)
+	}
+
+	// While the new run is running, verify the response does NOT show the old exit code
+	jm.mu.RLock()
+	resp = jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.Status != "running" {
+		t.Errorf("expected status 'running', got %s", resp.Status)
+	}
+	if resp.ExitCode != nil {
+		t.Errorf("running job should NOT show previous exit code, got %d", *resp.ExitCode)
+	}
+}
+
+func TestJobToResponse_RestartedJobDoesNotShowPreviousExitCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job
+	job, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Stop the first run (simulating job completion)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Manually set the exit code on the completed run to simulate a failure
+	latestRun := jm.GetLatestRun(job.ID)
+	if latestRun == nil {
+		t.Fatal("expected latest run to exist")
+	}
+	exitCode := 1
+	latestRun.ExitCode = &exitCode
+
+	// Verify the stopped job shows the exit code
+	jm.mu.RLock()
+	resp := jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.ExitCode == nil || *resp.ExitCode != 1 {
+		t.Errorf("stopped job should show exit code 1, got %v", resp.ExitCode)
+	}
+
+	// Restart the job (it's already stopped, so this just starts a new run)
+	err = jm.RestartJob(job.ID, nil)
+	if err != nil {
+		t.Fatalf("RestartJob failed: %v", err)
+	}
+
+	// While the new run is running, verify the response does NOT show the old exit code
+	jm.mu.RLock()
+	resp = jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.Status != "running" {
+		t.Errorf("expected status 'running', got %s", resp.Status)
+	}
+	if resp.ExitCode != nil {
+		t.Errorf("restarted running job should NOT show previous exit code, got %d", *resp.ExitCode)
+	}
+}
+
+func TestJobToResponse_AddJobAgainDoesNotShowPreviousExitCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job
+	job, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	// Stop the first run (simulating job completion)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Manually set the exit code on the completed run to simulate a failure
+	latestRun := jm.GetLatestRun(job.ID)
+	if latestRun == nil {
+		t.Fatal("expected latest run to exist")
+	}
+	exitCode := 1
+	latestRun.ExitCode = &exitCode
+
+	// Verify the stopped job shows the exit code
+	jm.mu.RLock()
+	resp := jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.ExitCode == nil || *resp.ExitCode != 1 {
+		t.Errorf("stopped job should show exit code 1, got %v", resp.ExitCode)
+	}
+
+	// Add the same command again (should reuse job and start new run)
+	job2, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	if job.ID != job2.ID {
+		t.Errorf("expected same job ID, got %s and %s", job.ID, job2.ID)
+	}
+
+	// While the new run is running, verify the response does NOT show the old exit code
+	jm.mu.RLock()
+	resp = jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.Status != "running" {
+		t.Errorf("expected status 'running', got %s", resp.Status)
+	}
+	if resp.ExitCode != nil {
+		t.Errorf("re-added running job should NOT show previous exit code, got %d", *resp.ExitCode)
+	}
+}
+
+// TestWaitForProcessExit_DoesNotClearCurrentRunIDIfNewRunStarted tests that when
+// a run's waitForProcessExit goroutine runs after a new run has already started
+// (e.g., due to restart), it should NOT clear the CurrentRunID (which now points
+// to the new run). This prevents a race condition where the job appears stopped
+// even though a new run is active.
+func TestWaitForProcessExit_DoesNotClearCurrentRunIDIfNewRunStarted(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job - starts first run
+	job, err := jm.AddJob([]string{"echo"}, "/workdir", nil)
+	if err != nil {
+		t.Fatalf("AddJob failed: %v", err)
+	}
+
+	firstRunID := *job.CurrentRunID
+	firstHandle := executor.LastHandle()
+
+	// Simulate what happens during restart:
+	// 1. A new run is started BEFORE the old run's waitForProcessExit completes
+	// This can happen because RestartJob releases the lock while waiting for
+	// the process to terminate, and re-acquires it before waitForProcessExit does.
+
+	// First, stop the process but DON'T let waitForProcessExit run yet
+	// by not giving it time to acquire the lock
+
+	// Start a new run (simulating what RestartJob does after stopping)
+	jm.mu.Lock()
+	newRun, err := jm.startRunLocked(job, nil)
+	jm.mu.Unlock()
+	if err != nil {
+		t.Fatalf("startRunLocked failed: %v", err)
+	}
+
+	newRunID := newRun.ID
+	if newRunID == firstRunID {
+		t.Fatal("new run should have different ID")
+	}
+
+	// Now verify CurrentRunID points to new run
+	if job.CurrentRunID == nil || *job.CurrentRunID != newRunID {
+		t.Fatalf("CurrentRunID should point to new run %s, got %v", newRunID, job.CurrentRunID)
+	}
+
+	// Now let the first run's process "stop" - this triggers waitForProcessExit
+	firstHandle.Stop()
+	time.Sleep(50 * time.Millisecond) // Give waitForProcessExit time to run
+
+	// BUG: If waitForProcessExit unconditionally sets job.CurrentRunID = nil,
+	// the new run would be orphaned and the job would appear stopped.
+	// EXPECTED: CurrentRunID should still point to the new run.
+	if job.CurrentRunID == nil {
+		t.Error("BUG: waitForProcessExit cleared CurrentRunID even though a new run is active")
+	} else if *job.CurrentRunID != newRunID {
+		t.Errorf("CurrentRunID should still be %s, got %s", newRunID, *job.CurrentRunID)
+	}
+
+	// Verify the job appears as running (not stopped with old exit code)
+	jm.mu.RLock()
+	resp := jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.Status != "running" {
+		t.Errorf("expected status 'running', got %s", resp.Status)
+	}
+	if resp.ExitCode != nil {
+		t.Errorf("running job should NOT show exit code, got %d", *resp.ExitCode)
+	}
+}
+
 func TestJobToResponse_IncludesPorts(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()

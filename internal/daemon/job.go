@@ -469,8 +469,12 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 		run.ExitCode = &code
 	}
 
-	// Clear job's current run pointer
-	job.CurrentRunID = nil
+	// Clear job's current run pointer only if it still points to this run.
+	// This prevents a race condition where a restart creates a new run before
+	// this goroutine completes, and we would incorrectly clear the new run's ID.
+	if job.CurrentRunID != nil && *job.CurrentRunID == run.ID {
+		job.CurrentRunID = nil
+	}
 
 	// Update job statistics
 	durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
