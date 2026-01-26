@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Displays elapsed time vs average duration with Unicode gradient bar (`▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒`)
   - Only shown when the job has historical run data (needs average duration)
 
+- **Description in `run` output**: `gob run` now displays the job description (if set) on an indented line below the job header, matching `gob list` format
+
 - **Stuck job detection**: `gob run` and `gob await` now detect potentially stuck jobs and return early
   - Timeout: average successful duration + 1 minute (or 5 minutes if no historical data)
   - Triggers when: elapsed time exceeds timeout AND no output for 1 minute

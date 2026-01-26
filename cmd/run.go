@@ -130,9 +130,15 @@ Exit codes:
 			startedAt, _ := time.Parse(time.RFC3339, result.Job.StartedAt)
 			duration := formatDuration(time.Since(startedAt))
 			fmt.Printf("Job %s already running (since %s ago), attaching...\n", result.Job.ID, duration)
+			if result.Job.Description != "" {
+				fmt.Printf("  %s\n", result.Job.Description)
+			}
 			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 		} else {
 			fmt.Printf("Running job %s: %s\n", result.Job.ID, commandStr)
+			if result.Job.Description != "" {
+				fmt.Printf("  %s\n", result.Job.Description)
+			}
 
 			// Show stats if job has previous runs
 			if result.Stats != nil && result.Stats.RunCount > 0 {
