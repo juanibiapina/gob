@@ -22,6 +22,11 @@ description = "Watches TypeScript and rebuilds on change"
 [[job]]
 command = "docker compose up db"
 # description is optional, autostart defaults to false
+
+[[job]]
+command = "npm run migrate"
+description = "Database migration - requires staging access"
+blocked = true  # Cannot be started, CLI shows description when attempted
 ```
 
 ## Fields
@@ -31,6 +36,7 @@ command = "docker compose up db"
 | `command` | string | Yes | - | The command to run |
 | `description` | string | No | - | Context about the job, shown in TUI and CLI |
 | `autostart` | boolean | No | `false` | Whether to auto-start when TUI opens and auto-stop when TUI exits |
+| `blocked` | boolean | No | `false` | If true, the job cannot be started; CLI shows description when attempted |
 
 ## Behavior
 
@@ -58,6 +64,20 @@ Descriptions from the gobfile are synced to jobs every time the TUI opens:
 - New jobs get the description from the gobfile
 - Existing jobs (running or stopped) have their description updated if the gobfile specifies a different one
 - The TUI receives a `job_updated` event and refreshes the display automatically
+
+### Blocked Jobs
+
+Jobs with `blocked = true` cannot be started:
+- They are not shown in the TUI
+- Attempting to start them via CLI returns an error with the job's description
+- This applies to both `gob add` and `gob run` commands
+- Useful for temporarily disabling jobs or documenting jobs that require special conditions
+
+Example output when trying to run a blocked job:
+```
+$ gob add npm run migrate
+failed to add job: job is blocked: Database migration - requires staging access
+```
 
 ## Use Cases
 
@@ -120,6 +140,24 @@ description = "Component library browser. Use for visual component testing"
 ```
 
 When an AI agent runs `gob list`, it sees the descriptions and understands the purpose of each job.
+
+### Blocking Dangerous Commands
+
+Use `blocked` to prevent accidental execution of dangerous or environment-specific commands:
+
+```toml
+[[job]]
+command = "npm run db:reset"
+description = "DANGEROUS: Drops and recreates the database. Only run in development."
+blocked = true
+
+[[job]]
+command = "npm run deploy:prod"
+description = "Production deployment. Requires VPN and release approval."
+blocked = true
+```
+
+This documents the commands while preventing accidental execution. When someone tries to run them, they see the description explaining why it's blocked.
 
 ## CLI Descriptions
 

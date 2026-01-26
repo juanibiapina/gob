@@ -33,6 +33,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 - **Job persistence** - Jobs survive daemon restarts with SQLite-backed state
 - **Run history** - Track execution history and statistics for repeated commands
 - **Stuck detection** - Automatically detects jobs that may be stuck and returns early, while the job continues running
+- **Blocked jobs** - Prevent AI coding agents from accidentally running dangerous commands
 
 ## Installation
 
@@ -284,12 +285,18 @@ description = "API server on http://localhost:4000. Check logs for request debug
 command = "npm run storybook"
 description = "Component library on http://localhost:6006"
 autostart = false  # Add but don't start automatically
+
+[[job]]
+command = "npm run db:reset"
+description = "DANGER: Drops and recreates the database"
+blocked = true  # Prevent accidental execution
 ```
 
 **Fields:**
 - `command` (required): The command to run
 - `description` (optional): Context for AI agents (ports, URLs, what to check for)
 - `autostart` (optional): Whether to start the job when TUI opens (default: `true`)
+- `blocked` (optional): If `true`, the job cannot be started; CLI shows description when attempted (default: `false`)
 
 **Behavior:**
 - Jobs are started asynchronously when TUI opens (if `autostart = true`)

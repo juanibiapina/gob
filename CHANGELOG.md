@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Blocked jobs**: Jobs in the gobfile can be marked as `blocked = true` to prevent them from running
+  - Blocked jobs cannot be started via `gob add`, `gob run`, `gob start`, or `gob restart`
+  - CLI shows the job's description when a blocked job is attempted
+  - Useful for documenting dangerous commands or jobs that require special conditions
+  - Blocked jobs are hidden from the TUI
+  - Jobs with both `autostart = true` and `blocked = true` will not autostart
+
 - **Delete individual runs**: Remove stopped runs and their log files without deleting the entire job
   - CLI: `gob runs delete <run_id>` - delete a specific run by ID
   - TUI: Press `d` in the Runs panel to delete the selected run

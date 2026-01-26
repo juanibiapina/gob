@@ -53,7 +53,7 @@ func TestDaemon_handleList_WithJobs(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job
-	jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{Type: RequestTypeList, Payload: map[string]interface{}{}}
@@ -216,7 +216,7 @@ func TestDaemon_handleGetJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -263,7 +263,7 @@ func TestDaemon_handleStop(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Stop the fake process so Stop() can succeed
 	executor.LastHandle().Stop()
@@ -356,8 +356,8 @@ func TestDaemon_handleVersion_WithRunningJobs(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add running jobs
-	jm.AddJob([]string{"echo", "1"}, "/workdir", "", nil)
-	jm.AddJob([]string{"echo", "2"}, "/workdir", "", nil)
+	jm.AddJob([]string{"echo", "1"}, "/workdir", "", false, nil)
+	jm.AddJob([]string{"echo", "2"}, "/workdir", "", false, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -382,7 +382,7 @@ func TestDaemon_handlePorts(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -410,7 +410,7 @@ func TestDaemon_handlePorts_StoppedJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Stop the job
 	executor.LastHandle().Stop()
@@ -443,8 +443,8 @@ func TestDaemon_handlePorts_AllJobs(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add multiple jobs
-	jm.AddJob([]string{"echo", "1"}, "/workdir", "", nil)
-	jm.AddJob([]string{"echo", "2"}, "/workdir", "", nil)
+	jm.AddJob([]string{"echo", "1"}, "/workdir", "", false, nil)
+	jm.AddJob([]string{"echo", "2"}, "/workdir", "", false, nil)
 
 	d := &Daemon{jobManager: jm}
 	req := &Request{
@@ -471,7 +471,7 @@ func TestDaemon_handleRemoveRun(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job (which creates a run)
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Get the run ID
 	runs, _ := jm.ListRunsForJob(job.ID)
@@ -550,7 +550,7 @@ func TestDaemon_handleRemoveRun_Running(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job (which creates a running run)
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Get the run ID while it's still running
 	runs, _ := jm.ListRunsForJob(job.ID)

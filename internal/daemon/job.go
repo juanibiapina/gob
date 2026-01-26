@@ -21,6 +21,7 @@ type Job struct {
 	CommandSignature string    `json:"command_signature"` // hash for lookups
 	Workdir          string    `json:"workdir"`           // directory scope
 	Description      string    `json:"description"`       // optional human-readable description
+	Blocked          bool      `json:"blocked"`           // if true, job cannot be started
 	CurrentRunID     *string   `json:"current_run_id"`    // nil if not running, points to active run
 	NextRunSeq       int       `json:"next_run_seq"`      // counter for internal run IDs
 	CreatedAt        time.Time `json:"created_at"`
@@ -204,6 +205,7 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 		Command:     job.Command,
 		Workdir:     job.Workdir,
 		Description: job.Description,
+		Blocked:     job.Blocked,
 		CreatedAt:   job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
@@ -278,9 +280,21 @@ func generateJobID(existingIDs map[string]bool) string {
 	}
 }
 
+// ErrJobBlocked is returned when trying to start a blocked job
+type ErrJobBlocked struct {
+	Description string
+}
+
+func (e *ErrJobBlocked) Error() string {
+	if e.Description != "" {
+		return fmt.Sprintf("job is blocked: %s", e.Description)
+	}
+	return "job is blocked"
+}
+
 // AddJob finds or creates a job for the command, then starts a new run.
 // Returns the job, the action taken ("created", "started", or "already_running"), and any error.
-func (jm *JobManager) AddJob(command []string, workdir string, description string, env []string) (*Job, string, error) {
+func (jm *JobManager) AddJob(command []string, workdir string, description string, blocked bool, env []string) (*Job, string, error) {
 	if len(command) == 0 {
 		return nil, "", fmt.Errorf("empty command")
 	}
@@ -294,22 +308,33 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 	// Check if job already exists for this command+workdir
 	if existingJobID, ok := jm.jobIndex[indexKey]; ok {
 		job := jm.jobs[existingJobID]
-		if job.IsRunning() {
-			// Job is already running - update description if different and return success
-			descriptionChanged := false
-			if description != "" && job.Description != description {
-				job.Description = description
-				descriptionChanged = true
-				// Persist updated description to database
-				if jm.store != nil {
-					if err := jm.store.UpdateJob(job); err != nil {
-						Logger.Warn("failed to update job description", "id", job.ID, "error", err)
-					}
-				}
-			}
 
-			// Emit job updated event if description changed
-			if descriptionChanged {
+		// Update blocked status and description if provided
+		jobChanged := false
+		if job.Blocked != blocked {
+			job.Blocked = blocked
+			jobChanged = true
+		}
+		if description != "" && job.Description != description {
+			job.Description = description
+			jobChanged = true
+		}
+
+		// Persist changes to database
+		if jobChanged && jm.store != nil {
+			if err := jm.store.UpdateJob(job); err != nil {
+				Logger.Warn("failed to update job", "id", job.ID, "error", err)
+			}
+		}
+
+		// Check if job is blocked - return error with description
+		if job.Blocked {
+			return job, "", &ErrJobBlocked{Description: job.Description}
+		}
+
+		if job.IsRunning() {
+			// Job is already running - emit update event if changed
+			if jobChanged {
 				jm.emitEvent(Event{
 					Type:            EventTypeJobUpdated,
 					JobID:           job.ID,
@@ -320,17 +345,6 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 			}
 
 			return job, "already_running", nil
-		}
-
-		// Update description if provided and different from current
-		if description != "" && job.Description != description {
-			job.Description = description
-			// Persist updated description to database
-			if jm.store != nil {
-				if err := jm.store.UpdateJob(job); err != nil {
-					Logger.Warn("failed to update job description", "id", job.ID, "error", err)
-				}
-			}
 		}
 
 		// Start a new run for existing job with the provided environment
@@ -378,6 +392,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 		CommandSignature: signature,
 		Workdir:          workdir,
 		Description:      description,
+		Blocked:          blocked,
 		NextRunSeq:       1,
 		CreatedAt:        now,
 	}
@@ -392,6 +407,19 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 			delete(jm.jobIndex, indexKey)
 			return nil, "", fmt.Errorf("failed to persist job: %w", err)
 		}
+	}
+
+	// Check if job is blocked - return error with description (after creating)
+	if blocked {
+		// Emit job added event for the blocked job
+		jm.emitEvent(Event{
+			Type:            EventTypeJobAdded,
+			JobID:           job.ID,
+			Job:             jm.jobToResponse(job),
+			JobCount:        len(jm.jobs),
+			RunningJobCount: jm.countRunningJobsLocked(),
+		})
+		return job, "", &ErrJobBlocked{Description: job.Description}
 	}
 
 	// Start first run with the provided environment
@@ -432,7 +460,7 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 }
 
 // CreateJob creates a job without starting it (for autostart=false in gobfile)
-func (jm *JobManager) CreateJob(command []string, workdir string, description string) (*Job, error) {
+func (jm *JobManager) CreateJob(command []string, workdir string, description string, blocked bool) (*Job, error) {
 	if len(command) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
@@ -447,16 +475,25 @@ func (jm *JobManager) CreateJob(command []string, workdir string, description st
 	if existingJobID, ok := jm.jobIndex[indexKey]; ok {
 		job := jm.jobs[existingJobID]
 
-		// Update description if provided and different from current
+		// Update description and blocked status if different from current
+		jobChanged := false
+		if job.Blocked != blocked {
+			job.Blocked = blocked
+			jobChanged = true
+		}
 		if description != "" && job.Description != description {
 			job.Description = description
-			// Persist updated description to database
+			jobChanged = true
+		}
+
+		if jobChanged {
+			// Persist updates to database
 			if jm.store != nil {
 				if err := jm.store.UpdateJob(job); err != nil {
-					Logger.Warn("failed to update job description", "id", job.ID, "error", err)
+					Logger.Warn("failed to update job", "id", job.ID, "error", err)
 				}
 			}
-			// Emit event for description change
+			// Emit event for changes
 			jm.emitEvent(Event{
 				Type:            EventTypeJobUpdated,
 				JobID:           job.ID,
@@ -483,6 +520,7 @@ func (jm *JobManager) CreateJob(command []string, workdir string, description st
 		CommandSignature: signature,
 		Workdir:          workdir,
 		Description:      description,
+		Blocked:          blocked,
 		NextRunSeq:       1,
 		CreatedAt:        now,
 	}
@@ -822,6 +860,11 @@ func (jm *JobManager) StartJob(jobID string, env []string) error {
 		return fmt.Errorf("job not found: %s", jobID)
 	}
 
+	// Check if blocked
+	if job.Blocked {
+		return &ErrJobBlocked{Description: job.Description}
+	}
+
 	// Check if already running
 	if job.IsRunning() {
 		return fmt.Errorf("job %s is already running (use 'gob restart' to restart a running job)", jobID)
@@ -866,6 +909,12 @@ func (jm *JobManager) RestartJob(jobID string, env []string) error {
 	if !ok {
 		jm.mu.Unlock()
 		return fmt.Errorf("job not found: %s", jobID)
+	}
+
+	// Check if blocked
+	if job.Blocked {
+		jm.mu.Unlock()
+		return &ErrJobBlocked{Description: job.Description}
 	}
 
 	// Stop if running

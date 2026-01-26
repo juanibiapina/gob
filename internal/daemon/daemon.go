@@ -430,6 +430,9 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 	// Extract optional description
 	description, _ := req.Payload["description"].(string)
 
+	// Extract optional blocked flag
+	blocked, _ := req.Payload["blocked"].(bool)
+
 	// Extract environment
 	var env []string
 	if envRaw, ok := req.Payload["env"]; ok {
@@ -443,7 +446,7 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 		}
 	}
 
-	job, action, err := d.jobManager.AddJob(command, workdir, description, env)
+	job, action, err := d.jobManager.AddJob(command, workdir, description, blocked, env)
 	if err != nil {
 		return NewErrorResponse(err)
 	}
@@ -495,7 +498,10 @@ func (d *Daemon) handleCreate(req *Request) *Response {
 	// Extract optional description
 	description, _ := req.Payload["description"].(string)
 
-	job, err := d.jobManager.CreateJob(command, workdir, description)
+	// Extract optional blocked flag
+	blocked, _ := req.Payload["blocked"].(bool)
+
+	job, err := d.jobManager.CreateJob(command, workdir, description, blocked)
 	if err != nil {
 		return NewErrorResponse(err)
 	}

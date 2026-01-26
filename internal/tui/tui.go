@@ -50,6 +50,7 @@ type Job struct {
 	Description string
 	Workdir     string
 	Running     bool
+	Blocked     bool
 	ExitCode    *int
 	StartedAt   time.Time
 	StoppedAt   time.Time
@@ -301,20 +302,25 @@ func (m Model) refreshJobs() tea.Cmd {
 			return actionResultMsg{message: fmt.Sprintf("Failed to list jobs: %v", err), isError: true}
 		}
 
-		jobs := make([]Job, len(jobResponses))
-		for i, jr := range jobResponses {
-			jobs[i] = Job{
+		var jobs []Job
+		for _, jr := range jobResponses {
+			// Skip blocked jobs in TUI
+			if jr.Blocked {
+				continue
+			}
+			jobs = append(jobs, Job{
 				ID:          jr.ID,
 				PID:         jr.PID,
 				Command:     strings.Join(jr.Command, " "),
 				Description: jr.Description,
 				Workdir:     jr.Workdir,
 				Running:     jr.Status == "running",
+				Blocked:     jr.Blocked,
 				ExitCode:    jr.ExitCode,
 				StartedAt:   parseTime(jr.StartedAt),
 				StoppedAt:   parseTime(jr.StoppedAt),
 				Ports:       jr.Ports,
-			}
+			})
 		}
 
 		return jobsUpdatedMsg{jobs: jobs}
@@ -1282,7 +1288,7 @@ func (m Model) addJob(command string) tea.Cmd {
 		}
 		defer client.Close()
 
-		result, err := client.Add(parts, m.cwd, m.env, "")
+		result, err := client.Add(parts, m.cwd, m.env, "", false)
 		if err != nil {
 			return actionResultMsg{message: fmt.Sprintf("Failed to add: %v", err), isError: true}
 		}

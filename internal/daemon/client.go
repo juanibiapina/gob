@@ -185,13 +185,16 @@ func (c *Client) List(workdir string) ([]JobResponse, error) {
 }
 
 // Add creates and starts a new job with the given environment and optional description
-func (c *Client) Add(command []string, workdir string, env []string, description string) (*AddResponse, error) {
+func (c *Client) Add(command []string, workdir string, env []string, description string, blocked bool) (*AddResponse, error) {
 	req := NewRequest(RequestTypeAdd)
 	req.Payload["command"] = command
 	req.Payload["workdir"] = workdir
 	req.Payload["env"] = env
 	if description != "" {
 		req.Payload["description"] = description
+	}
+	if blocked {
+		req.Payload["blocked"] = true
 	}
 
 	resp, err := c.SendRequest(req)
@@ -244,12 +247,15 @@ func (c *Client) Add(command []string, workdir string, env []string, description
 }
 
 // Create creates a job without starting it (for autostart=false jobs)
-func (c *Client) Create(command []string, workdir string, description string) (*JobResponse, error) {
+func (c *Client) Create(command []string, workdir string, description string, blocked bool) (*JobResponse, error) {
 	req := NewRequest(RequestTypeCreate)
 	req.Payload["command"] = command
 	req.Payload["workdir"] = workdir
 	if description != "" {
 		req.Payload["description"] = description
+	}
+	if blocked {
+		req.Payload["blocked"] = true
 	}
 
 	resp, err := c.SendRequest(req)

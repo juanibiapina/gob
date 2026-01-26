@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/juanibiapina/gob/internal/daemon"
+	"github.com/juanibiapina/gob/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -107,11 +108,19 @@ Exit codes:
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
+		// Check if command is blocked in gobfile
+		if blockedJob := tui.FindBlockedJob(cwd, commandArgs); blockedJob != nil {
+			if blockedJob.Description != "" {
+				return fmt.Errorf("job is blocked: %s", blockedJob.Description)
+			}
+			return fmt.Errorf("job is blocked")
+		}
+
 		// Capture current environment
 		env := os.Environ()
 
-		// Add job via daemon
-		result, err := client.Add(commandArgs, cwd, env, description)
+		// Add job via daemon (blocked=false since CLI doesn't set blocked status)
+		result, err := client.Add(commandArgs, cwd, env, description, false)
 		if err != nil {
 			return fmt.Errorf("failed to add job: %w", err)
 		}

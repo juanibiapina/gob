@@ -99,6 +99,7 @@ type JobResponse struct {
 	Command     []string   `json:"command"`
 	Workdir     string     `json:"workdir"`
 	Description string     `json:"description,omitempty"`
+	Blocked     bool       `json:"blocked,omitempty"`
 	CreatedAt   string     `json:"created_at"`
 	StartedAt   string     `json:"started_at"`
 	StoppedAt   string     `json:"stopped_at,omitempty"`

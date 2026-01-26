@@ -116,11 +116,16 @@ func (s *Store) InsertJob(job *Job) error {
 		return fmt.Errorf("failed to marshal command: %w", err)
 	}
 
+	blocked := 0
+	if job.Blocked {
+		blocked = 1
+	}
+
 	_, err = s.db.Exec(`
-		INSERT INTO jobs (id, command_json, command_signature, workdir, description, next_run_seq, created_at,
+		INSERT INTO jobs (id, command_json, command_signature, workdir, description, blocked, next_run_seq, created_at,
 			run_count, success_count, failure_count, success_total_duration_ms, failure_total_duration_ms, min_duration_ms, max_duration_ms)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, job.ID, string(commandJSON), job.CommandSignature, job.Workdir, nullableString(job.Description), job.NextRunSeq,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, job.ID, string(commandJSON), job.CommandSignature, job.Workdir, nullableString(job.Description), blocked, job.NextRunSeq,
 		job.CreatedAt.Format(time.RFC3339), job.RunCount, job.SuccessCount, job.FailureCount,
 		job.SuccessTotalDurationMs, job.FailureTotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs))
 	return err
@@ -128,6 +133,11 @@ func (s *Store) InsertJob(job *Job) error {
 
 // UpdateJob updates an existing job in the database
 func (s *Store) UpdateJob(job *Job) error {
+	blocked := 0
+	if job.Blocked {
+		blocked = 1
+	}
+
 	_, err := s.db.Exec(`
 		UPDATE jobs SET
 			next_run_seq = ?,
@@ -138,11 +148,12 @@ func (s *Store) UpdateJob(job *Job) error {
 			failure_total_duration_ms = ?,
 			min_duration_ms = ?,
 			max_duration_ms = ?,
-			description = ?
+			description = ?,
+			blocked = ?
 		WHERE id = ?
 	`, job.NextRunSeq, job.RunCount, job.SuccessCount, job.FailureCount,
 		job.SuccessTotalDurationMs, job.FailureTotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs),
-		nullableString(job.Description), job.ID)
+		nullableString(job.Description), blocked, job.ID)
 	return err
 }
 
@@ -186,7 +197,7 @@ func (s *Store) DeleteRun(runID string) error {
 // LoadJobs loads all jobs from the database
 func (s *Store) LoadJobs() ([]*Job, error) {
 	rows, err := s.db.Query(`
-		SELECT id, command_json, command_signature, workdir, description, next_run_seq, created_at,
+		SELECT id, command_json, command_signature, workdir, description, blocked, next_run_seq, created_at,
 			run_count, success_count, failure_count, success_total_duration_ms, failure_total_duration_ms, min_duration_ms, max_duration_ms
 		FROM jobs
 	`)
@@ -203,6 +214,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 			commandSignature       string
 			workdir                string
 			description            sql.NullString
+			blocked                int
 			nextRunSeq             int
 			createdAtStr           string
 			runCount               int
@@ -214,7 +226,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 			maxDurationMs          sql.NullInt64
 		)
 
-		if err := rows.Scan(&id, &commandJSON, &commandSignature, &workdir, &description, &nextRunSeq, &createdAtStr,
+		if err := rows.Scan(&id, &commandJSON, &commandSignature, &workdir, &description, &blocked, &nextRunSeq, &createdAtStr,
 			&runCount, &successCount, &failureCount, &successTotalDurationMs, &failureTotalDurationMs, &minDurationMs, &maxDurationMs); err != nil {
 			return nil, err
 		}
@@ -235,6 +247,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 			CommandSignature:       commandSignature,
 			Workdir:                workdir,
 			Description:            description.String, // Empty if NULL
+			Blocked:                blocked != 0,
 			NextRunSeq:             nextRunSeq,
 			CreatedAt:              createdAt,
 			RunCount:               runCount,

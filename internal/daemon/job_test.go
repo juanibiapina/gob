@@ -91,7 +91,7 @@ func TestJobManager_AddJob(t *testing.T) {
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
-	job, action, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job, action, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestJobManager_AddJob_SameCommand_CreatesNewRun(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add first job
-	job1, action1, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job1, action1, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestJobManager_AddJob_SameCommand_CreatesNewRun(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Add same command again - should reuse job and create new run
-	job2, action2, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job2, action2, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestJobManager_AddJob_RunningJob_ReturnsAlreadyRunning(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add first job
-	job1, action1, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job1, action1, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestJobManager_AddJob_RunningJob_ReturnsAlreadyRunning(t *testing.T) {
 	}
 
 	// Try to add same command while running - should return "already_running", not error
-	job2, action2, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job2, action2, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Errorf("expected no error for already running job, got: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestJobManager_AddJob_RunningJob_UpdatesDescription(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add job without description
-	job1, _, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job1, _, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestJobManager_AddJob_RunningJob_UpdatesDescription(t *testing.T) {
 	}
 
 	// Add same command while running with new description - should update
-	job2, action, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "new description", nil)
+	job2, action, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "new description", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestJobManager_AddJob_RunningJob_EmitsEventOnDescriptionChange(t *testing.T
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
 	// Add job without description
-	_, _, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	_, _, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestJobManager_AddJob_RunningJob_EmitsEventOnDescriptionChange(t *testing.T
 	events = nil
 
 	// Add same command while running with new description
-	_, _, err = jm.AddJob([]string{"echo", "hello"}, "/workdir", "new description", nil)
+	_, _, err = jm.AddJob([]string{"echo", "hello"}, "/workdir", "new description", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestJobManager_AddJob_RunningJob_NoEventWhenDescriptionSame(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
 	// Add job with description
-	_, _, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "my description", nil)
+	_, _, err := jm.AddJob([]string{"echo", "hello"}, "/workdir", "my description", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestJobManager_AddJob_RunningJob_NoEventWhenDescriptionSame(t *testing.T) {
 	events = nil
 
 	// Add same command while running with same description
-	_, _, err = jm.AddJob([]string{"echo", "hello"}, "/workdir", "my description", nil)
+	_, _, err = jm.AddJob([]string{"echo", "hello"}, "/workdir", "my description", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -312,8 +312,8 @@ func TestJobManager_AddJob_DifferentWorkdir_CreatesSeparateJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job1, _, _ := jm.AddJob([]string{"echo"}, "/workdir1", "", nil)
-	job2, _, _ := jm.AddJob([]string{"echo"}, "/workdir2", "", nil)
+	job1, _, _ := jm.AddJob([]string{"echo"}, "/workdir1", "", false, nil)
+	job2, _, _ := jm.AddJob([]string{"echo"}, "/workdir2", "", false, nil)
 
 	if job1.ID == job2.ID {
 		t.Error("different workdirs should create different jobs")
@@ -325,7 +325,7 @@ func TestJobManager_AddJob_EmptyCommand(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	_, _, err := jm.AddJob([]string{}, "/workdir", "", nil)
+	_, _, err := jm.AddJob([]string{}, "/workdir", "", false, nil)
 	if err == nil {
 		t.Error("expected error for empty command")
 	}
@@ -338,7 +338,7 @@ func TestJobManager_AddJob_ExecutorError(t *testing.T) {
 
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	_, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	_, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err == nil {
 		t.Error("expected error when executor fails")
 	}
@@ -349,7 +349,7 @@ func TestJobManager_GetJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Get existing job
 	retrieved, err := jm.GetJob(job.ID)
@@ -379,9 +379,9 @@ func TestJobManager_ListJobs(t *testing.T) {
 	}
 
 	// Add jobs
-	job1, _, _ := jm.AddJob([]string{"cmd1"}, "/workdir1", "", nil)
+	job1, _, _ := jm.AddJob([]string{"cmd1"}, "/workdir1", "", false, nil)
 	time.Sleep(time.Millisecond)
-	job2, _, _ := jm.AddJob([]string{"cmd2"}, "/workdir2", "", nil)
+	job2, _, _ := jm.AddJob([]string{"cmd2"}, "/workdir2", "", false, nil)
 
 	// List all - AddJob starts runs, so sorted by most recent run (job2 was added last)
 	jobs = jm.ListJobs("")
@@ -436,7 +436,7 @@ func TestJobManager_FindJobByCommand(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
 
 	// Find existing
 	found := jm.FindJobByCommand([]string{"echo", "hello"}, "/workdir")
@@ -469,7 +469,7 @@ func TestJobManager_RemoveJob(t *testing.T) {
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Stop the fake process first
 	executor.LastHandle().Stop()
@@ -502,7 +502,7 @@ func TestJobManager_RemoveJob_RunningFails(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Process is still "running" (not stopped in fake)
 	err := jm.RemoveJob(job.ID)
@@ -520,7 +520,7 @@ func TestJobManager_RemoveRun(t *testing.T) {
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Get the run ID
 	runs, err := jm.ListRunsForJob(job.ID)
@@ -583,7 +583,7 @@ func TestJobManager_RemoveRun_RunningFails(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Get the run ID while it's still running
 	runs, err := jm.ListRunsForJob(job.ID)
@@ -615,7 +615,7 @@ func TestJobManager_RemoveRun_UpdatesStats(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
 	// Add a job and let the first run complete
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	executor.LastHandle().Stop()
 	time.Sleep(10 * time.Millisecond)
 
@@ -670,7 +670,7 @@ func TestJobManager_StartJob(t *testing.T) {
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Stop the job first
 	executor.LastHandle().Stop()
@@ -717,7 +717,7 @@ func TestJobManager_StartJob_AlreadyRunning(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Try to start while still running
 	err := jm.StartJob(job.ID, nil)
@@ -732,9 +732,9 @@ func TestJobManager_StopAll(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Create some jobs
-	job1, _, _ := jm.AddJob([]string{"cmd1"}, "/workdir", "", nil)
+	job1, _, _ := jm.AddJob([]string{"cmd1"}, "/workdir", "", false, nil)
 	time.Sleep(2 * time.Millisecond) // Ensure unique job IDs
-	job2, _, _ := jm.AddJob([]string{"cmd2"}, "/workdir", "", nil)
+	job2, _, _ := jm.AddJob([]string{"cmd2"}, "/workdir", "", false, nil)
 
 	// Verify jobs are running
 	if job1.CurrentRunID == nil {
@@ -767,7 +767,7 @@ func TestJobManager_Signal(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Signal is sent through syscall, not through process handle in current impl
 	// This test just verifies no error is returned for valid job
@@ -796,7 +796,7 @@ func TestJobManager_Signal_StoppedJob(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
 	// Stop the job
 	executor.LastHandle().Stop()
@@ -957,7 +957,7 @@ func TestJobManager_PortsClearedOnStop(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -986,7 +986,7 @@ func TestJobToResponse_RunningJobDoesNotShowPreviousExitCode(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job
-	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -1037,7 +1037,7 @@ func TestJobToResponse_RestartedJobDoesNotShowPreviousExitCode(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job
-	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -1088,7 +1088,7 @@ func TestJobToResponse_AddJobAgainDoesNotShowPreviousExitCode(t *testing.T) {
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job
-	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -1115,7 +1115,7 @@ func TestJobToResponse_AddJobAgainDoesNotShowPreviousExitCode(t *testing.T) {
 	}
 
 	// Add the same command again (should reuse job and start new run)
-	job2, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job2, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -1148,7 +1148,7 @@ func TestWaitForProcessExit_DoesNotClearCurrentRunIDIfNewRunStarted(t *testing.T
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
 	// Add a job - starts first run
-	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}
@@ -1213,7 +1213,7 @@ func TestJobToResponse_IncludesPorts(t *testing.T) {
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
 
-	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	job, _, err := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 	if err != nil {
 		t.Fatalf("AddJob failed: %v", err)
 	}

@@ -23,6 +23,7 @@ type GobfileJob struct {
 	Command     string `toml:"command"`
 	Description string `toml:"description"`
 	Autostart   *bool  `toml:"autostart"` // nil defaults to false
+	Blocked     *bool  `toml:"blocked"`   // nil defaults to false
 }
 
 // ShouldAutostart returns whether the job should be auto-started (defaults to false)
@@ -31,6 +32,31 @@ func (j GobfileJob) ShouldAutostart() bool {
 		return false
 	}
 	return *j.Autostart
+}
+
+// IsBlocked returns whether the job is blocked (defaults to false)
+func (j GobfileJob) IsBlocked() bool {
+	if j.Blocked == nil {
+		return false
+	}
+	return *j.Blocked
+}
+
+// FindBlockedJob checks if a command matches a blocked job in the gobfile.
+// Returns the job if found and blocked, nil otherwise.
+func FindBlockedJob(cwd string, command []string) *GobfileJob {
+	config, err := ReadGobfile(cwd)
+	if err != nil || config == nil {
+		return nil
+	}
+
+	cmdStr := strings.Join(command, " ")
+	for _, job := range config.Jobs {
+		if job.Command == cmdStr && job.IsBlocked() {
+			return &job
+		}
+	}
+	return nil
 }
 
 // ReadGobfile reads .config/gobfile.toml from the given directory.
@@ -89,18 +115,21 @@ func StartGobfileJobs(cwd string, config *GobfileConfig, env []string) error {
 			continue
 		}
 
-		if gobJob.ShouldAutostart() {
+		blocked := gobJob.IsBlocked()
+
+		if gobJob.ShouldAutostart() && !blocked {
 			// Add is idempotent: creates + starts, or returns already_running
-			// Also updates description if different
-			_, err := client.Add(parts, cwd, env, gobJob.Description)
+			// Also updates description and blocked status if different
+			_, err := client.Add(parts, cwd, env, gobJob.Description, blocked)
 			if err != nil {
 				log.Printf("gobfile: failed to add '%s': %v", cmd, err)
 				// Continue on error
 			}
 		} else {
 			// Create is idempotent: creates without starting, or returns existing
-			// Also updates description if different
-			_, err := client.Create(parts, cwd, gobJob.Description)
+			// Also updates description and blocked status if different
+			// Blocked jobs are created but never started
+			_, err := client.Create(parts, cwd, gobJob.Description, blocked)
 			if err != nil {
 				log.Printf("gobfile: failed to create '%s': %v", cmd, err)
 				// Continue on error
