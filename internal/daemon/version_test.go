@@ -122,3 +122,73 @@ func TestVersionInfo_Struct(t *testing.T) {
 		t.Errorf("expected 5 running jobs, got %d", info.RunningJobs)
 	}
 }
+
+func TestErrVersionMismatch_Error(t *testing.T) {
+	err := &ErrVersionMismatch{
+		DaemonVersion: "1.2.3",
+		ClientVersion: "1.0.0",
+	}
+
+	msg := err.Error()
+
+	// Should contain both versions
+	if !strings.Contains(msg, "1.2.3") {
+		t.Errorf("error message should contain daemon version, got: %s", msg)
+	}
+	if !strings.Contains(msg, "1.0.0") {
+		t.Errorf("error message should contain client version, got: %s", msg)
+	}
+
+	// Should mention shutdown command
+	if !strings.Contains(msg, "shutdown") {
+		t.Errorf("error message should mention shutdown command, got: %s", msg)
+	}
+}
+
+func TestErrVersionMismatch_ErrorsAs(t *testing.T) {
+	err := &ErrVersionMismatch{
+		DaemonVersion: "2.0.0",
+		ClientVersion: "1.0.0",
+	}
+
+	var versionErr *ErrVersionMismatch
+	if !errors.As(err, &versionErr) {
+		t.Error("errors.As should match ErrVersionMismatch")
+	}
+
+	if versionErr.DaemonVersion != "2.0.0" {
+		t.Errorf("expected daemon version 2.0.0, got %s", versionErr.DaemonVersion)
+	}
+	if versionErr.ClientVersion != "1.0.0" {
+		t.Errorf("expected client version 1.0.0, got %s", versionErr.ClientVersion)
+	}
+}
+
+func TestErrVersionMismatch_WrappedError(t *testing.T) {
+	// Test that the error can be wrapped and still detected
+	originalErr := &ErrVersionMismatch{
+		DaemonVersion: "1.5.0",
+		ClientVersion: "1.4.0",
+	}
+
+	wrappedErr := errors.New("connection failed: " + originalErr.Error())
+
+	// Direct errors.As won't work on string wrapping, but our code uses it directly
+	// This test ensures the error message is informative when wrapped
+	if !strings.Contains(wrappedErr.Error(), "1.5.0") {
+		t.Error("wrapped error should contain daemon version")
+	}
+}
+
+func TestErrVersionMismatch_PreVersionNegotiation(t *testing.T) {
+	// Test the special case for old daemons that don't support version negotiation
+	err := &ErrVersionMismatch{
+		DaemonVersion: "(pre-version-negotiation)",
+		ClientVersion: "1.0.0",
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "pre-version-negotiation") {
+		t.Errorf("error message should indicate pre-version-negotiation daemon, got: %s", msg)
+	}
+}

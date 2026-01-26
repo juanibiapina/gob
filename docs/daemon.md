@@ -121,17 +121,7 @@ When a client command runs:
 6. Daemon loads jobs and runs from database
 7. Daemon creates socket and starts listening
 8. Client retries connection
-
-### Idle Shutdown
-
-The daemon automatically shuts down after 5 minutes with no **running** jobs:
-
-- Stopped jobs remain in the database
-- Log files remain in the state directory
-- Next command auto-starts a fresh daemon
-- Jobs are loaded from the database on startup
-
-This allows the daemon to conserve resources while preserving job history.
+9. Client performs version check (see [Version Negotiation](version-negotiation.md))
 
 ### Graceful Shutdown
 

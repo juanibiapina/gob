@@ -16,9 +16,6 @@ import (
 	"github.com/juanibiapina/gob/internal/version"
 )
 
-// IdleTimeout is the duration of inactivity (no jobs) before the daemon shuts down
-const IdleTimeout = 5 * time.Minute
-
 // Subscriber represents a client subscribed to events
 type Subscriber struct {
 	conn    net.Conn
@@ -40,8 +37,6 @@ type Daemon struct {
 	jobManager    *JobManager
 	subscribers   []*Subscriber
 	subscribersMu sync.RWMutex
-	idleTimer     *time.Timer
-	idleTimerMu   sync.Mutex
 }
 
 // New creates a new daemon instance
@@ -168,9 +163,6 @@ func (d *Daemon) Start() error {
 	d.setupSignalHandling()
 
 	Logger.Info("daemon started", "socket", d.socketPath)
-
-	// Start idle timer if no running jobs
-	d.checkIdleOnStartup()
 
 	// Accept connections
 	go d.acceptConnections()
@@ -872,47 +864,6 @@ func (d *Daemon) removeSubscriber(sub *Subscriber) {
 func (d *Daemon) handleEvent(event Event) {
 	// Broadcast to subscribers
 	d.broadcastEvent(event)
-
-	// Manage idle timer based on running job count
-	d.updateIdleTimerFromEvent(event)
-}
-
-// updateIdleTimerFromEvent starts or stops the idle timer based on running job count
-func (d *Daemon) updateIdleTimerFromEvent(event Event) {
-	d.idleTimerMu.Lock()
-	defer d.idleTimerMu.Unlock()
-
-	if event.RunningJobCount == 0 {
-		// No running jobs - start/reset the idle timer
-		if d.idleTimer == nil {
-			d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
-			Logger.Info("idle timer started", "timeout", IdleTimeout)
-		}
-	} else {
-		// Running jobs exist - cancel the idle timer
-		if d.idleTimer != nil {
-			d.idleTimer.Stop()
-			d.idleTimer = nil
-			Logger.Debug("idle timer cancelled")
-		}
-	}
-}
-
-// checkIdleOnStartup starts the idle timer if no running jobs exist on startup
-func (d *Daemon) checkIdleOnStartup() {
-	d.idleTimerMu.Lock()
-	defer d.idleTimerMu.Unlock()
-
-	if !d.jobManager.HasRunningJobs() {
-		d.idleTimer = time.AfterFunc(IdleTimeout, d.idleShutdown)
-		Logger.Info("idle timer started", "timeout", IdleTimeout)
-	}
-}
-
-// idleShutdown triggers daemon shutdown due to idle timeout
-func (d *Daemon) idleShutdown() {
-	Logger.Info("idle timeout reached, shutting down")
-	d.cancel()
 }
 
 // recoverFromCrash handles cleanup after a daemon crash

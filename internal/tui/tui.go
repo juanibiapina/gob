@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -113,8 +114,10 @@ type subscriptionErrorMsg struct {
 	err error
 }
 
-// reconnectMsg triggers a reconnection attempt
-type reconnectMsg struct{}
+// fatalErrorMsg causes the TUI to quit with a message
+type fatalErrorMsg struct {
+	reason string
+}
 
 // Model is the main TUI model
 type Model struct {
@@ -161,6 +164,9 @@ type Model struct {
 	subClient  *daemon.Client
 	eventChan  <-chan daemon.Event
 	errChan    <-chan error
+
+	// Quit state
+	quitReason string
 }
 
 // New creates a new TUI model
@@ -199,6 +205,19 @@ func connectClient() (*daemon.Client, error) {
 		return nil, err
 	}
 	return client, nil
+}
+
+// checkVersionMismatch checks if an error is a version mismatch and returns a fatalErrorMsg if so.
+// Returns nil if the error is not a version mismatch.
+func checkVersionMismatch(err error) tea.Msg {
+	var versionErr *daemon.ErrVersionMismatch
+	if errors.As(err, &versionErr) {
+		return fatalErrorMsg{
+			reason: fmt.Sprintf("Version mismatch: daemon=%s, TUI=%s\nRun 'gob shutdown' to stop the daemon, then restart the TUI.",
+				versionErr.DaemonVersion, versionErr.ClientVersion),
+		}
+	}
+	return nil
 }
 
 // Init initializes the model
@@ -260,18 +279,14 @@ func waitForEvent(events <-chan daemon.Event, errs <-chan error) tea.Cmd {
 	}
 }
 
-// reconnectCmd triggers reconnection after a delay
-func reconnectCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return reconnectMsg{}
-	})
-}
-
 // refreshJobs fetches the current job list
 func (m Model) refreshJobs() tea.Cmd {
 	return func() tea.Msg {
 		client, err := connectClient()
 		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
 			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
 		defer client.Close()
@@ -329,6 +344,9 @@ func (m Model) fetchRuns(jobID string) tea.Cmd {
 	return func() tea.Msg {
 		client, err := connectClient()
 		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
 			return runsUpdatedMsg{jobID: jobID, runs: nil, stats: nil}
 		}
 		defer client.Close()
@@ -456,20 +474,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case subscriptionErrorMsg:
-		// Subscription failed - close old client and schedule reconnect
-		if m.subClient != nil {
-			m.subClient.Close()
-			m.subClient = nil
+		// Subscription failed - quit gracefully
+		// Check if this is a version mismatch for a more specific message
+		var versionErr *daemon.ErrVersionMismatch
+		if errors.As(msg.err, &versionErr) {
+			m.quitReason = fmt.Sprintf("Version mismatch: daemon=%s, TUI=%s\nRun 'gob shutdown' to stop the daemon, then restart the TUI.",
+				versionErr.DaemonVersion, versionErr.ClientVersion)
+		} else {
+			m.quitReason = "Daemon stopped. Please restart the TUI."
 		}
-		m.subscribed = false
-		m.eventChan = nil
-		m.errChan = nil
-		// Schedule reconnection attempt
-		cmds = append(cmds, reconnectCmd())
-
-	case reconnectMsg:
-		// Try to reconnect
-		cmds = append(cmds, m.startSubscription())
+		return m, tea.Quit
 
 	case jobsUpdatedMsg:
 		m.jobs = msg.jobs
@@ -510,6 +524,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isError = msg.isError
 		m.messageTime = time.Now()
 		// No need to refresh jobs - events will handle that
+
+	case fatalErrorMsg:
+		m.quitReason = msg.reason
+		return m, tea.Quit
 
 	case tea.KeyMsg:
 		// Clear old messages
@@ -1134,6 +1152,9 @@ func (m Model) stopJob(jobID string, force bool) tea.Cmd {
 	return func() tea.Msg {
 		client, err := connectClient()
 		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
 			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
 		defer client.Close()
@@ -1161,6 +1182,9 @@ func (m Model) restartJob(jobID string) tea.Cmd {
 	return func() tea.Msg {
 		client, err := connectClient()
 		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
 			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
 		defer client.Close()
@@ -1181,6 +1205,9 @@ func (m Model) removeJob(jobID string) tea.Cmd {
 	return func() tea.Msg {
 		client, err := connectClient()
 		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
 			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
 		defer client.Close()
@@ -1206,6 +1233,9 @@ func (m Model) addJob(command string) tea.Cmd {
 
 		client, err := connectClient()
 		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
 			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
 		}
 		defer client.Close()
@@ -2340,10 +2370,15 @@ func Start() error {
 
 	// Run TUI
 	p := tea.NewProgram(New(), tea.WithAltScreen(), tea.WithMouseCellMotion())
-	_, err := p.Run()
+	finalModel, err := p.Run()
 
 	// Auto-stop gobfile jobs (after TUI exits normally)
 	cleanup()
+
+	// If there was a quit reason (e.g., version mismatch), display it
+	if m, ok := finalModel.(Model); ok && m.quitReason != "" {
+		fmt.Fprintln(os.Stderr, m.quitReason)
+	}
 
 	return err
 }

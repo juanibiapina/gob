@@ -15,6 +15,17 @@ import (
 // ErrOldDaemon is returned when the daemon does not support version negotiation
 var ErrOldDaemon = errors.New("daemon does not support version negotiation")
 
+// ErrVersionMismatch is returned when client and daemon versions don't match
+type ErrVersionMismatch struct {
+	DaemonVersion string
+	ClientVersion string
+}
+
+func (e *ErrVersionMismatch) Error() string {
+	return fmt.Sprintf("version mismatch: daemon=%s, client=%s\nRun 'gob shutdown' to stop the daemon, then run your command again.",
+		e.DaemonVersion, e.ClientVersion)
+}
+
 // VersionInfo contains daemon version information
 type VersionInfo struct {
 	Version     string // Semantic version (e.g., "1.2.3")
@@ -625,78 +636,20 @@ func (c *Client) CheckDaemonVersion() error {
 		return nil
 	}
 
-	// Version mismatch - restart if no running jobs, otherwise error
-	if info.RunningJobs == 0 {
-		return c.restartDaemon(fmt.Sprintf("version mismatch: daemon=%s, client=%s", info.Version, version.Version))
+	// Version mismatch - return error (don't restart daemon to avoid version wars)
+	return &ErrVersionMismatch{
+		DaemonVersion: info.Version,
+		ClientVersion: version.Version,
 	}
-
-	return fmt.Errorf("daemon version mismatch (daemon=%s, client=%s) but has %d running job(s); run 'gob shutdown' to stop all jobs and restart daemon",
-		info.Version, version.Version, info.RunningJobs)
 }
 
 // handleOldDaemon handles a daemon that doesn't support version negotiation
 func (c *Client) handleOldDaemon() error {
-	// Try to get job count via list (old daemons support this)
-	jobs, err := c.List("")
-	if err != nil {
-		// Can't even list - daemon is really broken, just restart it
-		return c.restartDaemon("outdated version")
+	// Old daemon doesn't support version negotiation - return version mismatch error
+	return &ErrVersionMismatch{
+		DaemonVersion: "(pre-version-negotiation)",
+		ClientVersion: version.Version,
 	}
-
-	// Count running jobs
-	runningCount := 0
-	for _, job := range jobs {
-		if job.Status == "running" {
-			runningCount++
-		}
-	}
-
-	if runningCount == 0 {
-		// Safe to restart
-		return c.restartDaemon("outdated version")
-	}
-
-	// Has running jobs - return error with guidance
-	return fmt.Errorf("daemon version outdated but has %d running job(s); run 'gob shutdown' to stop all jobs and restart daemon", runningCount)
-}
-
-// restartDaemon shuts down the current daemon and starts a new one
-func (c *Client) restartDaemon(reason string) error {
-	// Send shutdown to old daemon
-	c.Shutdown() // Ignore error - daemon may already be gone
-
-	// Wait briefly for socket to be released
-	time.Sleep(100 * time.Millisecond)
-
-	// Reconnect will auto-start new daemon
-	return c.reconnect()
-}
-
-// reconnect establishes a new connection, starting daemon if needed
-func (c *Client) reconnect() error {
-	// Try to connect
-	conn, err := net.Dial("unix", c.socketPath)
-	if err == nil {
-		c.conn = conn
-		return nil
-	}
-
-	// Connection failed - try to start daemon
-	if err := StartDaemon(); err != nil {
-		return fmt.Errorf("failed to start daemon: %w", err)
-	}
-
-	// Retry connection with timeout
-	for i := 0; i < 20; i++ {
-		conn, err := net.Dial("unix", c.socketPath)
-		if err == nil {
-			c.conn = conn
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	return fmt.Errorf("failed to connect to daemon after starting it")
 }
 
 // Subscribe subscribes to daemon events and calls the callback for each event

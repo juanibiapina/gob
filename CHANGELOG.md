@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Version negotiation no longer auto-restarts daemon**: When client and daemon versions mismatch, the client now returns an error instead of auto-restarting the daemon. This prevents old TUIs from restarting the daemon with their old binary, undoing upgrades. Users must now run `gob shutdown` and restart their clients when upgrading.
+- **TUI quits on daemon disconnect**: The TUI no longer attempts to reconnect when the daemon stops. Instead, it quits with a message asking the user to restart. This complements the version negotiation change by preventing old TUIs from resurrecting the daemon.
+- **Daemon no longer auto-shuts down when idle**: The daemon now runs indefinitely until explicitly stopped with `gob shutdown`.
+
 ### Fixed
 
 - **Runs panel column misalignment**: Fixed status column padding using byte length instead of visual width, causing misaligned columns when Unicode status icons (✓, ◉, ◼) were displayed.
