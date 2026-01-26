@@ -229,9 +229,9 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// logTickCmd returns a command that sends a tick every 500ms for log updates
+// logTickCmd returns a command that sends a tick every second for log updates
 func logTickCmd() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return logTickMsg(t)
 	})
 }
@@ -1654,6 +1654,13 @@ func (m Model) renderRunsList(width int) string {
 	// Stats summary line
 	statsLine := m.formatStatsLine()
 	lines = append(lines, mutedStyle.Render(statsLine))
+
+	// Progress bar (only shown when job is running with avg duration available)
+	progressBar := m.renderProgressBar(width)
+	if progressBar != "" {
+		lines = append(lines, progressBar)
+	}
+
 	lines = append(lines, "")
 
 	// Calculate column widths based on panel width
@@ -2001,6 +2008,62 @@ func (m Model) formatStatsLine() string {
 		m.stats.RunCount,
 		m.stats.SuccessRate,
 		avgDuration)
+}
+
+// renderProgressBar renders a progress bar for a running job
+// Returns empty string if no progress bar should be shown
+func (m Model) renderProgressBar(width int) string {
+	// Only show progress bar when:
+	// 1. We have a selected job that is running
+	// 2. We have stats with an average duration
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
+		return ""
+	}
+
+	job := m.jobs[m.jobScroll.Cursor]
+	if !job.Running {
+		return ""
+	}
+
+	if m.stats == nil || m.stats.AvgDurationMs <= 0 {
+		return ""
+	}
+
+	// Calculate elapsed time
+	elapsed := time.Since(job.StartedAt)
+	avgDuration := time.Duration(m.stats.AvgDurationMs) * time.Millisecond
+
+	// Calculate progress percentage (capped at 100%)
+	progress := float64(elapsed) / float64(avgDuration)
+	if progress > 1.0 {
+		progress = 1.0
+	}
+
+	// Calculate bar dimensions
+	// Reserve space for: percentage (5) + space (1) + times display (~20)
+	barWidth := width - 26
+	if barWidth < 10 {
+		barWidth = 10
+	}
+
+	filledWidth := int(float64(barWidth) * progress)
+	emptyWidth := barWidth - filledWidth
+
+	// Build the bar using Unicode block characters
+	// ▓ (U+2593) for filled, ▒ (U+2592) for empty
+	filled := progressBarFillStyle.Render(strings.Repeat("▓", filledWidth))
+	empty := progressBarEmptyStyle.Render(strings.Repeat("▒", emptyWidth))
+
+	// Format elapsed / avg time
+	elapsedStr := formatDuration(elapsed)
+	avgStr := formatDuration(avgDuration)
+	timeInfo := progressBarTextStyle.Render(fmt.Sprintf("%s / %s", elapsedStr, avgStr))
+
+	// Format percentage
+	pct := int(progress * 100)
+	pctStr := progressBarTextStyle.Render(fmt.Sprintf("%3d%%", pct))
+
+	return fmt.Sprintf("%s%s %s %s", filled, empty, pctStr, timeInfo)
 }
 
 // formatRelativeTime formats a time as a relative duration from now

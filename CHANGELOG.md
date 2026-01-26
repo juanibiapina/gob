@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **TUI progress bar**: Shows a progress bar in the Runs panel when a job is running
+  - Displays elapsed time vs average duration with Unicode gradient bar (`▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒`)
+  - Only shown when the job has historical run data (needs average duration)
+
 - **Stuck job detection**: `gob run` and `gob await` now detect potentially stuck jobs and return early
   - Timeout: average successful duration + 1 minute (or 5 minutes if no historical data)
   - Triggers when: elapsed time exceeds timeout AND no output for 1 minute

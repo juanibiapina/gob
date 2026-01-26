@@ -195,4 +195,14 @@ var (
 	jobTimeSelectedStyle = lipgloss.NewStyle().
 				Foreground(colorCyan).
 				Background(selectionBg)
+
+	// Progress bar styles
+	progressBarFillStyle = lipgloss.NewStyle().
+				Foreground(successColor)
+
+	progressBarEmptyStyle = lipgloss.NewStyle().
+				Foreground(colorBrightBlack)
+
+	progressBarTextStyle = lipgloss.NewStyle().
+				Foreground(colorBrightBlack)
 )
