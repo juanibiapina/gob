@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Runs panel column misalignment**: Fixed status column padding using byte length instead of visual width, causing misaligned columns when Unicode status icons (✓, ◉, ◼) were displayed.
 - **Gobfile descriptions not displayed**: Fixed job descriptions from gobfile not appearing in TUI when job already existed without a description.
+- **Gobfile auto-stop killing manually started jobs**: Jobs with `autostart = false` in the gobfile are no longer stopped when the TUI exits. Previously, if you defined a job with `autostart = false` and manually started it, it would be killed on TUI exit. Now only jobs with `autostart = true` (the default) are auto-stopped.
 
 ## [3.0.0-rc.2] - 2026-01-25
 

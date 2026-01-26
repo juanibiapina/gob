@@ -29,7 +29,7 @@ command = "docker compose up db"
 |-------|------|----------|---------|-------------|
 | `command` | string | Yes | - | The command to run |
 | `description` | string | No | - | Context about the job, shown in TUI and CLI |
-| `autostart` | boolean | No | `true` | Whether to start the job when TUI opens |
+| `autostart` | boolean | No | `true` | Whether to auto-start when TUI opens and auto-stop when TUI exits |
 
 ## Behavior
 
@@ -45,12 +45,12 @@ command = "docker compose up db"
 
 ### When TUI Exits
 
-All jobs started from the gobfile are stopped. This includes:
+Jobs with `autostart = true` (the default) are stopped when the TUI exits:
 - Normal exit (pressing `q`)
 - Terminal close
 - SIGTERM/SIGINT signals
 
-Jobs that were already running before TUI opened are **not** stopped.
+Jobs with `autostart = false` are **not** stopped. This allows you to define jobs that are manually controlled - you start them when needed and they keep running after the TUI exits.
 
 ### Description Updates
 
@@ -91,7 +91,7 @@ description = "TypeScript type checking in watch mode"
 [[job]]
 command = "npm run test:watch"
 description = "Jest tests in watch mode"
-autostart = false  # Start manually when needed
+autostart = false  # Start manually, keeps running after TUI exits
 ```
 
 ### AI Agent Context

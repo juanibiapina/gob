@@ -111,7 +111,8 @@ func StartGobfileJobs(cwd string, config *GobfileConfig, env []string) error {
 	return nil
 }
 
-// StopGobfileJobs stops running jobs that match gobfile commands.
+// StopGobfileJobs stops running jobs that match gobfile commands with autostart=true.
+// Jobs with autostart=false are not stopped, as they are meant to be manually controlled.
 // Continues on error.
 func StopGobfileJobs(cwd string, config *GobfileConfig) error {
 	if config == nil || len(config.Jobs) == 0 {
@@ -140,10 +141,13 @@ func StopGobfileJobs(cwd string, config *GobfileConfig) error {
 		return err
 	}
 
-	// Build a set of gobfile commands for quick lookup
+	// Build a set of gobfile commands that should be auto-stopped (only autostart jobs)
+	// Jobs with autostart=false are meant to be manually controlled and should not be stopped
 	gobfileCommands := make(map[string]bool)
 	for _, job := range config.Jobs {
-		gobfileCommands[job.Command] = true
+		if job.ShouldAutostart() {
+			gobfileCommands[job.Command] = true
+		}
 	}
 
 	// Stop running jobs that match gobfile commands
