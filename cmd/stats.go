@@ -19,22 +19,24 @@ var statsCmd = &cobra.Command{
 	Long: `Show statistics for a job.
 
 Displays aggregated statistics across all runs of the specified job, including:
-- Total number of runs
+- Total number of runs (successes, failures, and killed processes)
 - Success rate (percentage of runs with exit code 0)
-- Duration statistics (average, minimum, maximum)
-- Estimated duration for next run
+- Duration statistics for successes (average, minimum, maximum)
+- Duration statistics for failures (average)
 
 Example output:
   Job: abc (make test)
-  Total runs: 5
-  Success rate: 80% (4/5)
-  Average duration: 2m30s
+  Total runs: 10
+  Success rate: 70% (7/10)
+  Avg success duration: 2m30s
+  Avg failure duration: 15s
   Fastest: 2m15s
   Slowest: 2m45s
-  Estimated next run: ~2m30s
 
 Note: Statistics are calculated from completed runs only.
-Running jobs are excluded from the statistics until they complete.
+Running jobs and killed processes are excluded from duration averages.
+Killed processes (sent SIGTERM/SIGKILL) still count toward total runs but
+not toward success/failure counts or duration statistics.
 
 Exit codes:
   0: Success
@@ -78,10 +80,14 @@ Exit codes:
 
 		fmt.Printf("Total runs: %d\n", stats.RunCount)
 		fmt.Printf("Success rate: %.0f%% (%d/%d)\n", stats.SuccessRate, stats.SuccessCount, stats.RunCount)
-		fmt.Printf("Average duration: %s\n", formatDuration(time.Duration(stats.AvgDurationMs)*time.Millisecond))
+		if stats.SuccessCount > 0 {
+			fmt.Printf("Avg success duration: %s\n", formatDuration(time.Duration(stats.AvgDurationMs)*time.Millisecond))
+		}
+		if stats.FailureCount > 0 {
+			fmt.Printf("Avg failure duration: %s\n", formatDuration(time.Duration(stats.FailureAvgDurationMs)*time.Millisecond))
+		}
 		fmt.Printf("Fastest: %s\n", formatDuration(time.Duration(stats.MinDurationMs)*time.Millisecond))
 		fmt.Printf("Slowest: %s\n", formatDuration(time.Duration(stats.MaxDurationMs)*time.Millisecond))
-		fmt.Printf("Estimated next run: ~%s\n", formatDuration(time.Duration(stats.AvgDurationMs)*time.Millisecond))
 
 		return nil
 	},

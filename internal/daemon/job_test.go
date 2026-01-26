@@ -660,15 +660,21 @@ func TestJobManager_Signal_StoppedJob(t *testing.T) {
 
 func TestJob_Statistics(t *testing.T) {
 	job := &Job{
-		RunCount:        5,
-		SuccessCount:    4,
-		TotalDurationMs: 10000,
-		MinDurationMs:   1000,
-		MaxDurationMs:   3000,
+		RunCount:               5,
+		SuccessCount:           4,
+		FailureCount:           1,
+		SuccessTotalDurationMs: 8000, // 4 successes, 2000ms avg
+		FailureTotalDurationMs: 500,  // 1 failure, 500ms
+		MinDurationMs:          500,
+		MaxDurationMs:          3000,
 	}
 
 	if job.AverageDurationMs() != 2000 {
 		t.Errorf("expected average 2000, got %d", job.AverageDurationMs())
+	}
+
+	if job.FailureAverageDurationMs() != 500 {
+		t.Errorf("expected failure average 500, got %d", job.FailureAverageDurationMs())
 	}
 
 	if job.SuccessRate() != 80 {
@@ -683,8 +689,86 @@ func TestJob_Statistics_NoRuns(t *testing.T) {
 		t.Error("expected 0 average with no runs")
 	}
 
+	if job.FailureAverageDurationMs() != 0 {
+		t.Error("expected 0 failure average with no runs")
+	}
+
 	if job.SuccessRate() != 0 {
 		t.Error("expected 0 success rate with no runs")
+	}
+}
+
+func TestJob_StatsByOutcome(t *testing.T) {
+	// Test that success and failure durations are tracked separately
+	job := &Job{
+		RunCount:               6,
+		SuccessCount:           3, // 3 successes
+		FailureCount:           2, // 2 failures
+		SuccessTotalDurationMs: 6000,
+		FailureTotalDurationMs: 1000,
+		MinDurationMs:          500,
+		MaxDurationMs:          3000,
+	}
+	// Note: RunCount(6) = SuccessCount(3) + FailureCount(2) + Killed(1)
+
+	// Success average: 6000 / 3 = 2000ms
+	if got := job.AverageDurationMs(); got != 2000 {
+		t.Errorf("AverageDurationMs() = %d, want 2000", got)
+	}
+
+	// Failure average: 1000 / 2 = 500ms
+	if got := job.FailureAverageDurationMs(); got != 500 {
+		t.Errorf("FailureAverageDurationMs() = %d, want 500", got)
+	}
+
+	// Success rate: 3/6 = 50% (includes killed in denominator)
+	if got := job.SuccessRate(); got != 50 {
+		t.Errorf("SuccessRate() = %.1f%%, want 50%%", got)
+	}
+}
+
+func TestJobToStats(t *testing.T) {
+	job := &Job{
+		ID:                     "abc",
+		Command:                []string{"make", "test"},
+		RunCount:               10,
+		SuccessCount:           7,
+		FailureCount:           2,
+		SuccessTotalDurationMs: 14000,
+		FailureTotalDurationMs: 2000,
+		MinDurationMs:          500,
+		MaxDurationMs:          5000,
+	}
+	// Note: 10 runs = 7 success + 2 failure + 1 killed
+
+	stats := jobToStats(job)
+
+	if stats.JobID != "abc" {
+		t.Errorf("JobID = %s, want abc", stats.JobID)
+	}
+	if stats.RunCount != 10 {
+		t.Errorf("RunCount = %d, want 10", stats.RunCount)
+	}
+	if stats.SuccessCount != 7 {
+		t.Errorf("SuccessCount = %d, want 7", stats.SuccessCount)
+	}
+	if stats.FailureCount != 2 {
+		t.Errorf("FailureCount = %d, want 2", stats.FailureCount)
+	}
+	if stats.SuccessRate != 70 {
+		t.Errorf("SuccessRate = %.1f%%, want 70%%", stats.SuccessRate)
+	}
+	if stats.AvgDurationMs != 2000 { // 14000 / 7
+		t.Errorf("AvgDurationMs = %d, want 2000", stats.AvgDurationMs)
+	}
+	if stats.FailureAvgDurationMs != 1000 { // 2000 / 2
+		t.Errorf("FailureAvgDurationMs = %d, want 1000", stats.FailureAvgDurationMs)
+	}
+	if stats.MinDurationMs != 500 {
+		t.Errorf("MinDurationMs = %d, want 500", stats.MinDurationMs)
+	}
+	if stats.MaxDurationMs != 5000 {
+		t.Errorf("MaxDurationMs = %d, want 5000", stats.MaxDurationMs)
 	}
 }
 

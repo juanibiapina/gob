@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Stats by outcome**: `gob run` and `gob add` now show separate expected durations for successful and failed runs
+  - Shows "Expected duration if success: ~Xm" when there are 3+ previous successful runs
+  - Shows "Expected duration if failure: ~Xs" when there are 3+ previous failed runs
+  - Killed processes (SIGKILL/SIGTERM) are excluded from duration statistics but still count toward total runs
+  - Average duration calculation now uses only successful runs (previously used all runs)
 - **Version negotiation no longer auto-restarts daemon**: When client and daemon versions mismatch, the client now returns an error instead of auto-restarting the daemon. This prevents old TUIs from restarting the daemon with their old binary, undoing upgrades. Users must now run `gob shutdown` and restart their clients when upgrading.
 - **TUI quits on daemon disconnect**: The TUI no longer attempts to reconnect when the daemon stops. Instead, it quits with a message asking the user to restart. This complements the version negotiation change by preventing old TUIs from resurrecting the daemon.
 - **Daemon no longer auto-shuts down when idle**: The daemon now runs indefinitely until explicitly stopped with `gob shutdown`.

@@ -95,8 +95,8 @@ load 'test_helper'
   assert_equal "$success_rate" "100"
 }
 
-@test "stats command shows duration statistics" {
-  # Start a job that completes quickly
+@test "stats command shows duration statistics for successful run" {
+  # Start a job that completes successfully
   "$JOB_CLI" add true
 
   # Get job ID
@@ -108,10 +108,11 @@ load 'test_helper'
   # Check stats
   run "$JOB_CLI" stats "$job_id"
   assert_success
-  assert_output --partial "Average duration:"
+  assert_output --partial "Avg success duration:"
   assert_output --partial "Fastest:"
   assert_output --partial "Slowest:"
-  assert_output --partial "Estimated next run:"
+  # Should not show failure duration since there are no failures
+  refute_output --partial "Avg failure duration:"
 }
 
 @test "stats command shows failed runs in success rate" {
@@ -129,4 +130,7 @@ load 'test_helper'
   assert_success
   assert_output --partial "Total runs: 1"
   assert_output --partial "Success rate: 0% (0/1)"
+  assert_output --partial "Avg failure duration:"
+  # Should not show success duration since there are no successes
+  refute_output --partial "Avg success duration:"
 }

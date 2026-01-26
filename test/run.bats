@@ -123,10 +123,42 @@ load 'test_helper'
   run "$JOB_CLI" run true
   assert_success
 
-  # Should show stats
+  # Should show stats but NOT expected duration (need 3+ runs for that)
   assert_output --partial "Previous runs: 1"
   assert_output --partial "100% success rate"
-  assert_output --partial "Expected duration:"
+  refute_output --partial "Expected duration"
+}
+
+@test "run command shows expected duration after 3+ successful runs" {
+  # Run a quick job 3 times to build up stats
+  run "$JOB_CLI" run true
+  assert_success
+  run "$JOB_CLI" run true
+  assert_success
+  run "$JOB_CLI" run true
+  assert_success
+
+  # Fourth run should show expected duration for success
+  run "$JOB_CLI" run true
+  assert_success
+  assert_output --partial "Previous runs: 3"
+  assert_output --partial "Expected duration if success:"
+}
+
+@test "run command shows expected failure duration after 3+ failed runs" {
+  # Run a failing job 3 times
+  run "$JOB_CLI" run false
+  assert_failure
+  run "$JOB_CLI" run false
+  assert_failure
+  run "$JOB_CLI" run false
+  assert_failure
+
+  # Fourth run should show expected duration for failure
+  run "$JOB_CLI" run false
+  assert_failure
+  assert_output --partial "Previous runs: 3"
+  assert_output --partial "Expected duration if failure:"
 }
 
 @test "run command streams output in real-time" {

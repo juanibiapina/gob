@@ -184,10 +184,32 @@ load 'test_helper'
   run "$JOB_CLI" add sleep 0.01
   assert_success
 
-  # Should show stats
+  # Should show stats but NOT expected duration (need 3+ runs for that)
   assert_output --partial "Previous runs: 1"
   assert_output --partial "100% success rate"
-  assert_output --partial "Expected duration:"
+  refute_output --partial "Expected duration"
+}
+
+@test "add command shows expected duration after 3+ successful runs" {
+  # Run a quick job 3 times to build up stats
+  run "$JOB_CLI" add sleep 0.01
+  assert_success
+  local job_id=$(get_job_field id)
+  "$JOB_CLI" await "$job_id"
+
+  run "$JOB_CLI" add sleep 0.01
+  assert_success
+  "$JOB_CLI" await "$job_id"
+
+  run "$JOB_CLI" add sleep 0.01
+  assert_success
+  "$JOB_CLI" await "$job_id"
+
+  # Fourth add should show expected duration for success
+  run "$JOB_CLI" add sleep 0.01
+  assert_success
+  assert_output --partial "Previous runs: 3"
+  assert_output --partial "Expected duration if success:"
 }
 
 @test "add command with --description stores description" {

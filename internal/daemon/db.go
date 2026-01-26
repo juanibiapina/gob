@@ -118,11 +118,11 @@ func (s *Store) InsertJob(job *Job) error {
 
 	_, err = s.db.Exec(`
 		INSERT INTO jobs (id, command_json, command_signature, workdir, description, next_run_seq, created_at,
-			run_count, success_count, total_duration_ms, min_duration_ms, max_duration_ms)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			run_count, success_count, failure_count, success_total_duration_ms, failure_total_duration_ms, min_duration_ms, max_duration_ms)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, job.ID, string(commandJSON), job.CommandSignature, job.Workdir, nullableString(job.Description), job.NextRunSeq,
-		job.CreatedAt.Format(time.RFC3339), job.RunCount, job.SuccessCount,
-		job.TotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs))
+		job.CreatedAt.Format(time.RFC3339), job.RunCount, job.SuccessCount, job.FailureCount,
+		job.SuccessTotalDurationMs, job.FailureTotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs))
 	return err
 }
 
@@ -133,13 +133,15 @@ func (s *Store) UpdateJob(job *Job) error {
 			next_run_seq = ?,
 			run_count = ?,
 			success_count = ?,
-			total_duration_ms = ?,
+			failure_count = ?,
+			success_total_duration_ms = ?,
+			failure_total_duration_ms = ?,
 			min_duration_ms = ?,
 			max_duration_ms = ?,
 			description = ?
 		WHERE id = ?
-	`, job.NextRunSeq, job.RunCount, job.SuccessCount,
-		job.TotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs),
+	`, job.NextRunSeq, job.RunCount, job.SuccessCount, job.FailureCount,
+		job.SuccessTotalDurationMs, job.FailureTotalDurationMs, nullableInt64(job.MinDurationMs), nullableInt64(job.MaxDurationMs),
 		nullableString(job.Description), job.ID)
 	return err
 }
@@ -179,7 +181,7 @@ func (s *Store) UpdateRun(run *Run) error {
 func (s *Store) LoadJobs() ([]*Job, error) {
 	rows, err := s.db.Query(`
 		SELECT id, command_json, command_signature, workdir, description, next_run_seq, created_at,
-			run_count, success_count, total_duration_ms, min_duration_ms, max_duration_ms
+			run_count, success_count, failure_count, success_total_duration_ms, failure_total_duration_ms, min_duration_ms, max_duration_ms
 		FROM jobs
 	`)
 	if err != nil {
@@ -190,22 +192,24 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 	var jobs []*Job
 	for rows.Next() {
 		var (
-			id               string
-			commandJSON      string
-			commandSignature string
-			workdir          string
-			description      sql.NullString
-			nextRunSeq       int
-			createdAtStr     string
-			runCount         int
-			successCount     int
-			totalDurationMs  int64
-			minDurationMs    sql.NullInt64
-			maxDurationMs    sql.NullInt64
+			id                     string
+			commandJSON            string
+			commandSignature       string
+			workdir                string
+			description            sql.NullString
+			nextRunSeq             int
+			createdAtStr           string
+			runCount               int
+			successCount           int
+			failureCount           int
+			successTotalDurationMs int64
+			failureTotalDurationMs int64
+			minDurationMs          sql.NullInt64
+			maxDurationMs          sql.NullInt64
 		)
 
 		if err := rows.Scan(&id, &commandJSON, &commandSignature, &workdir, &description, &nextRunSeq, &createdAtStr,
-			&runCount, &successCount, &totalDurationMs, &minDurationMs, &maxDurationMs); err != nil {
+			&runCount, &successCount, &failureCount, &successTotalDurationMs, &failureTotalDurationMs, &minDurationMs, &maxDurationMs); err != nil {
 			return nil, err
 		}
 
@@ -220,18 +224,20 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 		}
 
 		job := &Job{
-			ID:               id,
-			Command:          command,
-			CommandSignature: commandSignature,
-			Workdir:          workdir,
-			Description:      description.String, // Empty if NULL
-			NextRunSeq:       nextRunSeq,
-			CreatedAt:        createdAt,
-			RunCount:         runCount,
-			SuccessCount:     successCount,
-			TotalDurationMs:  totalDurationMs,
-			MinDurationMs:    minDurationMs.Int64,
-			MaxDurationMs:    maxDurationMs.Int64,
+			ID:                     id,
+			Command:                command,
+			CommandSignature:       commandSignature,
+			Workdir:                workdir,
+			Description:            description.String, // Empty if NULL
+			NextRunSeq:             nextRunSeq,
+			CreatedAt:              createdAt,
+			RunCount:               runCount,
+			SuccessCount:           successCount,
+			FailureCount:           failureCount,
+			SuccessTotalDurationMs: successTotalDurationMs,
+			FailureTotalDurationMs: failureTotalDurationMs,
+			MinDurationMs:          minDurationMs.Int64,
+			MaxDurationMs:          maxDurationMs.Int64,
 		}
 		jobs = append(jobs, job)
 	}

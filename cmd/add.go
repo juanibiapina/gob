@@ -135,8 +135,14 @@ Exit codes:
 			if result.Stats != nil && result.Stats.RunCount > 0 {
 				fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
 					result.Stats.RunCount, result.Stats.SuccessRate)
-				fmt.Printf("  Expected duration: ~%s\n",
-					formatDuration(time.Duration(result.Stats.AvgDurationMs)*time.Millisecond))
+				if result.Stats.SuccessCount >= 3 {
+					fmt.Printf("  Expected duration if success: ~%s\n",
+						formatDuration(time.Duration(result.Stats.AvgDurationMs)*time.Millisecond))
+				}
+				if result.Stats.FailureCount >= 3 {
+					fmt.Printf("  Expected duration if failure: ~%s\n",
+						formatDuration(time.Duration(result.Stats.FailureAvgDurationMs)*time.Millisecond))
+				}
 			}
 
 			fmt.Printf("  gob await %s   # wait for completion with live output\n", result.Job.ID)

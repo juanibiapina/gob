@@ -122,15 +122,16 @@ type RunResponse struct {
 
 // StatsResponse represents job statistics in API responses
 type StatsResponse struct {
-	JobID           string   `json:"job_id"`
-	Command         []string `json:"command"`
-	RunCount        int      `json:"run_count"`
-	SuccessCount    int      `json:"success_count"`
-	SuccessRate     float64  `json:"success_rate"`
-	TotalDurationMs int64    `json:"total_duration_ms"`
-	AvgDurationMs   int64    `json:"avg_duration_ms"`
-	MinDurationMs   int64    `json:"min_duration_ms"`
-	MaxDurationMs   int64    `json:"max_duration_ms"`
+	JobID                string   `json:"job_id"`
+	Command              []string `json:"command"`
+	RunCount             int      `json:"run_count"`
+	SuccessCount         int      `json:"success_count"`
+	FailureCount         int      `json:"failure_count"`
+	SuccessRate          float64  `json:"success_rate"`
+	AvgDurationMs        int64    `json:"avg_duration_ms"`         // Average of successful runs
+	FailureAvgDurationMs int64    `json:"failure_avg_duration_ms"` // Average of failed runs
+	MinDurationMs        int64    `json:"min_duration_ms"`
+	MaxDurationMs        int64    `json:"max_duration_ms"`
 }
 
 // AddResponse represents the response from adding a job

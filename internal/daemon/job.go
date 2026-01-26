@@ -26,11 +26,13 @@ type Job struct {
 	CreatedAt        time.Time `json:"created_at"`
 
 	// Cached statistics (updated on run completion)
-	RunCount        int   `json:"run_count"`
-	SuccessCount    int   `json:"success_count"`
-	TotalDurationMs int64 `json:"total_duration_ms"`
-	MinDurationMs   int64 `json:"min_duration_ms"`
-	MaxDurationMs   int64 `json:"max_duration_ms"`
+	RunCount               int   `json:"run_count"`
+	SuccessCount           int   `json:"success_count"`
+	FailureCount           int   `json:"failure_count"`
+	SuccessTotalDurationMs int64 `json:"success_total_duration_ms"`
+	FailureTotalDurationMs int64 `json:"failure_total_duration_ms"`
+	MinDurationMs          int64 `json:"min_duration_ms"`
+	MaxDurationMs          int64 `json:"max_duration_ms"`
 }
 
 // IsRunning checks if the job has a currently running process
@@ -46,12 +48,20 @@ func (j *Job) Status() string {
 	return "stopped"
 }
 
-// AverageDurationMs returns the average duration in milliseconds, or 0 if no runs
+// AverageDurationMs returns the average duration of successful runs in milliseconds, or 0 if no successes
 func (j *Job) AverageDurationMs() int64 {
-	if j.RunCount == 0 {
+	if j.SuccessCount == 0 {
 		return 0
 	}
-	return j.TotalDurationMs / int64(j.RunCount)
+	return j.SuccessTotalDurationMs / int64(j.SuccessCount)
+}
+
+// FailureAverageDurationMs returns the average duration of failed runs in milliseconds, or 0 if no failures
+func (j *Job) FailureAverageDurationMs() int64 {
+	if j.FailureCount == 0 {
+		return 0
+	}
+	return j.FailureTotalDurationMs / int64(j.FailureCount)
 }
 
 // SuccessRate returns the success rate as a percentage (0-100)
@@ -599,11 +609,15 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 	// Update job statistics
 	durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
 	job.RunCount++
-	job.TotalDurationMs += durationMs
 
 	if run.ExitCode != nil && *run.ExitCode == 0 {
 		job.SuccessCount++
+		job.SuccessTotalDurationMs += durationMs
+	} else if run.ExitCode != nil {
+		job.FailureCount++
+		job.FailureTotalDurationMs += durationMs
 	}
+	// Killed processes (ExitCode == nil) only increment RunCount
 
 	if job.RunCount == 1 {
 		job.MinDurationMs = durationMs
@@ -1212,14 +1226,15 @@ func runToResponse(run *Run) RunResponse {
 // jobToStats converts a Job to StatsResponse
 func jobToStats(job *Job) StatsResponse {
 	return StatsResponse{
-		JobID:           job.ID,
-		Command:         job.Command,
-		RunCount:        job.RunCount,
-		SuccessCount:    job.SuccessCount,
-		SuccessRate:     job.SuccessRate(),
-		TotalDurationMs: job.TotalDurationMs,
-		AvgDurationMs:   job.AverageDurationMs(),
-		MinDurationMs:   job.MinDurationMs,
-		MaxDurationMs:   job.MaxDurationMs,
+		JobID:                job.ID,
+		Command:              job.Command,
+		RunCount:             job.RunCount,
+		SuccessCount:         job.SuccessCount,
+		FailureCount:         job.FailureCount,
+		SuccessRate:          job.SuccessRate(),
+		AvgDurationMs:        job.AverageDurationMs(),
+		FailureAvgDurationMs: job.FailureAverageDurationMs(),
+		MinDurationMs:        job.MinDurationMs,
+		MaxDurationMs:        job.MaxDurationMs,
 	}
 }
