@@ -1379,8 +1379,13 @@ func (m Model) renderPanels() string {
 	}
 	jobsH := leftH - portsH - runsH
 
-	// Right side: Stdout (80%) + Stderr (20%)
-	stderrH := totalH * 20 / 100
+	// Right side: Stdout/Stderr split - stderr expands when focused
+	var stderrH int
+	if m.activePanel == panelStderr {
+		stderrH = totalH * 80 / 100
+	} else {
+		stderrH = totalH * 20 / 100
+	}
 	if stderrH < 4 {
 		stderrH = 4
 	}
