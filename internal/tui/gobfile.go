@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -71,7 +72,11 @@ func StartGobfileJobs(cwd string, config *GobfileConfig, env []string) error {
 		return err
 	}
 	if err := client.Connect(); err != nil {
-		log.Printf("gobfile: failed to connect: %v", err)
+		// Silent on version mismatch - TUI will handle it
+		var versionErr *daemon.ErrVersionMismatch
+		if !errors.As(err, &versionErr) {
+			log.Printf("gobfile: failed to connect: %v", err)
+		}
 		return err
 	}
 	defer client.Close()
@@ -119,7 +124,11 @@ func StopGobfileJobs(cwd string, config *GobfileConfig) error {
 		return err
 	}
 	if err := client.Connect(); err != nil {
-		log.Printf("gobfile: failed to connect: %v", err)
+		// Silent on version mismatch - TUI will handle it
+		var versionErr *daemon.ErrVersionMismatch
+		if !errors.As(err, &versionErr) {
+			log.Printf("gobfile: failed to connect: %v", err)
+		}
 		return err
 	}
 	defer client.Close()
