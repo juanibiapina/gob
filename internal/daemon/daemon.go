@@ -803,7 +803,6 @@ func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Enco
 	// We detect this by trying to read (which will block until close or error)
 	buf := make([]byte, 1)
 	for {
-		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		_, err := conn.Read(buf)
 		if err != nil {
 			// Connection closed or error
