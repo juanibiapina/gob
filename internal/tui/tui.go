@@ -670,6 +670,19 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			}
 		}
 
+	case daemon.EventTypeRunRemoved:
+		// Remove run from the runs list if it's for the selected job
+		if event.Run != nil && event.JobID == m.runsForJobID {
+			for i := range m.runs {
+				if m.runs[i].ID == event.Run.ID {
+					m.runs = append(m.runs[:i], m.runs[i+1:]...)
+					// Adjust cursor if needed
+					m.runScroll.ClampToCount(len(m.runs))
+					break
+				}
+			}
+		}
+
 	case daemon.EventTypePortsUpdated:
 		// Update ports for a specific job
 		for i := range m.jobs {
@@ -1075,6 +1088,12 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.stderrView.SetContent(m.formatStderr())
 		m.stdoutView.SetXOffset(0)
 		m.stderrView.SetXOffset(0)
+
+	case "d":
+		if len(m.runs) > 0 && m.runs[m.runScroll.Cursor].Status != "running" {
+			telemetry.TUIActionExecute("remove_run")
+			return m, m.removeRun(m.runs[m.runScroll.Cursor].ID)
+		}
 	}
 
 	return m, nil
@@ -1219,6 +1238,29 @@ func (m Model) removeJob(jobID string) tea.Cmd {
 
 		return actionResultMsg{
 			message: fmt.Sprintf("Removed %s", jobID),
+			isError: false,
+		}
+	}
+}
+
+func (m Model) removeRun(runID string) tea.Cmd {
+	return func() tea.Msg {
+		client, err := connectClient()
+		if err != nil {
+			if msg := checkVersionMismatch(err); msg != nil {
+				return msg
+			}
+			return actionResultMsg{message: fmt.Sprintf("Failed to connect: %v", err), isError: true}
+		}
+		defer client.Close()
+
+		err = client.RemoveRun(runID)
+		if err != nil {
+			return actionResultMsg{message: fmt.Sprintf("Failed to remove run: %v", err), isError: true}
+		}
+
+		return actionResultMsg{
+			message: fmt.Sprintf("Removed run %s", runID),
 			isError: false,
 		}
 	}

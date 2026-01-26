@@ -385,6 +385,23 @@ func (c *Client) Remove(jobID string) (int, error) {
 	return int(pid), nil
 }
 
+// RemoveRun removes a stopped run and its log files
+func (c *Client) RemoveRun(runID string) error {
+	req := NewRequest(RequestTypeRemoveRun)
+	req.Payload["run_id"] = runID
+
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+
+	return nil
+}
+
 // StopAll stops all running jobs
 func (c *Client) StopAll() (stopped int, err error) {
 	req := NewRequest(RequestTypeStopAll)

@@ -1004,6 +1004,112 @@ func (jm *JobManager) RemoveJob(jobID string) error {
 	return nil
 }
 
+// RemoveRun removes a stopped run and its log files
+func (jm *JobManager) RemoveRun(runID string) error {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+
+	run, ok := jm.runs[runID]
+	if !ok {
+		return fmt.Errorf("run not found: %s", runID)
+	}
+
+	// Check if run is currently running
+	if run.Status == "running" {
+		return fmt.Errorf("cannot remove running run: %s (stop the job first)", runID)
+	}
+
+	// Get the job for stats update
+	job, jobExists := jm.jobs[run.JobID]
+
+	// Capture run info for event before deletion
+	runResp := runToResponse(run)
+
+	// Update job statistics if job exists
+	if jobExists && run.StoppedAt != nil {
+		durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
+
+		// Decrement counts
+		job.RunCount--
+		if run.ExitCode != nil && *run.ExitCode == 0 {
+			job.SuccessCount--
+			job.SuccessTotalDurationMs -= durationMs
+		} else if run.ExitCode != nil {
+			job.FailureCount--
+			job.FailureTotalDurationMs -= durationMs
+		}
+		// Killed processes (ExitCode == nil) only affect RunCount
+
+		// Recalculate min/max duration from remaining runs
+		jm.recalculateMinMaxDuration(job)
+	}
+
+	// Delete log files
+	os.Remove(run.StdoutPath)
+	os.Remove(run.StderrPath)
+
+	// Remove from in-memory map
+	delete(jm.runs, runID)
+
+	// Delete from database and update job stats
+	if jm.store != nil {
+		if err := jm.store.DeleteRun(runID); err != nil {
+			Logger.Warn("failed to delete run from database", "id", runID, "error", err)
+		}
+		if jobExists {
+			if err := jm.store.UpdateJob(job); err != nil {
+				Logger.Warn("failed to update job stats", "id", job.ID, "error", err)
+			}
+		}
+	}
+
+	// Emit removed event with updated stats
+	var jobResp JobResponse
+	var stats *StatsResponse
+	if jobExists {
+		jobResp = jm.jobToResponse(job)
+		s := jobToStats(job)
+		stats = &s
+	}
+	jm.emitEvent(Event{
+		Type:            EventTypeRunRemoved,
+		JobID:           run.JobID,
+		Job:             jobResp,
+		Run:             &runResp,
+		Stats:           stats,
+		JobCount:        len(jm.jobs),
+		RunningJobCount: jm.countRunningJobsLocked(),
+	})
+
+	return nil
+}
+
+// recalculateMinMaxDuration recalculates min/max duration from all stopped runs for a job
+func (jm *JobManager) recalculateMinMaxDuration(job *Job) {
+	job.MinDurationMs = 0
+	job.MaxDurationMs = 0
+
+	first := true
+	for _, run := range jm.runs {
+		if run.JobID != job.ID || run.StoppedAt == nil {
+			continue
+		}
+		durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
+		if first {
+			job.MinDurationMs = durationMs
+			job.MaxDurationMs = durationMs
+			first = false
+		} else {
+			if durationMs < job.MinDurationMs {
+				job.MinDurationMs = durationMs
+			}
+			if durationMs > job.MaxDurationMs {
+				job.MaxDurationMs = durationMs
+			}
+		}
+	}
+}
+
 // StopAll stops all running jobs and their process trees
 func (jm *JobManager) StopAll() (stopped int) {
 	jm.mu.Lock()

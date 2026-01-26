@@ -356,6 +356,8 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleStats(req)
 	case RequestTypePorts:
 		return d.handlePorts(req)
+	case RequestTypeRemoveRun:
+		return d.handleRemoveRun(req)
 	default:
 		return NewErrorResponse(fmt.Errorf("unknown request type: %s", req.Type))
 	}
@@ -616,6 +618,22 @@ func (d *Daemon) handleRemove(req *Request) *Response {
 	resp := NewSuccessResponse()
 	resp.Data["job_id"] = jobID
 	resp.Data["pid"] = pid
+	return resp
+}
+
+// handleRemoveRun handles a remove_run request
+func (d *Daemon) handleRemoveRun(req *Request) *Response {
+	runID, ok := req.Payload["run_id"].(string)
+	if !ok {
+		return NewErrorResponse(fmt.Errorf("missing run_id"))
+	}
+
+	if err := d.jobManager.RemoveRun(runID); err != nil {
+		return NewErrorResponse(err)
+	}
+
+	resp := NewSuccessResponse()
+	resp.Data["run_id"] = runID
 	return resp
 }
 

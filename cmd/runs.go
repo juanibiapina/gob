@@ -34,6 +34,9 @@ Example output:
   abc-4  1 hour ago  2m15s     ✓ (0)
   abc-3  2 hours ago 2m45s     ✗ (1)
 
+Subcommands:
+  runs delete <run_id>  Delete a stopped run and its log files
+
 Exit codes:
   0: Success
   1: Error (job not found)`,
@@ -106,6 +109,46 @@ Exit codes:
 	},
 }
 
+var runsDeleteCmd = &cobra.Command{
+	Use:   "delete <run_id>",
+	Short: "Delete a stopped run and its log files",
+	Long: `Delete a stopped run and its associated log files.
+
+The run must be stopped (not currently running). To delete a running run,
+first stop the job with 'gob stop <job_id>'.
+
+Examples:
+  gob runs delete abc-1
+  gob runs delete myserver-5
+
+Exit codes:
+  0: Success
+  1: Error (run not found, run still running)`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		runID := args[0]
+
+		// Connect to daemon
+		client, err := daemon.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		defer client.Close()
+
+		if err := client.Connect(); err != nil {
+			return fmt.Errorf("failed to connect to daemon: %w", err)
+		}
+
+		// Delete the run
+		if err := client.RemoveRun(runID); err != nil {
+			return err
+		}
+
+		fmt.Printf("Deleted run %s\n", runID)
+		return nil
+	},
+}
+
 // formatRelativeTime formats a time as a human-readable relative string
 func formatRelativeTime(t time.Time) string {
 	d := time.Since(t)
@@ -136,4 +179,5 @@ func formatRelativeTime(t time.Time) string {
 func init() {
 	RootCmd.AddCommand(runsCmd)
 	runsCmd.Flags().BoolVar(&runsJSON, "json", false, "Output in JSON format")
+	runsCmd.AddCommand(runsDeleteCmd)
 }

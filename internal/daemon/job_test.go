@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -507,6 +508,156 @@ func TestJobManager_RemoveJob_RunningFails(t *testing.T) {
 	err := jm.RemoveJob(job.ID)
 	if err == nil {
 		t.Error("expected error when removing running job")
+	}
+}
+
+func TestJobManager_RemoveRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+
+	var events []Event
+	onEvent := func(e Event) { events = append(events, e) }
+
+	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
+
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+
+	// Get the run ID
+	runs, err := jm.ListRunsForJob(job.ID)
+	if err != nil {
+		t.Fatalf("ListRunsForJob failed: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runs))
+	}
+	runID := runs[0].ID
+
+	// Stop the fake process first
+	executor.LastHandle().Stop()
+
+	// Give the waitForProcessExit goroutine time to run
+	time.Sleep(10 * time.Millisecond)
+
+	events = nil // Clear events
+
+	// Remove run
+	err = jm.RemoveRun(runID)
+	if err != nil {
+		t.Fatalf("RemoveRun failed: %v", err)
+	}
+
+	// Verify run is removed
+	runs, err = jm.ListRunsForJob(job.ID)
+	if err != nil {
+		t.Fatalf("ListRunsForJob failed: %v", err)
+	}
+	if len(runs) != 0 {
+		t.Errorf("expected 0 runs after removal, got %d", len(runs))
+	}
+
+	// Verify event
+	if len(events) != 1 || events[0].Type != EventTypeRunRemoved {
+		t.Errorf("expected run_removed event, got %v", events)
+	}
+	if events[0].Run == nil || events[0].Run.ID != runID {
+		t.Error("event should contain the removed run")
+	}
+}
+
+func TestJobManager_RemoveRun_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	err := jm.RemoveRun("nonexistent-1")
+	if err == nil {
+		t.Error("expected error when removing nonexistent run")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestJobManager_RemoveRun_RunningFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+
+	// Get the run ID while it's still running
+	runs, err := jm.ListRunsForJob(job.ID)
+	if err != nil {
+		t.Fatalf("ListRunsForJob failed: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runs))
+	}
+	runID := runs[0].ID
+
+	// Process is still "running" (not stopped in fake)
+	err = jm.RemoveRun(runID)
+	if err == nil {
+		t.Error("expected error when removing running run")
+	}
+	if !strings.Contains(err.Error(), "cannot remove running run") {
+		t.Errorf("expected 'cannot remove running run' error, got: %v", err)
+	}
+}
+
+func TestJobManager_RemoveRun_UpdatesStats(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+
+	var events []Event
+	onEvent := func(e Event) { events = append(events, e) }
+
+	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
+
+	// Add a job and let the first run complete
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Restart to create a second run
+	jm.RestartJob(job.ID, nil)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify we have 2 runs and stats show 2 runs
+	runs, _ := jm.ListRunsForJob(job.ID)
+	if len(runs) != 2 {
+		t.Fatalf("expected 2 runs, got %d", len(runs))
+	}
+
+	jobAfterRuns, _ := jm.GetJob(job.ID)
+	if jobAfterRuns.RunCount != 2 {
+		t.Errorf("expected RunCount=2, got %d", jobAfterRuns.RunCount)
+	}
+
+	events = nil // Clear events
+
+	// Remove one run
+	err := jm.RemoveRun(runs[0].ID)
+	if err != nil {
+		t.Fatalf("RemoveRun failed: %v", err)
+	}
+
+	// Verify stats are updated
+	jobAfterRemoval, _ := jm.GetJob(job.ID)
+	if jobAfterRemoval.RunCount != 1 {
+		t.Errorf("expected RunCount=1 after removal, got %d", jobAfterRemoval.RunCount)
+	}
+
+	// Verify event includes updated stats
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Stats == nil {
+		t.Error("expected stats in event")
+	}
+	if events[0].Stats != nil && events[0].Stats.RunCount != 1 {
+		t.Errorf("expected event stats RunCount=1, got %d", events[0].Stats.RunCount)
 	}
 }
 

@@ -48,6 +48,7 @@ const (
 	RequestTypeSubscribe RequestType = "subscribe"
 	RequestTypeVersion   RequestType = "version"
 	RequestTypePorts     RequestType = "ports"
+	RequestTypeRemoveRun RequestType = "remove_run"
 )
 
 // EventType represents the type of event emitted by the daemon
@@ -61,6 +62,7 @@ const (
 	EventTypeJobUpdated   EventType = "job_updated"
 	EventTypeRunStarted   EventType = "run_started"
 	EventTypeRunStopped   EventType = "run_stopped"
+	EventTypeRunRemoved   EventType = "run_removed"
 	EventTypePortsUpdated EventType = "ports_updated"
 )
 

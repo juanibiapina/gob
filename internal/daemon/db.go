@@ -177,6 +177,12 @@ func (s *Store) UpdateRun(run *Run) error {
 	return err
 }
 
+// DeleteRun removes a run from the database
+func (s *Store) DeleteRun(runID string) error {
+	_, err := s.db.Exec("DELETE FROM runs WHERE id = ?", runID)
+	return err
+}
+
 // LoadJobs loads all jobs from the database
 func (s *Store) LoadJobs() ([]*Job, error) {
 	rows, err := s.db.Query(`

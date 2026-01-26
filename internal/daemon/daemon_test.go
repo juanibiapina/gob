@@ -464,3 +464,109 @@ func TestDaemon_handlePorts_AllJobs(t *testing.T) {
 		t.Error("expected ports in response")
 	}
 }
+
+func TestDaemon_handleRemoveRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job (which creates a run)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+
+	// Get the run ID
+	runs, _ := jm.ListRunsForJob(job.ID)
+	runID := runs[0].ID
+
+	// Stop the process first
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeRemoveRun,
+		Payload: map[string]interface{}{
+			"run_id": runID,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	if resp.Data["run_id"] != runID {
+		t.Errorf("expected run_id %s in response, got %v", runID, resp.Data["run_id"])
+	}
+
+	// Verify run is actually removed
+	runs, _ = jm.ListRunsForJob(job.ID)
+	if len(runs) != 0 {
+		t.Errorf("expected 0 runs after removal, got %d", len(runs))
+	}
+}
+
+func TestDaemon_handleRemoveRun_MissingRunID(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type:    RequestTypeRemoveRun,
+		Payload: map[string]interface{}{},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error for missing run_id")
+	}
+}
+
+func TestDaemon_handleRemoveRun_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeRemoveRun,
+		Payload: map[string]interface{}{
+			"run_id": "nonexistent-1",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error for nonexistent run")
+	}
+}
+
+func TestDaemon_handleRemoveRun_Running(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job (which creates a running run)
+	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", nil)
+
+	// Get the run ID while it's still running
+	runs, _ := jm.ListRunsForJob(job.ID)
+	runID := runs[0].ID
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeRemoveRun,
+		Payload: map[string]interface{}{
+			"run_id": runID,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if resp.Success {
+		t.Error("expected error for running run")
+	}
+}

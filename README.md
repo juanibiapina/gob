@@ -261,7 +261,7 @@ The TUI has an info bar and five panels:
 | `w` | Toggle line wrap |
 | `s/S` | Stop / kill job |
 | `r` | Restart job |
-| `d` | Delete stopped job |
+| `d` | Delete stopped job/run |
 | `n` | New job |
 | `1/2/3/4/5` | Switch to panel |
 | `?` | Show all shortcuts |
@@ -313,6 +313,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `await-all` | Wait for all jobs to complete (`--timeout`) |
 | `list` | List jobs (`--all` for all directories) |
 | `runs <id>` | Show run history for a job |
+| `runs delete <run_id>` | Delete a stopped run and its logs |
 | `stats <id>` | Show statistics for a job |
 | `stdout <id>` | View stdout (`--follow` for real-time) |
 | `stderr <id>` | View stderr (`--follow` for real-time) |
