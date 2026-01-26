@@ -22,13 +22,13 @@ type GobfileConfig struct {
 type GobfileJob struct {
 	Command     string `toml:"command"`
 	Description string `toml:"description"`
-	Autostart   *bool  `toml:"autostart"` // nil defaults to true
+	Autostart   *bool  `toml:"autostart"` // nil defaults to false
 }
 
-// ShouldAutostart returns whether the job should be auto-started (defaults to true)
+// ShouldAutostart returns whether the job should be auto-started (defaults to false)
 func (j GobfileJob) ShouldAutostart() bool {
 	if j.Autostart == nil {
-		return true
+		return false
 	}
 	return *j.Autostart
 }

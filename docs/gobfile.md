@@ -12,15 +12,16 @@ A gobfile is a TOML configuration file that defines jobs for your project. When 
 [[job]]
 command = "npm run dev"
 description = "Development server for the frontend app"
+autostart = true  # Start when TUI opens, stop when TUI exits
 
 [[job]]
 command = "npm run build:watch"
 description = "Watches TypeScript and rebuilds on change"
-autostart = false
+# autostart defaults to false - start manually, keeps running after TUI exits
 
 [[job]]
 command = "docker compose up db"
-# description and autostart are optional
+# description is optional, autostart defaults to false
 ```
 
 ## Fields
@@ -29,7 +30,7 @@ command = "docker compose up db"
 |-------|------|----------|---------|-------------|
 | `command` | string | Yes | - | The command to run |
 | `description` | string | No | - | Context about the job, shown in TUI and CLI |
-| `autostart` | boolean | No | `true` | Whether to auto-start when TUI opens and auto-stop when TUI exits |
+| `autostart` | boolean | No | `false` | Whether to auto-start when TUI opens and auto-stop when TUI exits |
 
 ## Behavior
 
@@ -38,14 +39,13 @@ command = "docker compose up db"
 1. Gobfile is parsed from `.config/gobfile.toml`
 2. For each job in the file:
    - If a job with the same command exists and is running: update description if different
-   - If a job with the same command exists and is stopped: restart it (if `autostart = true`)
-   - If no matching job exists: create and start it (if `autostart = true`)
-   - If `autostart = false`: create but don't start (shows as stopped)
+   - If `autostart = true`: create and start the job (or restart if stopped)
+   - If `autostart = false` (the default): create but don't start (shows as stopped)
 3. Jobs are started asynchronously (TUI doesn't wait for them)
 
 ### When TUI Exits
 
-Jobs with `autostart = true` (the default) are stopped when the TUI exits:
+Jobs with `autostart = true` are stopped when the TUI exits:
 - Normal exit (pressing `q`)
 - Terminal close
 - SIGTERM/SIGINT signals
@@ -69,14 +69,17 @@ Define all services needed for local development:
 [[job]]
 command = "npm run dev"
 description = "Next.js dev server on port 3000"
+autostart = true
 
 [[job]]
 command = "npm run api:dev"
 description = "API server on port 4000"
+autostart = true
 
 [[job]]
 command = "docker compose up postgres redis"
 description = "Database and cache services"
+autostart = true
 ```
 
 ### Build Watchers
@@ -87,11 +90,12 @@ Add watchers that rebuild on file changes:
 [[job]]
 command = "npm run typecheck:watch"
 description = "TypeScript type checking in watch mode"
+autostart = true  # Always run type checking
 
 [[job]]
 command = "npm run test:watch"
 description = "Jest tests in watch mode"
-autostart = false  # Start manually, keeps running after TUI exits
+# autostart defaults to false - start manually when needed
 ```
 
 ### AI Agent Context
@@ -102,15 +106,17 @@ Descriptions help AI agents understand what each job does:
 [[job]]
 command = "npm run dev"
 description = "Frontend dev server. Check this for UI errors. Runs on http://localhost:3000"
+autostart = true
 
 [[job]]
 command = "npm run api"
 description = "Backend API. Check logs here for request/response debugging"
+autostart = true
 
 [[job]]
 command = "npm run storybook"
 description = "Component library browser. Use for visual component testing"
-autostart = false
+# autostart defaults to false - start manually when needed
 ```
 
 When an AI agent runs `gob list`, it sees the descriptions and understands the purpose of each job.
@@ -155,14 +161,15 @@ echo ".config/gobfile.toml" >> .gitignore
 
 ### Jobs not starting
 
-1. Check the file location: must be `.config/gobfile.toml` (not project root)
-2. Verify TOML syntax: use a TOML validator
-3. Check daemon logs: `$XDG_STATE_HOME/gob/daemon.log`
+1. Check `autostart = true` is set - jobs default to `autostart = false` (not auto-started)
+2. Check the file location: must be `.config/gobfile.toml` (not project root)
+3. Verify TOML syntax: use a TOML validator
+4. Check daemon logs: `$XDG_STATE_HOME/gob/daemon.log`
 
 ### Jobs restarting unexpectedly
 
 Jobs are restarted if they were stopped and match a gobfile entry with `autostart = true`. To prevent this, either:
-- Set `autostart = false` for jobs you want to control manually
+- Remove `autostart = true` (jobs default to not auto-starting)
 - Remove the job from the gobfile
 
 ### Description not showing

@@ -17,12 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Version negotiation no longer auto-restarts daemon**: When client and daemon versions mismatch, the client now returns an error instead of auto-restarting the daemon. This prevents old TUIs from restarting the daemon with their old binary, undoing upgrades. Users must now run `gob shutdown` and restart their clients when upgrading.
 - **TUI quits on daemon disconnect**: The TUI no longer attempts to reconnect when the daemon stops. Instead, it quits with a message asking the user to restart. This complements the version negotiation change by preventing old TUIs from resurrecting the daemon.
 - **Daemon no longer auto-shuts down when idle**: The daemon now runs indefinitely until explicitly stopped with `gob shutdown`.
+- **BREAKING: Gobfile `autostart` now defaults to `false`**: Jobs in the gobfile no longer auto-start by default. Add `autostart = true` to jobs that should start when the TUI opens and stop when it exits. Jobs without `autostart` (or with `autostart = false`) are created but not started, giving you manual control over their lifecycle.
 
 ### Fixed
 
 - **Runs panel column misalignment**: Fixed status column padding using byte length instead of visual width, causing misaligned columns when Unicode status icons (✓, ◉, ◼) were displayed.
 - **Gobfile descriptions not displayed**: Fixed job descriptions from gobfile not appearing in TUI when job already existed without a description.
-- **Gobfile auto-stop killing manually started jobs**: Jobs with `autostart = false` in the gobfile are no longer stopped when the TUI exits. Previously, if you defined a job with `autostart = false` and manually started it, it would be killed on TUI exit. Now only jobs with `autostart = true` (the default) are auto-stopped.
+- **Gobfile auto-stop killing manually started jobs**: Jobs with `autostart = false` in the gobfile are no longer stopped when the TUI exits. Previously, if you defined a job with `autostart = false` and manually started it, it would be killed on TUI exit. Now only jobs with `autostart = true` are auto-stopped.
 
 ## [3.0.0-rc.2] - 2026-01-25
 
