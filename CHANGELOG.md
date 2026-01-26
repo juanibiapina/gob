@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Stuck job detection**: `gob run` and `gob await` now detect potentially stuck jobs and return early
+  - Timeout: average successful duration + 1 minute (or 5 minutes if no historical data)
+  - Triggers when: elapsed time exceeds timeout AND no output for 1 minute
+  - Displays stuck detection timeout when starting a job (e.g., "Stuck detection: timeout after 5m")
+  - When triggered, shows helpful commands: `gob stdout`, `gob await`, `gob stop`
+  - Job continues running in background - only the wait is aborted
+  - Also applies to `gob start -f` and `gob restart -f`
+
 ### Changed
 
 - **Stats by outcome**: `gob run` and `gob add` now show separate expected durations for successful and failed runs

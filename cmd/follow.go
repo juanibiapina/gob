@@ -12,10 +12,22 @@ import (
 	"github.com/juanibiapina/gob/internal/tail"
 )
 
-// followJob follows a job's output until it completes or is interrupted
-// Returns true if job completed, false if interrupted
+// DefaultStuckTimeoutMs is the timeout when no historical data (5 minutes)
+const DefaultStuckTimeoutMs int64 = 5 * 60 * 1000
+
+// NoOutputWindowMs is the constant "no output" window (1 minute)
+const NoOutputWindowMs int64 = 60 * 1000
+
+// FollowResult represents the result of following a job
+type FollowResult struct {
+	Completed     bool // job finished running
+	PossiblyStuck bool // job may be stuck (timed out without output)
+}
+
+// followJob follows a job's output until it completes, is interrupted, or is detected as possibly stuck
+// avgDurationMs is the average duration of successful runs (0 if no history)
 // stdoutPath is the full path to the stdout log file
-func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
+func followJob(jobID string, pid int, stdoutPath string, avgDurationMs int64) (FollowResult, error) {
 	// Derive stderr path from stdout path
 	stderrPath := strings.Replace(stdoutPath, ".stdout.log", ".stderr.log", 1)
 
@@ -31,11 +43,25 @@ func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
 
 	// Check if log files exist
 	if _, err := os.Stat(stdoutPath); os.IsNotExist(err) {
-		return false, fmt.Errorf("stdout log file not found: %s", stdoutPath)
+		return FollowResult{}, fmt.Errorf("stdout log file not found: %s", stdoutPath)
 	}
 	if _, err := os.Stat(stderrPath); os.IsNotExist(err) {
-		return false, fmt.Errorf("stderr log file not found: %s", stderrPath)
+		return FollowResult{}, fmt.Errorf("stderr log file not found: %s", stderrPath)
 	}
+
+	// Calculate stuck detection threshold
+	// No data: 5 minutes
+	// Has data: avg + 1 minute
+	// Trigger: elapsed > threshold AND no output for 1 minute
+	var stuckTimeoutMs int64
+	if avgDurationMs == 0 {
+		stuckTimeoutMs = DefaultStuckTimeoutMs
+	} else {
+		stuckTimeoutMs = avgDurationMs + NoOutputWindowMs
+	}
+
+	stuckTimeout := time.Duration(stuckTimeoutMs) * time.Millisecond
+	noOutputWindow := time.Duration(NoOutputWindowMs) * time.Millisecond
 
 	// Create follower
 	follower := tail.NewFollower(os.Stdout)
@@ -52,9 +78,10 @@ func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	// Track completion status
-	completed := false
+	result := FollowResult{}
+	startTime := time.Now()
 
-	// Monitor for process completion or signal
+	// Monitor for process completion, signal, or stuck condition
 	done := make(chan struct{})
 	go func() {
 		for {
@@ -62,13 +89,26 @@ func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
 			case <-done:
 				return
 			default:
+				// Check if process completed
 				if !process.IsProcessRunning(pid) {
 					// Give a moment for any final output to be written
 					time.Sleep(200 * time.Millisecond)
-					completed = true
+					result.Completed = true
 					follower.Stop()
 					return
 				}
+
+				// Check for stuck condition
+				// Trigger: elapsed > timeout AND no output for 1 minute
+				elapsed := time.Since(startTime)
+				timeSinceOutput := time.Since(follower.LastOutputTime())
+
+				if elapsed > stuckTimeout && timeSinceOutput > noOutputWindow {
+					result.PossiblyStuck = true
+					follower.Stop()
+					return
+				}
+
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
@@ -83,5 +123,15 @@ func followJob(jobID string, pid int, stdoutPath string) (bool, error) {
 
 	follower.Wait()
 
-	return completed, nil
+	return result, nil
+}
+
+// CalculateStuckTimeout returns the stuck detection timeout based on average duration
+// No data: 5 minutes
+// Has data: avg + 1 minute
+func CalculateStuckTimeout(avgDurationMs int64) time.Duration {
+	if avgDurationMs == 0 {
+		return time.Duration(DefaultStuckTimeoutMs) * time.Millisecond
+	}
+	return time.Duration(avgDurationMs+NoOutputWindowMs) * time.Millisecond
 }

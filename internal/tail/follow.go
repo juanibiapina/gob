@@ -60,13 +60,14 @@ type FileSource struct {
 
 // Follower manages following multiple files with support for dynamic source addition
 type Follower struct {
-	w       io.Writer
-	mu      sync.Mutex
-	sources map[string]bool // tracks which paths are already being followed
-	errCh   chan error
-	wg      sync.WaitGroup
-	done    chan struct{}
-	stopped bool
+	w              io.Writer
+	mu             sync.Mutex
+	sources        map[string]bool // tracks which paths are already being followed
+	errCh          chan error
+	wg             sync.WaitGroup
+	done           chan struct{}
+	stopped        bool
+	lastOutputTime time.Time // time of last output written
 }
 
 // SystemLogTag is the prefix used for system log messages (same length as job IDs)
@@ -86,11 +87,24 @@ func (f *Follower) SystemLog(format string, args ...interface{}) {
 // NewFollower creates a new Follower that writes to the given writer
 func NewFollower(w io.Writer) *Follower {
 	return &Follower{
-		w:       w,
-		sources: make(map[string]bool),
-		errCh:   make(chan error, 100),
-		done:    make(chan struct{}),
+		w:              w,
+		sources:        make(map[string]bool),
+		errCh:          make(chan error, 100),
+		done:           make(chan struct{}),
+		lastOutputTime: time.Now(), // initialize to now so we don't immediately trigger stuck detection
 	}
+}
+
+// LastOutputTime returns the time of the last output written (thread-safe)
+func (f *Follower) LastOutputTime() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastOutputTime
+}
+
+// updateLastOutputTime updates the last output time (must be called with mu held)
+func (f *Follower) updateLastOutputTime() {
+	f.lastOutputTime = time.Now()
 }
 
 // AddSource adds a new file source to follow. If the source is already being
@@ -107,7 +121,7 @@ func (f *Follower) AddSource(source FileSource) {
 	f.wg.Add(1)
 	go func() {
 		defer f.wg.Done()
-		err := followWithPrefix(source.Path, source.Prefix, f.w, &f.mu, f.done)
+		err := followWithPrefix(source.Path, source.Prefix, f.w, &f.mu, f.done, f.updateLastOutputTime)
 		if err != nil {
 			f.errCh <- err
 		}
@@ -149,7 +163,8 @@ func FollowMultiple(sources []FileSource, w io.Writer) error {
 }
 
 // followWithPrefix follows a file and prefixes each line with the given prefix
-func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mutex, done <-chan struct{}) error {
+// onOutput is called (with mu held) each time output is written
+func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mutex, done <-chan struct{}, onOutput func()) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -192,6 +207,9 @@ func followWithPrefix(filePath string, prefix string, w io.Writer, mu *sync.Mute
 						w.Write([]byte(prefix))
 					}
 					w.Write(line)
+					if onOutput != nil {
+						onOutput()
+					}
 					mu.Unlock()
 
 					data = data[idx+1:]

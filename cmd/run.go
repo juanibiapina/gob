@@ -118,11 +118,19 @@ Exit codes:
 
 		commandStr := strings.Join(commandArgs, " ")
 
+		// Determine average duration for stuck detection
+		var avgDurationMs int64
+		if result.Stats != nil && result.Stats.SuccessCount >= 3 {
+			avgDurationMs = result.Stats.AvgDurationMs
+		}
+		stuckTimeout := CalculateStuckTimeout(avgDurationMs)
+
 		// Print message based on action
 		if result.Action == "already_running" {
 			startedAt, _ := time.Parse(time.RFC3339, result.Job.StartedAt)
 			duration := formatDuration(time.Since(startedAt))
 			fmt.Printf("Job %s already running (since %s ago), attaching...\n", result.Job.ID, duration)
+			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 		} else {
 			fmt.Printf("Running job %s: %s\n", result.Job.ID, commandStr)
 
@@ -139,15 +147,24 @@ Exit codes:
 						formatDuration(time.Duration(result.Stats.FailureAvgDurationMs)*time.Millisecond))
 				}
 			}
+			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 		}
 
 		// Follow the output until completion
-		completed, err := followJob(result.Job.ID, result.Job.PID, result.Job.StdoutPath)
+		followResult, err := followJob(result.Job.ID, result.Job.PID, result.Job.StdoutPath, avgDurationMs)
 		if err != nil {
 			return err
 		}
 
-		if !completed {
+		if followResult.PossiblyStuck {
+			fmt.Printf("\nJob %s possibly stuck (no output for 1m)\n", result.Job.ID)
+			fmt.Printf("  gob stdout %s   # check current output\n", result.Job.ID)
+			fmt.Printf("  gob await %s    # continue waiting with output\n", result.Job.ID)
+			fmt.Printf("  gob stop %s     # stop the job\n", result.Job.ID)
+			return nil
+		}
+
+		if !followResult.Completed {
 			fmt.Printf("\nJob %s continues running in background\n", result.Job.ID)
 			fmt.Printf("  gob await %s   # wait for completion with live output\n", result.Job.ID)
 			fmt.Printf("  gob stop %s    # stop the job\n", result.Job.ID)

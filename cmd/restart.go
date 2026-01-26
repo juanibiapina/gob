@@ -74,11 +74,25 @@ Exit codes:
 
 		// If follow flag is set, follow the output
 		if restartFollow {
-			completed, err := followJob(jobID, job.PID, job.StdoutPath)
+			// Fetch stats for stuck detection
+			var avgDurationMs int64
+			stats, statsErr := client.Stats(jobID)
+			if statsErr == nil && stats != nil && stats.SuccessCount >= 3 {
+				avgDurationMs = stats.AvgDurationMs
+			}
+			stuckTimeout := CalculateStuckTimeout(avgDurationMs)
+			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
+
+			followResult, err := followJob(jobID, job.PID, job.StdoutPath, avgDurationMs)
 			if err != nil {
 				return err
 			}
-			if completed {
+			if followResult.PossiblyStuck {
+				fmt.Printf("\nJob %s possibly stuck (no output for 1m)\n", jobID)
+				fmt.Printf("  gob stdout %s   # check current output\n", jobID)
+				fmt.Printf("  gob await %s    # continue waiting with output\n", jobID)
+				fmt.Printf("  gob stop %s     # stop the job\n", jobID)
+			} else if followResult.Completed {
 				fmt.Printf("\nJob %s completed\n", jobID)
 			} else {
 				fmt.Printf("\nJob %s continues running in background\n", jobID)

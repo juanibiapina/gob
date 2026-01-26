@@ -32,6 +32,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 - **Reliable shutdowns** - Stop, restart, and shutdown verify every child process in the tree is gone
 - **Job persistence** - Jobs survive daemon restarts with SQLite-backed state
 - **Run history** - Track execution history and statistics for repeated commands
+- **Stuck detection** - Automatically detects jobs that may be stuck and returns early, while the job continues running
 
 ## Installation
 
@@ -184,8 +185,16 @@ Do NOT use `gob` for:
 - `gob await <job_id>` - Wait for job to finish, stream output
 - `gob await-any` - Wait for whichever job finishes first
 - `gob list` - List jobs with IDs, status, and descriptions
+- `gob stdout <job_id>` - View current output (useful if job may be stuck)
 - `gob stop <job_id>` - Graceful stop
 - `gob restart <job_id>` - Stop + start
+
+### Stuck Detection
+
+`gob run` and `gob await` automatically detect potentially stuck jobs:
+- Timeout: avg duration + 1 min (or 5 min if no history), triggers if no output for 1 min
+- Job continues running in background
+- Use `gob stdout <id>` to check output, `gob await <id>` to continue waiting
 
 ### Examples
 

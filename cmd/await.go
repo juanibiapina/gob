@@ -61,15 +61,32 @@ Exit codes:
 		commandStr := strings.Join(job.Command, " ")
 
 		if job.Status == "running" {
+			// Fetch stats for stuck detection
+			var avgDurationMs int64
+			stats, err := client.Stats(jobID)
+			if err == nil && stats != nil && stats.SuccessCount >= 3 {
+				avgDurationMs = stats.AvgDurationMs
+			}
+			stuckTimeout := CalculateStuckTimeout(avgDurationMs)
+
 			fmt.Printf("Awaiting job %s: %s\n", job.ID, commandStr)
+			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 
 			// Follow the output until completion
-			completed, err := followJob(job.ID, job.PID, job.StdoutPath)
+			followResult, err := followJob(job.ID, job.PID, job.StdoutPath, avgDurationMs)
 			if err != nil {
 				return err
 			}
 
-			if !completed {
+			if followResult.PossiblyStuck {
+				fmt.Printf("\nJob %s possibly stuck (no output for 1m)\n", job.ID)
+				fmt.Printf("  gob stdout %s   # check current output\n", job.ID)
+				fmt.Printf("  gob await %s    # continue waiting with output\n", job.ID)
+				fmt.Printf("  gob stop %s     # stop the job\n", job.ID)
+				return nil
+			}
+
+			if !followResult.Completed {
 				fmt.Printf("\nJob %s continues running in background\n", job.ID)
 				return nil
 			}
