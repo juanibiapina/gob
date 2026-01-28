@@ -16,9 +16,7 @@ Start a dev server with Claude Code, check its logs yourself. Or vice-versa. The
 
 No more "can you check if that's still running?" No more copy-pasting logs through chat. Just direct access to your processes, for everyone.
 
-![demo](assets/demo.gif)
-
-[View on asciinema](https://asciinema.org/a/OgSVPWybeSvXcQVyLQ0mie8P2)
+![TUI Screenshot](assets/tui.png)
 
 ## Features
 
@@ -235,8 +233,6 @@ Launch a full-screen terminal interface for managing jobs:
 ```bash
 gob tui
 ```
-
-![TUI Screenshot](assets/tui.png)
 
 ### Layout
 
