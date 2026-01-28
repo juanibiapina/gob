@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-01-28
+
 ### Added
 
 - **Blocked jobs**: Jobs in the gobfile can be marked as `blocked = true` to prevent them from running
