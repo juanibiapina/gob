@@ -229,20 +229,6 @@ func (c *Client) Add(command []string, workdir string, env []string, description
 		result.Action = action
 	}
 
-	// Parse stats if present (job has previous completed runs)
-	if statsRaw, ok := resp.Data["stats"]; ok {
-		statsJSON, err := json.Marshal(statsRaw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal stats: %w", err)
-		}
-
-		var stats StatsResponse
-		if err := json.Unmarshal(statsJSON, &stats); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal stats: %w", err)
-		}
-		result.Stats = &stats
-	}
-
 	return result, nil
 }
 
@@ -510,8 +496,8 @@ func (c *Client) Runs(jobID string) ([]RunResponse, error) {
 	return runs, nil
 }
 
-// Stats returns statistics for a job
-func (c *Client) Stats(jobID string) (*StatsResponse, error) {
+// Stats returns statistics for a job (as a JobResponse with stats fields populated)
+func (c *Client) Stats(jobID string) (*JobResponse, error) {
 	req := NewRequest(RequestTypeStats)
 	req.Payload["job_id"] = jobID
 
@@ -524,23 +510,23 @@ func (c *Client) Stats(jobID string) (*StatsResponse, error) {
 		return nil, fmt.Errorf("%s", resp.Error)
 	}
 
-	// Parse stats from response
-	statsRaw, ok := resp.Data["stats"]
+	// Parse job from response
+	jobRaw, ok := resp.Data["job"]
 	if !ok {
-		return nil, fmt.Errorf("no stats in response")
+		return nil, fmt.Errorf("no job in response")
 	}
 
-	statsJSON, err := json.Marshal(statsRaw)
+	jobJSON, err := json.Marshal(jobRaw)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal stats: %w", err)
+		return nil, fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	var stats StatsResponse
-	if err := json.Unmarshal(statsJSON, &stats); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal stats: %w", err)
+	var job JobResponse
+	if err := json.Unmarshal(jobJSON, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
 	}
 
-	return &stats, nil
+	return &job, nil
 }
 
 // Ports returns the listening ports for a job

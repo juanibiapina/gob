@@ -649,15 +649,12 @@ func TestJobManager_RemoveRun_UpdatesStats(t *testing.T) {
 		t.Errorf("expected RunCount=1 after removal, got %d", jobAfterRemoval.RunCount)
 	}
 
-	// Verify event includes updated stats
+	// Verify event includes updated stats in job response
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if events[0].Stats == nil {
-		t.Error("expected stats in event")
-	}
-	if events[0].Stats != nil && events[0].Stats.RunCount != 1 {
-		t.Errorf("expected event stats RunCount=1, got %d", events[0].Stats.RunCount)
+	if events[0].Job.RunCount != 1 {
+		t.Errorf("expected event job RunCount=1, got %d", events[0].Job.RunCount)
 	}
 }
 
@@ -878,10 +875,19 @@ func TestJob_StatsByOutcome(t *testing.T) {
 	}
 }
 
-func TestJobToStats(t *testing.T) {
+func TestJobToResponse_IncludesStats(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Create a job with stats by setting fields directly
 	job := &Job{
 		ID:                     "abc",
 		Command:                []string{"make", "test"},
+		CommandSignature:       ComputeCommandSignature([]string{"make", "test"}),
+		Workdir:                "/workdir",
+		NextRunSeq:             1,
+		CreatedAt:              time.Now(),
 		RunCount:               10,
 		SuccessCount:           7,
 		FailureCount:           2,
@@ -892,34 +898,40 @@ func TestJobToStats(t *testing.T) {
 	}
 	// Note: 10 runs = 7 success + 2 failure + 1 killed
 
-	stats := jobToStats(job)
+	jm.mu.Lock()
+	jm.jobs["abc"] = job
+	jm.mu.Unlock()
 
-	if stats.JobID != "abc" {
-		t.Errorf("JobID = %s, want abc", stats.JobID)
+	jm.mu.RLock()
+	resp := jm.jobToResponse(job)
+	jm.mu.RUnlock()
+
+	if resp.ID != "abc" {
+		t.Errorf("ID = %s, want abc", resp.ID)
 	}
-	if stats.RunCount != 10 {
-		t.Errorf("RunCount = %d, want 10", stats.RunCount)
+	if resp.RunCount != 10 {
+		t.Errorf("RunCount = %d, want 10", resp.RunCount)
 	}
-	if stats.SuccessCount != 7 {
-		t.Errorf("SuccessCount = %d, want 7", stats.SuccessCount)
+	if resp.SuccessCount != 7 {
+		t.Errorf("SuccessCount = %d, want 7", resp.SuccessCount)
 	}
-	if stats.FailureCount != 2 {
-		t.Errorf("FailureCount = %d, want 2", stats.FailureCount)
+	if resp.FailureCount != 2 {
+		t.Errorf("FailureCount = %d, want 2", resp.FailureCount)
 	}
-	if stats.SuccessRate != 70 {
-		t.Errorf("SuccessRate = %.1f%%, want 70%%", stats.SuccessRate)
+	if resp.SuccessRate != 70 {
+		t.Errorf("SuccessRate = %.1f%%, want 70%%", resp.SuccessRate)
 	}
-	if stats.AvgDurationMs != 2000 { // 14000 / 7
-		t.Errorf("AvgDurationMs = %d, want 2000", stats.AvgDurationMs)
+	if resp.AvgDurationMs != 2000 { // 14000 / 7
+		t.Errorf("AvgDurationMs = %d, want 2000", resp.AvgDurationMs)
 	}
-	if stats.FailureAvgDurationMs != 1000 { // 2000 / 2
-		t.Errorf("FailureAvgDurationMs = %d, want 1000", stats.FailureAvgDurationMs)
+	if resp.FailureAvgDurationMs != 1000 { // 2000 / 2
+		t.Errorf("FailureAvgDurationMs = %d, want 1000", resp.FailureAvgDurationMs)
 	}
-	if stats.MinDurationMs != 500 {
-		t.Errorf("MinDurationMs = %d, want 500", stats.MinDurationMs)
+	if resp.MinDurationMs != 500 {
+		t.Errorf("MinDurationMs = %d, want 500", resp.MinDurationMs)
 	}
-	if stats.MaxDurationMs != 5000 {
-		t.Errorf("MaxDurationMs = %d, want 5000", stats.MaxDurationMs)
+	if resp.MaxDurationMs != 5000 {
+		t.Errorf("MaxDurationMs = %d, want 5000", resp.MaxDurationMs)
 	}
 }
 

@@ -29,7 +29,7 @@ No more "can you check if that's still running?" No more copy-pasting logs throu
 - **Port monitoring** - Inspect listening ports across a job's entire process tree
 - **Reliable shutdowns** - Stop, restart, and shutdown verify every child process in the tree is gone
 - **Job persistence** - Jobs survive daemon restarts with SQLite-backed state
-- **Run history** - Track execution history and statistics for repeated commands
+- **Run history** - Track execution history, statistics, and progress estimates for repeated commands
 - **Stuck detection** - Automatically detects jobs that may be stuck and returns early, while the job continues running
 - **Blocked jobs** - Prevent AI coding agents from accidentally running dangerous commands
 

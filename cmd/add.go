@@ -141,16 +141,16 @@ Exit codes:
 			fmt.Printf("Added job %s running: %s\n", result.Job.ID, commandStr)
 
 			// Show stats if job has previous runs
-			if result.Stats != nil && result.Stats.RunCount > 0 {
+			if result.Job.RunCount > 0 {
 				fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
-					result.Stats.RunCount, result.Stats.SuccessRate)
-				if result.Stats.SuccessCount >= 3 {
+					result.Job.RunCount, result.Job.SuccessRate)
+				if result.Job.SuccessCount >= 3 {
 					fmt.Printf("  Expected duration if success: ~%s\n",
-						formatDuration(time.Duration(result.Stats.AvgDurationMs)*time.Millisecond))
+						formatDuration(time.Duration(result.Job.AvgDurationMs)*time.Millisecond))
 				}
-				if result.Stats.FailureCount >= 3 {
+				if result.Job.FailureCount >= 3 {
 					fmt.Printf("  Expected duration if failure: ~%s\n",
-						formatDuration(time.Duration(result.Stats.FailureAvgDurationMs)*time.Millisecond))
+						formatDuration(time.Duration(result.Job.FailureAvgDurationMs)*time.Millisecond))
 				}
 			}
 

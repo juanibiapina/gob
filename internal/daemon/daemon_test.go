@@ -570,3 +570,132 @@ func TestDaemon_handleRemoveRun_Running(t *testing.T) {
 		t.Error("expected error for running run")
 	}
 }
+
+func TestDaemon_handleList_IncludesStats(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job and complete a run to build stats
+	job, _, _ := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Start a second run so we have RunCount > 0
+	jm.StartJob(job.ID, nil)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{Type: RequestTypeList, Payload: map[string]interface{}{}}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	jobs := resp.Data["jobs"].([]JobResponse)
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
+	}
+
+	// Verify stats are included in the job response
+	if jobs[0].RunCount != 2 {
+		t.Errorf("expected RunCount=2, got %d", jobs[0].RunCount)
+	}
+	if jobs[0].SuccessRate == 0 {
+		t.Error("expected non-zero SuccessRate")
+	}
+	if jobs[0].AvgDurationMs == 0 {
+		// Note: The fake executor stops nearly instantly, so avg may be 0ms
+		// But SuccessCount should still be correct
+	}
+	if jobs[0].SuccessCount != 2 {
+		t.Errorf("expected SuccessCount=2, got %d", jobs[0].SuccessCount)
+	}
+}
+
+func TestDaemon_handleStats_ReturnsJobResponse(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job and complete a run
+	job, _, _ := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeStats,
+		Payload: map[string]interface{}{
+			"job_id": job.ID,
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	// Stats endpoint now returns a job response
+	jobResp, ok := resp.Data["job"].(JobResponse)
+	if !ok {
+		t.Fatal("expected job in response data")
+	}
+
+	if jobResp.ID != job.ID {
+		t.Errorf("expected job ID %s, got %s", job.ID, jobResp.ID)
+	}
+	if jobResp.RunCount != 1 {
+		t.Errorf("expected RunCount=1, got %d", jobResp.RunCount)
+	}
+	if jobResp.SuccessCount != 1 {
+		t.Errorf("expected SuccessCount=1, got %d", jobResp.SuccessCount)
+	}
+}
+
+func TestDaemon_handleAdd_IncludesStatsInJobResponse(t *testing.T) {
+	tmpDir := t.TempDir()
+	executor := NewFakeProcessExecutor()
+	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
+
+	// Add a job and complete a run to build stats
+	job, _, _ := jm.AddJob([]string{"echo", "hello"}, "/workdir", "", false, nil)
+	executor.LastHandle().Stop()
+	time.Sleep(10 * time.Millisecond)
+
+	// Add the same command again — stats should be in the job response
+	d := &Daemon{jobManager: jm}
+	req := &Request{
+		Type: RequestTypeAdd,
+		Payload: map[string]interface{}{
+			"command": []interface{}{"echo", "hello"},
+			"workdir": "/workdir",
+		},
+	}
+
+	resp := d.handleRequest(req)
+
+	if !resp.Success {
+		t.Errorf("expected success, got error: %s", resp.Error)
+	}
+
+	jobResp := resp.Data["job"].(JobResponse)
+	if jobResp.ID != job.ID {
+		t.Errorf("expected same job ID %s, got %s", job.ID, jobResp.ID)
+	}
+	if jobResp.RunCount != 1 {
+		t.Errorf("expected RunCount=1 from previous run, got %d", jobResp.RunCount)
+	}
+	if jobResp.SuccessCount != 1 {
+		t.Errorf("expected SuccessCount=1, got %d", jobResp.SuccessCount)
+	}
+
+	// Stats should NOT be a separate field
+	if _, hasStats := resp.Data["stats"]; hasStats {
+		t.Error("stats should not be a separate field in response, should be part of job")
+	}
+}

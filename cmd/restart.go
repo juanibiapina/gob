@@ -76,9 +76,9 @@ Exit codes:
 		if restartFollow {
 			// Fetch stats for stuck detection
 			var avgDurationMs int64
-			stats, statsErr := client.Stats(jobID)
-			if statsErr == nil && stats != nil && stats.SuccessCount >= 3 {
-				avgDurationMs = stats.AvgDurationMs
+			statsJob, statsErr := client.Stats(jobID)
+			if statsErr == nil && statsJob != nil && statsJob.SuccessCount >= 3 {
+				avgDurationMs = statsJob.AvgDurationMs
 			}
 			stuckTimeout := CalculateStuckTimeout(avgDurationMs)
 			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))

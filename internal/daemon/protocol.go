@@ -68,14 +68,13 @@ const (
 
 // Event represents a job/run state change event
 type Event struct {
-	Type            EventType      `json:"type"`
-	JobID           string         `json:"job_id"`
-	Job             JobResponse    `json:"job"`
-	Run             *RunResponse   `json:"run,omitempty"`
-	Stats           *StatsResponse `json:"stats,omitempty"`
-	Ports           []PortInfo     `json:"ports,omitempty"` // For EventTypePortsUpdated
-	JobCount        int            `json:"job_count"`
-	RunningJobCount int            `json:"running_job_count"`
+	Type            EventType    `json:"type"`
+	JobID           string       `json:"job_id"`
+	Job             JobResponse  `json:"job"`
+	Run             *RunResponse `json:"run,omitempty"`
+	Ports           []PortInfo   `json:"ports,omitempty"` // For EventTypePortsUpdated
+	JobCount        int          `json:"job_count"`
+	RunningJobCount int          `json:"running_job_count"`
 }
 
 // Request represents a client request to the daemon
@@ -107,6 +106,16 @@ type JobResponse struct {
 	StderrPath  string     `json:"stderr_path"`
 	ExitCode    *int       `json:"exit_code,omitempty"`
 	Ports       []PortInfo `json:"ports,omitempty"` // Listening ports (only for running jobs)
+
+	// Statistics (aggregated across all completed runs)
+	RunCount             int     `json:"run_count"`
+	SuccessCount         int     `json:"success_count"`
+	FailureCount         int     `json:"failure_count"`
+	SuccessRate          float64 `json:"success_rate"`
+	AvgDurationMs        int64   `json:"avg_duration_ms"`         // Average of successful runs
+	FailureAvgDurationMs int64   `json:"failure_avg_duration_ms"` // Average of failed runs
+	MinDurationMs        int64   `json:"min_duration_ms"`
+	MaxDurationMs        int64   `json:"max_duration_ms"`
 }
 
 // RunResponse represents a run in API responses
@@ -123,25 +132,10 @@ type RunResponse struct {
 	DurationMs int64  `json:"duration_ms"`
 }
 
-// StatsResponse represents job statistics in API responses
-type StatsResponse struct {
-	JobID                string   `json:"job_id"`
-	Command              []string `json:"command"`
-	RunCount             int      `json:"run_count"`
-	SuccessCount         int      `json:"success_count"`
-	FailureCount         int      `json:"failure_count"`
-	SuccessRate          float64  `json:"success_rate"`
-	AvgDurationMs        int64    `json:"avg_duration_ms"`         // Average of successful runs
-	FailureAvgDurationMs int64    `json:"failure_avg_duration_ms"` // Average of failed runs
-	MinDurationMs        int64    `json:"min_duration_ms"`
-	MaxDurationMs        int64    `json:"max_duration_ms"`
-}
-
 // AddResponse represents the response from adding a job
 type AddResponse struct {
-	Job    JobResponse    `json:"job"`
-	Stats  *StatsResponse `json:"stats,omitempty"` // nil if no previous runs
-	Action string         `json:"action"`          // "created", "started", or "already_running"
+	Job    JobResponse `json:"job"`
+	Action string      `json:"action"` // "created", "started", or "already_running"
 }
 
 // NewRequest creates a new request with the given type

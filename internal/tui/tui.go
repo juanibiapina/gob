@@ -95,7 +95,7 @@ type actionResultMsg struct {
 type runsUpdatedMsg struct {
 	jobID string
 	runs  []Run
-	stats *daemon.StatsResponse
+	stats *daemon.JobResponse
 }
 
 // subscriptionStartedMsg is sent when subscription is established
@@ -152,7 +152,7 @@ type Model struct {
 
 	// Run history state
 	runs         []Run
-	stats        *daemon.StatsResponse
+	stats        *daemon.JobResponse
 	runsForJobID string // tracks which job the runs are for
 
 	// Scrollable list states
@@ -379,10 +379,10 @@ func (m Model) fetchRuns(jobID string) tea.Cmd {
 			}
 		}
 
-		// Fetch stats
-		stats, _ := client.Stats(jobID)
+		// Fetch stats (returns *JobResponse with stats fields)
+		statsJob, _ := client.Stats(jobID)
 
-		return runsUpdatedMsg{jobID: jobID, runs: runs, stats: stats}
+		return runsUpdatedMsg{jobID: jobID, runs: runs, stats: statsJob}
 	}
 }
 
@@ -652,10 +652,9 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			}
 			// Prepend new run to the list (newest first)
 			m.runs = append([]Run{newRun}, m.runs...)
-			// Update stats from event
-			if event.Stats != nil {
-				m.stats = event.Stats
-			}
+			// Update stats from event job
+			jobResp := event.Job
+			m.stats = &jobResp
 		}
 
 	case daemon.EventTypeRunStopped:
@@ -670,10 +669,9 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 					break
 				}
 			}
-			// Update stats from event
-			if event.Stats != nil {
-				m.stats = event.Stats
-			}
+			// Update stats from event job
+			jobResp := event.Job
+			m.stats = &jobResp
 		}
 
 	case daemon.EventTypeRunRemoved:

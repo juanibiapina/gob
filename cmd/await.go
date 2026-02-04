@@ -63,9 +63,9 @@ Exit codes:
 		if job.Status == "running" {
 			// Fetch stats for stuck detection
 			var avgDurationMs int64
-			stats, err := client.Stats(jobID)
-			if err == nil && stats != nil && stats.SuccessCount >= 3 {
-				avgDurationMs = stats.AvgDurationMs
+			statsJob, err := client.Stats(jobID)
+			if err == nil && statsJob != nil && statsJob.SuccessCount >= 3 {
+				avgDurationMs = statsJob.AvgDurationMs
 			}
 			stuckTimeout := CalculateStuckTimeout(avgDurationMs)
 

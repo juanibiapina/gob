@@ -33,6 +33,11 @@ Example output:
   Fastest: 2m15s
   Slowest: 2m45s
 
+With --json, outputs the full job response including statistics fields
+(run_count, success_count, failure_count, success_rate, avg_duration_ms,
+failure_avg_duration_ms, min_duration_ms, max_duration_ms) along with
+all standard job fields (id, status, command, etc.).
+
 Note: Statistics are calculated from completed runs only.
 Running jobs and killed processes are excluded from duration averages.
 Killed processes (sent SIGTERM/SIGKILL) still count toward total runs but
@@ -57,7 +62,7 @@ Exit codes:
 		}
 
 		// Get stats from daemon
-		stats, err := client.Stats(jobID)
+		job, err := client.Stats(jobID)
 		if err != nil {
 			return err
 		}
@@ -66,28 +71,28 @@ Exit codes:
 		if statsJSON {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
-			return enc.Encode(stats)
+			return enc.Encode(job)
 		}
 
 		// Print stats in human-readable format
-		commandStr := strings.Join(stats.Command, " ")
-		fmt.Printf("Job: %s (%s)\n", stats.JobID, commandStr)
+		commandStr := strings.Join(job.Command, " ")
+		fmt.Printf("Job: %s (%s)\n", job.ID, commandStr)
 
-		if stats.RunCount == 0 {
+		if job.RunCount == 0 {
 			fmt.Println("No completed runs yet")
 			return nil
 		}
 
-		fmt.Printf("Total runs: %d\n", stats.RunCount)
-		fmt.Printf("Success rate: %.0f%% (%d/%d)\n", stats.SuccessRate, stats.SuccessCount, stats.RunCount)
-		if stats.SuccessCount > 0 {
-			fmt.Printf("Avg success duration: %s\n", formatDuration(time.Duration(stats.AvgDurationMs)*time.Millisecond))
+		fmt.Printf("Total runs: %d\n", job.RunCount)
+		fmt.Printf("Success rate: %.0f%% (%d/%d)\n", job.SuccessRate, job.SuccessCount, job.RunCount)
+		if job.SuccessCount > 0 {
+			fmt.Printf("Avg success duration: %s\n", formatDuration(time.Duration(job.AvgDurationMs)*time.Millisecond))
 		}
-		if stats.FailureCount > 0 {
-			fmt.Printf("Avg failure duration: %s\n", formatDuration(time.Duration(stats.FailureAvgDurationMs)*time.Millisecond))
+		if job.FailureCount > 0 {
+			fmt.Printf("Avg failure duration: %s\n", formatDuration(time.Duration(job.FailureAvgDurationMs)*time.Millisecond))
 		}
-		fmt.Printf("Fastest: %s\n", formatDuration(time.Duration(stats.MinDurationMs)*time.Millisecond))
-		fmt.Printf("Slowest: %s\n", formatDuration(time.Duration(stats.MaxDurationMs)*time.Millisecond))
+		fmt.Printf("Fastest: %s\n", formatDuration(time.Duration(job.MinDurationMs)*time.Millisecond))
+		fmt.Printf("Slowest: %s\n", formatDuration(time.Duration(job.MaxDurationMs)*time.Millisecond))
 
 		return nil
 	},

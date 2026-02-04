@@ -197,7 +197,7 @@ func (jm *JobManager) emitEvent(event Event) {
 	}
 }
 
-// jobToResponse converts a Job to JobResponse (for backward compatibility)
+// jobToResponse converts a Job to JobResponse
 func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 	resp := JobResponse{
 		ID:          job.ID,
@@ -207,6 +207,16 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 		Description: job.Description,
 		Blocked:     job.Blocked,
 		CreatedAt:   job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+
+		// Statistics
+		RunCount:             job.RunCount,
+		SuccessCount:         job.SuccessCount,
+		FailureCount:         job.FailureCount,
+		SuccessRate:          job.SuccessRate(),
+		AvgDurationMs:        job.AverageDurationMs(),
+		FailureAvgDurationMs: job.FailureAverageDurationMs(),
+		MinDurationMs:        job.MinDurationMs,
+		MaxDurationMs:        job.MaxDurationMs,
 	}
 
 	// If there's a current run, include its details
@@ -364,13 +374,11 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 
 		// Emit run started event
 		runResp := runToResponse(run)
-		stats := jobToStats(job)
 		jm.emitEvent(Event{
 			Type:            EventTypeRunStarted,
 			JobID:           job.ID,
 			Job:             jm.jobToResponse(job),
 			Run:             &runResp,
-			Stats:           &stats,
 			JobCount:        len(jm.jobs),
 			RunningJobCount: jm.countRunningJobsLocked(),
 		})
@@ -445,13 +453,11 @@ func (jm *JobManager) AddJob(command []string, workdir string, description strin
 
 	// Emit run started event
 	runResp := runToResponse(run)
-	stats := jobToStats(job)
 	jm.emitEvent(Event{
 		Type:            EventTypeRunStarted,
 		JobID:           job.ID,
 		Job:             jm.jobToResponse(job),
 		Run:             &runResp,
-		Stats:           &stats,
 		JobCount:        len(jm.jobs),
 		RunningJobCount: jm.countRunningJobsLocked(),
 	})
@@ -683,7 +689,6 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 	runningJobCount := jm.countRunningJobsLocked()
 	jobResp := jm.jobToResponse(job)
 	runResp := runToResponse(run)
-	stats := jobToStats(job)
 
 	jm.mu.Unlock()
 
@@ -693,7 +698,6 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 		JobID:           job.ID,
 		Job:             jobResp,
 		Run:             &runResp,
-		Stats:           &stats,
 		JobCount:        jobCount,
 		RunningJobCount: runningJobCount,
 	})
@@ -887,13 +891,11 @@ func (jm *JobManager) StartJob(jobID string, env []string) error {
 
 	// Emit run started event
 	runResp := runToResponse(run)
-	stats := jobToStats(job)
 	jm.emitEvent(Event{
 		Type:            EventTypeRunStarted,
 		JobID:           job.ID,
 		Job:             jm.jobToResponse(job),
 		Run:             &runResp,
-		Stats:           &stats,
 		JobCount:        len(jm.jobs),
 		RunningJobCount: jm.countRunningJobsLocked(),
 	})
@@ -987,13 +989,11 @@ func (jm *JobManager) RestartJob(jobID string, env []string) error {
 
 	// Emit run started event
 	runResp := runToResponse(run)
-	stats := jobToStats(job)
 	jm.emitEvent(Event{
 		Type:            EventTypeRunStarted,
 		JobID:           job.ID,
 		Job:             jm.jobToResponse(job),
 		Run:             &runResp,
-		Stats:           &stats,
 		JobCount:        len(jm.jobs),
 		RunningJobCount: jm.countRunningJobsLocked(),
 	})
@@ -1114,18 +1114,14 @@ func (jm *JobManager) RemoveRun(runID string) error {
 
 	// Emit removed event with updated stats
 	var jobResp JobResponse
-	var stats *StatsResponse
 	if jobExists {
 		jobResp = jm.jobToResponse(job)
-		s := jobToStats(job)
-		stats = &s
 	}
 	jm.emitEvent(Event{
 		Type:            EventTypeRunRemoved,
 		JobID:           run.JobID,
 		Job:             jobResp,
 		Run:             &runResp,
-		Stats:           stats,
 		JobCount:        len(jm.jobs),
 		RunningJobCount: jm.countRunningJobsLocked(),
 	})
@@ -1378,18 +1374,4 @@ func runToResponse(run *Run) RunResponse {
 	return resp
 }
 
-// jobToStats converts a Job to StatsResponse
-func jobToStats(job *Job) StatsResponse {
-	return StatsResponse{
-		JobID:                job.ID,
-		Command:              job.Command,
-		RunCount:             job.RunCount,
-		SuccessCount:         job.SuccessCount,
-		FailureCount:         job.FailureCount,
-		SuccessRate:          job.SuccessRate(),
-		AvgDurationMs:        job.AverageDurationMs(),
-		FailureAvgDurationMs: job.FailureAverageDurationMs(),
-		MinDurationMs:        job.MinDurationMs,
-		MaxDurationMs:        job.MaxDurationMs,
-	}
-}
+

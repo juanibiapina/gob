@@ -85,7 +85,7 @@ load 'test_helper'
   assert_success
 
   # Verify it's valid JSON with expected fields
-  local stats_job_id=$(echo "$output" | jq -r '.job_id')
+  local stats_job_id=$(echo "$output" | jq -r '.id')
   assert_equal "$stats_job_id" "$job_id"
 
   local run_count=$(echo "$output" | jq -r '.run_count')

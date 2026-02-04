@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/juanibiapina/gob/internal/daemon"
 	"github.com/spf13/cobra"
@@ -29,6 +30,10 @@ If a job has a description, it is shown on a second indented line.
 Use --workdir to also display the working directory for each job.
 Jobs are sorted by start time (newest first).
 
+For running jobs with historical statistics (at least one previous successful run),
+the status shows an estimated progress percentage based on average duration:
+  running (73%)
+
 Output format:
   <job_id>: [<pid>] <status>: <command>
            <description>   (if present)
@@ -39,12 +44,12 @@ With --workdir:
 Where:
   job_id: Unique identifier - use this for other commands
   pid:    Process ID (or "-" if stopped)
-  status: Either 'running' or 'stopped'
+  status: Either 'running', 'running (N%)' (with progress), or 'stopped'
   workdir: Directory where job was started (only with --workdir or --all)
   command: Original command that was executed
 
 Example output:
-  V3x0QqI: [12345] running: npm run dev
+  V3x0QqI: [12345] running (73%): npm run dev
            Development server for the frontend app
   V3x0PrH: [-] stopped: npm run build:watch
            Watches TypeScript and rebuilds on change
@@ -109,9 +114,20 @@ Exit codes:
 		for _, job := range jobs {
 			commandStr := strings.Join(job.Command, " ")
 
-			// Format status with exit code if available
+			// Format status with exit code or progress if available
 			status := job.Status
-			if job.ExitCode != nil {
+			if job.Status == "running" && job.AvgDurationMs > 0 && job.StartedAt != "" {
+				startedAt, err := time.Parse(time.RFC3339, job.StartedAt)
+				if err == nil {
+					elapsed := time.Since(startedAt)
+					avgDuration := time.Duration(job.AvgDurationMs) * time.Millisecond
+					progress := float64(elapsed) / float64(avgDuration) * 100
+					if progress > 100 {
+						progress = 100
+					}
+					status = fmt.Sprintf("running (%.0f%%)", progress)
+				}
+			} else if job.ExitCode != nil {
 				status = fmt.Sprintf("%s (%d)", job.Status, *job.ExitCode)
 			}
 
