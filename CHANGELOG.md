@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Progress in `gob list`**: Running jobs with historical stats now show estimated progress percentage in their status (e.g., `running (73%)`). Requires at least one previous successful run.
+
+### Changed
+
+- **Stats merged into job responses**: Job statistics (run count, success rate, durations) are now included directly in job responses instead of being a separate type. This affects `--json` output from `list`, event payloads, and the `stats` command response.
+
 ## [3.0.0] - 2026-01-28
 
 ### Added
