@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-02-04
+
 ### Added
 
 - **Progress in `gob list`**: Running jobs with historical stats now show estimated progress percentage in their status (e.g., `running (73%)`). Requires at least one previous successful run.
