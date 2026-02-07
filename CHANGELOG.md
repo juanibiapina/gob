@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-02-07
+
 ### Changed
 
 - **Daemon log reset on startup**: The daemon log file is now truncated each time the daemon starts, preventing unbounded growth.
