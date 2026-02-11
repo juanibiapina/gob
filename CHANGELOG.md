@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **TUI: Fix stderr panel content not expanding when focused**: When selecting the stderr panel (via `5` or tab), the panel border grew to 80% of the screen but the log content stayed at the original 20% size with empty space below. The viewport's scroll offset was calculated using the small height, so `GotoBottom()` positioned the view incorrectly for the larger panel. Viewport dimensions are now updated whenever panel focus changes.
+
 ## [3.2.0] - 2026-02-07
 
 ### Changed

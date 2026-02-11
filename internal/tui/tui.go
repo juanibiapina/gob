@@ -401,23 +401,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		logWidth := m.width - m.jobPanelWidth()
 		totalLogHeight := m.height - 2 // header + status bar
 
-		// Stderr gets 20% of height, stdout gets 80%
-		stderrHeight := totalLogHeight * 20 / 100
-		if stderrHeight < 4 {
-			stderrHeight = 4
-		}
-		stdoutHeight := totalLogHeight - stderrHeight
-
 		// Store log panel width for line wrapping
 		m.logPanelWidth = logWidth - 4
 
-		m.stdoutView = viewport.New(logWidth-4, stdoutHeight-3)
-		m.stderrView = viewport.New(logWidth-4, stderrHeight-3)
+		// Create viewports with initial dimensions (updateLogViewportSizes
+		// will set the correct heights based on activePanel)
+		m.stdoutView = viewport.New(logWidth-4, 0)
+		m.stderrView = viewport.New(logWidth-4, 0)
 		m.jobListView = viewport.New(m.jobPanelWidth()-4, totalLogHeight-3)
 
 		// Enable horizontal scrolling on log viewports
 		m.stdoutView.SetHorizontalStep(4)
 		m.stderrView.SetHorizontalStep(4)
+
+		// Set correct viewport sizes based on active panel
+		m.updateLogViewportSizes()
 
 		// Calculate visible rows for scrollable panels (matches renderPanels layout)
 		totalH := m.height - 1 // height - status bar
@@ -760,22 +758,27 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "1":
 		m.activePanel = panelJobs
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "2":
 		m.activePanel = panelPorts
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "3":
 		m.activePanel = panelRuns
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "4":
 		m.activePanel = panelStdout
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "5":
 		m.activePanel = panelStderr
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "tab":
@@ -791,6 +794,7 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case panelStderr:
 			m.activePanel = panelJobs
 		}
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "shift+tab":
@@ -806,6 +810,7 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case panelStderr:
 			m.activePanel = panelStdout
 		}
+		m.updateLogViewportSizes()
 		telemetry.TUIActionExecute("switch_panel")
 
 	case "?":
@@ -1367,6 +1372,45 @@ func (m Model) jobPanelWidth() int {
 		w = 60
 	}
 	return w
+}
+
+// logPanelHeights returns the stdout and stderr panel heights based on the
+// current active panel. Stderr expands to 80% when focused, otherwise 20%.
+func (m Model) logPanelHeights() (stdoutH, stderrH int) {
+	totalH := m.height - 1 // height - status bar
+	if totalH < 8 {
+		totalH = 8
+	}
+
+	if m.activePanel == panelStderr {
+		stderrH = totalH * 80 / 100
+	} else {
+		stderrH = totalH * 20 / 100
+	}
+	if stderrH < 4 {
+		stderrH = 4
+	}
+	stdoutH = totalH - stderrH
+	return stdoutH, stderrH
+}
+
+// updateLogViewportSizes recalculates the stdout/stderr viewport dimensions
+// based on the current active panel and window size. This must be called
+// whenever activePanel or window size changes so that GotoBottom and scroll
+// operations use the correct height.
+func (m *Model) updateLogViewportSizes() {
+	rightPanelW := m.width - m.jobPanelWidth()
+	stdoutH, stderrH := m.logPanelHeights()
+
+	m.stdoutView.Width = rightPanelW - 4
+	m.stdoutView.Height = stdoutH - 3
+	m.stderrView.Width = rightPanelW - 4
+	m.stderrView.Height = stderrH - 3
+
+	if m.followLogs {
+		m.stdoutView.GotoBottom()
+		m.stderrView.GotoBottom()
+	}
 }
 
 // View renders the UI
