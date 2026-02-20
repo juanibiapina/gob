@@ -182,7 +182,6 @@ Do NOT use `gob` for:
 - `gob run <cmd>` - Run and wait for completion (equivalent to `gob add` + `gob await`)
 - `gob run --description "context" <cmd>` - Run with description for context
 - `gob await <job_id>` - Wait for job to finish, stream output
-- `gob await-any` - Wait for whichever job finishes first
 - `gob list` - List jobs with IDs, status, and descriptions
 - `gob logs <job_id>` - View stdout and stderr (stdout→stdout, stderr→stderr)
 - `gob stdout <job_id>` - View current stdout (useful if job may be stuck)
@@ -209,14 +208,6 @@ Builds:
 gob run make build                           # Run build, wait for completion
 gob run npm run test                         # Run tests, wait for completion
 gob run --description "Type check" npm run typecheck  # With description
-```
-
-Parallel builds:
-```
-gob add npm run lint
-gob add npm run typecheck
-gob await-any             # Wait for first to finish
-gob await-any             # Wait for second to finish
 ```
 
 Regular commands (no gob):
@@ -313,8 +304,6 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `run <cmd>` | Run command and wait for completion (`--description` to add context) |
 | `add <cmd>` | Start background job (`--description` to add context) |
 | `await <id>` | Wait for job, stream output, show summary |
-| `await-any` | Wait for any job to complete (`--timeout`) |
-| `await-all` | Wait for all jobs to complete (`--timeout`) |
 | `list` | List jobs (`--all` for all directories) |
 | `runs <id>` | Show run history for a job |
 | `runs delete <run_id>` | Delete a stopped run and its logs |

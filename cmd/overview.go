@@ -19,8 +19,6 @@ RUNNING COMMANDS
 
 WAITING
   gob await <job_id>      Wait for completion, stream output
-  gob await-any           Wait for any job to complete
-  gob await-all           Wait for all jobs to complete
 
 PROCESS CONTROL
   gob start <job_id>      Start a stopped job

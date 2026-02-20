@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `await-any` command
+- `await-all` command
+
 ## [3.3.0] - 2026-02-20
 
 ### Changed
