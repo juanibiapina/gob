@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`logs` command redesigned**: Now supports both dump and follow modes with optional job ID
+  - `gob logs` — dump stdout and stderr for all jobs in current directory
+  - `gob logs <job_id>` — dump stdout and stderr for a specific job
+  - `gob logs -f` — follow all jobs in current directory (previous default behavior)
+  - `gob logs -f <job_id>` — follow both streams for a specific job
+  - Dump mode preserves stream separation: stdout content goes to stdout, stderr content goes to stderr
+  - Follow mode uses prefixed output (unchanged from before)
+
 ## [3.2.1] - 2026-02-12
 
 ### Fixed

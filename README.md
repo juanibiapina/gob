@@ -143,8 +143,8 @@ gob await abc
 # List all jobs
 gob list
 
-# View stdout output
-gob stdout abc
+# View stdout and stderr
+gob logs abc
 
 # Stop a job
 gob stop abc
@@ -184,7 +184,8 @@ Do NOT use `gob` for:
 - `gob await <job_id>` - Wait for job to finish, stream output
 - `gob await-any` - Wait for whichever job finishes first
 - `gob list` - List jobs with IDs, status, and descriptions
-- `gob stdout <job_id>` - View current output (useful if job may be stuck)
+- `gob logs <job_id>` - View stdout and stderr (stdout→stdout, stderr→stderr)
+- `gob stdout <job_id>` - View current stdout (useful if job may be stuck)
 - `gob stop <job_id>` - Graceful stop
 - `gob restart <job_id>` - Stop + start
 
@@ -193,7 +194,7 @@ Do NOT use `gob` for:
 `gob run` and `gob await` automatically detect potentially stuck jobs:
 - Timeout: avg duration + 1 min (or 5 min if no history), triggers if no output for 1 min
 - Job continues running in background
-- Use `gob stdout <id>` to check output, `gob await <id>` to continue waiting
+- Use `gob logs <id>` or `gob stdout <id>` to check output, `gob await <id>` to continue waiting
 
 ### Examples
 
@@ -320,7 +321,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 | `stats <id>` | Show statistics for a job |
 | `stdout <id>` | View stdout (`--follow` for real-time) |
 | `stderr <id>` | View stderr (`--follow` for real-time) |
-| `logs` | Follow all output for current directory |
+| `logs [id]` | View stdout and stderr (`--follow` for real-time) |
 | `ports [id]` | List listening ports (`--all` for all jobs) |
 | `stop <id>` | Stop job (`--force` for SIGKILL) |
 | `start <id>` | Start stopped job |
