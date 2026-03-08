@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `gob run` now suppresses command output on success; on failure, full output is dumped after completion
+
 ### Removed
 
 - `await-any` command

@@ -126,6 +126,90 @@ func followJob(jobID string, pid int, stdoutPath string, avgDurationMs int64) (F
 	return result, nil
 }
 
+// waitForJob waits for a job to complete without streaming output.
+// It monitors for completion, stuck condition, or interruption using file mod times
+// for stuck detection instead of a Follower.
+func waitForJob(pid int, stdoutPath string, avgDurationMs int64) (FollowResult, error) {
+	// Derive stderr path from stdout path
+	stderrPath := strings.Replace(stdoutPath, ".stdout.log", ".stderr.log", 1)
+
+	// Wait for log files to exist
+	for i := 0; i < 50; i++ {
+		_, errStdout := os.Stat(stdoutPath)
+		_, errStderr := os.Stat(stderrPath)
+		if errStdout == nil && errStderr == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Check if log files exist
+	if _, err := os.Stat(stdoutPath); os.IsNotExist(err) {
+		return FollowResult{}, fmt.Errorf("stdout log file not found: %s", stdoutPath)
+	}
+	if _, err := os.Stat(stderrPath); os.IsNotExist(err) {
+		return FollowResult{}, fmt.Errorf("stderr log file not found: %s", stderrPath)
+	}
+
+	// Calculate stuck detection threshold
+	var stuckTimeoutMs int64
+	if avgDurationMs == 0 {
+		stuckTimeoutMs = DefaultStuckTimeoutMs
+	} else {
+		stuckTimeoutMs = avgDurationMs + NoOutputWindowMs
+	}
+
+	stuckTimeout := time.Duration(stuckTimeoutMs) * time.Millisecond
+	noOutputWindow := time.Duration(NoOutputWindowMs) * time.Millisecond
+
+	// Set up signal handling - on Ctrl+C, just exit (job continues in background)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	result := FollowResult{}
+	startTime := time.Now()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-sigCh:
+			// Interrupted — job continues in background
+			return result, nil
+		case <-ticker.C:
+			// Check if process completed
+			if !process.IsProcessRunning(pid) {
+				result.Completed = true
+				return result, nil
+			}
+
+			// Check for stuck condition using file mod times
+			elapsed := time.Since(startTime)
+			if elapsed > stuckTimeout {
+				lastOutput := lastFileModTime(stdoutPath, stderrPath)
+				if time.Since(lastOutput) > noOutputWindow {
+					result.PossiblyStuck = true
+					return result, nil
+				}
+			}
+		}
+	}
+}
+
+// lastFileModTime returns the most recent modification time of the given files.
+func lastFileModTime(paths ...string) time.Time {
+	var latest time.Time
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err == nil && info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+	}
+	return latest
+}
+
 // CalculateStuckTimeout returns the stuck detection timeout based on average duration
 // No data: 5 minutes
 // Has data: avg + 1 minute

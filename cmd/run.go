@@ -15,12 +15,13 @@ var runCmd = &cobra.Command{
 	Use:                "run [--description <desc>] [--] <command> [args...]",
 	Short:              "Add a job and wait for it to complete",
 	DisableFlagParsing: true,
-	Long: `Add a new background job and immediately wait for it to complete.
+	Long: `Add a new background job and wait for it to complete.
 
-This is equivalent to running 'gob add' followed by 'gob await'.
+The job is started as a detached process. Output is suppressed on success
+and dumped on failure. Use 'gob add' + 'gob await' for real-time streaming.
 
-The job is started as a detached process and its output is streamed in real-time.
-The command exits with the job's exit code when it completes.
+On success: prints a summary with helper commands to inspect output.
+On failure: prints the full stdout and stderr, then a summary.
 
 Examples:
   # Run a build and wait for it
@@ -40,7 +41,9 @@ Examples:
   gob run -d "Run tests" -- npm test
 
 Output:
-  Shows job statistics (if available), then streams the job's output.
+  Shows job statistics (if available), then waits silently.
+  On success: summary with commands to view output.
+  On failure: full stdout/stderr followed by summary.
 
 Exit codes:
   Exits with the job's exit code (0 if successful, non-zero otherwise).
@@ -165,13 +168,13 @@ Exit codes:
 			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 		}
 
-		// Follow the output until completion
-		followResult, err := followJob(result.Job.ID, result.Job.PID, result.Job.StdoutPath, avgDurationMs)
+		// Wait for job to complete (without streaming output)
+		waitResult, err := waitForJob(result.Job.PID, result.Job.StdoutPath, avgDurationMs)
 		if err != nil {
 			return err
 		}
 
-		if followResult.PossiblyStuck {
+		if waitResult.PossiblyStuck {
 			fmt.Printf("\nJob %s possibly stuck (no output for 1m)\n", result.Job.ID)
 			fmt.Printf("  gob stdout %s   # check current output\n", result.Job.ID)
 			fmt.Printf("  gob await %s    # continue waiting with output\n", result.Job.ID)
@@ -179,7 +182,7 @@ Exit codes:
 			return nil
 		}
 
-		if !followResult.Completed {
+		if !waitResult.Completed {
 			fmt.Printf("\nJob %s continues running in background\n", result.Job.ID)
 			fmt.Printf("  gob await %s   # wait for completion with live output\n", result.Job.ID)
 			fmt.Printf("  gob stop %s    # stop the job\n", result.Job.ID)
@@ -192,8 +195,22 @@ Exit codes:
 			return err
 		}
 
+		// On failure (non-zero or killed by signal), dump stdout/stderr
+		if job.ExitCode == nil || *job.ExitCode != 0 {
+			if err := printJobOutput(job); err != nil {
+				return err
+			}
+		}
+
 		// Show summary
 		printJobSummary(job)
+
+		// On success, show helper commands for inspecting output
+		if job.ExitCode != nil && *job.ExitCode == 0 {
+			fmt.Printf("  gob stdout %s   # view stdout\n", result.Job.ID)
+			fmt.Printf("  gob stderr %s   # view stderr\n", result.Job.ID)
+			fmt.Printf("  gob logs %s     # view both\n", result.Job.ID)
+		}
 
 		// Exit with job's exit code
 		if job.ExitCode != nil && *job.ExitCode != 0 {

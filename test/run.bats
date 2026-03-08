@@ -18,15 +18,18 @@ load 'test_helper'
   run "$JOB_CLI" run echo "hello world"
   assert_success
   assert_output --partial "Running job"
-  assert_output --partial "hello world"
   assert_output --partial "completed"
+  assert_output --partial "Exit code: 0"
 }
 
-@test "run command shows job output" {
-  run "$JOB_CLI" run -- sh -c "echo 'test output'; echo 'more output'"
+@test "run command suppresses output on success" {
+  # Use arithmetic so the output ("val_23", "val_34") differs from the command text
+  run "$JOB_CLI" run -- sh -c 'echo val_$((20+3)); echo val_$((30+4))'
   assert_success
-  assert_output --partial "test output"
-  assert_output --partial "more output"
+  refute_output --partial "val_23"
+  refute_output --partial "val_34"
+  assert_output --partial "gob stdout"
+  assert_output --partial "gob logs"
 }
 
 @test "run command shows summary with command" {
@@ -87,13 +90,13 @@ load 'test_helper'
   run "$JOB_CLI" run "echo hello world"
   assert_success
   assert_output --partial "Running job"
-  assert_output --partial "hello world"
 }
 
-@test "run command shows stderr output" {
-  run "$JOB_CLI" run -- sh -c "echo 'stderr message' >&2"
+@test "run command suppresses stderr on success" {
+  # Use arithmetic so the output ("err_45") differs from the command text
+  run "$JOB_CLI" run -- sh -c 'echo err_$((40+5)) >&2'
   assert_success
-  assert_output --partial "stderr message"
+  refute_output --partial "err_45"
 }
 
 @test "run command attaches to already running job" {
@@ -161,13 +164,36 @@ load 'test_helper'
   assert_output --partial "Expected duration if failure:"
 }
 
-@test "run command streams output in real-time" {
-  # Start a job that outputs something and completes
-  run "$JOB_CLI" run -- sh -c "echo 'first'; sleep 0.2; echo 'second'"
+@test "run command does not show output on success" {
+  # Use arithmetic so the output ("out_56", "out_67") differs from the command text
+  run "$JOB_CLI" run -- sh -c 'echo out_$((50+6)); sleep 0.2; echo out_$((60+7))'
   assert_success
-  assert_output --partial "first"
-  assert_output --partial "second"
+  refute_output --partial "out_56"
+  refute_output --partial "out_67"
   assert_output --partial "completed"
+}
+
+@test "run command shows output on failure" {
+  run "$JOB_CLI" run -- sh -c "echo 'failure stdout'; echo 'failure stderr' >&2; exit 1"
+  assert_failure 1
+  assert_output --partial "failure stdout"
+  assert_output --partial "failure stderr"
+  assert_output --partial "Exit code: 1"
+}
+
+@test "run command shows helper commands on success" {
+  run "$JOB_CLI" run true
+  assert_success
+  assert_output --partial "gob stdout"
+  assert_output --partial "gob stderr"
+  assert_output --partial "gob logs"
+}
+
+@test "run command does not show helper commands on failure" {
+  run "$JOB_CLI" run false
+  assert_failure
+  refute_output --partial "gob stdout"
+  refute_output --partial "gob logs"
 }
 
 @test "run command with --description stores description" {

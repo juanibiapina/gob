@@ -179,9 +179,9 @@ Do NOT use `gob` for:
 
 - `gob add <cmd>` - Start command in background, returns job ID
 - `gob add --description "context" <cmd>` - Start with description for context
-- `gob run <cmd>` - Run and wait for completion (equivalent to `gob add` + `gob await`)
+- `gob run <cmd>` - Run and wait for completion (output on failure only)
 - `gob run --description "context" <cmd>` - Run with description for context
-- `gob await <job_id>` - Wait for job to finish, stream output
+- `gob await <job_id>` - Wait for job to finish, stream output in real-time
 - `gob list` - List jobs with IDs, status, and descriptions
 - `gob logs <job_id>` - View stdout and stderr (stdout→stdout, stderr→stderr)
 - `gob stdout <job_id>` - View current stdout (useful if job may be stuck)
