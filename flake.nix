@@ -19,7 +19,7 @@
             pname = "gob";
             version = version;
             src = ./.;
-            vendorHash = "sha256-hDkl1HCdQdwwUdRDEQzGgbV5uZ7BAHsNHuzj2GOSkPM=";
+            vendorHash = "sha256-zgmIA28i74rM83RFSqO6B2doSItdgyc3zxb5tPxmff4=";
             ldflags = [ "-s" "-w" "-X github.com/juanibiapina/gob/internal/version.Version=${version}" ];
           };
         }
