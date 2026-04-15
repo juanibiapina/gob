@@ -15,6 +15,3 @@ integration-test: build
 build:
 	@go build -ldflags "-X github.com/juanibiapina/gob/internal/version.Version=$(VERSION)" -o dist/gob
 
-.PHONY: nix
-nix:
-	nix build

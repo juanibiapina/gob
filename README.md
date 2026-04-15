@@ -60,40 +60,6 @@ The binary will be installed to `$GOPATH/bin` (or `$GOBIN` if set). Make sure th
 </details>
 
 <details>
-<summary>Nix</summary>
-
-Run directly without installing:
-
-```bash
-nix run github:juanibiapina/gob -- --help
-```
-
-Or install to your profile:
-
-```bash
-nix profile install github:juanibiapina/gob
-```
-
-Or add to your flake:
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    gob.url = "github:juanibiapina/gob";
-    # Optional: use your nixpkgs instead of gob's pinned version
-    # gob.inputs.nixpkgs.follows = "nixpkgs";
-  };
-
-  outputs = { self, nixpkgs, gob, ... }: {
-    # Use gob.packages.${system}.default
-  };
-}
-```
-
-</details>
-
-<details>
 <summary>Pre-built Binaries</summary>
 
 Download the latest release for your platform from the [Releases page](https://github.com/juanibiapina/gob/releases).
@@ -369,7 +335,7 @@ See [docs/telemetry.md](docs/telemetry.md) for details on what's collected.
 
 ## Contributing
 
-Interested in contributing? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing instructions, and contribution guidelines.
+Interested in contributing? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, build instructions, testing instructions, and contribution guidelines.
 
 ## Star History
 
