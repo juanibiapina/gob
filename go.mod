@@ -1,6 +1,6 @@
 module github.com/juanibiapina/gob
 
-go 1.25.4
+go 1.25.7
 
 require (
 	github.com/adrg/xdg v0.5.3
@@ -11,12 +11,12 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/pelletier/go-toml/v2 v2.3.0
-	github.com/posthog/posthog-go v1.11.3
-	github.com/pressly/goose/v3 v3.27.0
+	github.com/posthog/posthog-go v1.12.4
+	github.com/pressly/goose/v3 v3.27.1
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/spf13/cobra v1.10.2
-	modernc.org/sqlite v1.48.2
+	modernc.org/sqlite v1.49.1
 )
 
 require (
@@ -37,7 +37,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
@@ -55,10 +55,10 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
-	modernc.org/libc v1.70.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
+	modernc.org/libc v1.72.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
