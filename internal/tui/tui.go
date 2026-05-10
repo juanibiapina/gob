@@ -539,6 +539,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleMouseScroll(-1)
 		case tea.MouseButtonWheelDown:
 			return m.handleMouseScroll(1)
+		case tea.MouseButtonLeft:
+			if msg.Action == tea.MouseActionRelease {
+				return m.handleMouseClick(msg.X, msg.Y)
+			}
 		}
 
 	case tea.KeyMsg:
@@ -794,6 +798,118 @@ func (m Model) handleMouseScroll(delta int) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
+	return m, nil
+}
+
+// handleMouseClick maps a click at (x, y) to a panel focus change and,
+// for list panels, selects the item under the cursor.
+func (m Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
+	leftW := m.jobPanelWidth()
+
+	if x < leftW {
+		// Compute left-panel Y boundaries (mirrors renderPanels layout).
+		totalH := m.height - 1
+		if totalH < 8 {
+			totalH = 8
+		}
+		infoH := 3
+		hasDesc := m.selectedJobHasDescription()
+		descH := 0
+		if hasDesc {
+			descH = 3
+		}
+		leftH := totalH - infoH - descH
+		portsH := leftH * 20 / 100
+		if portsH < 4 {
+			portsH = 4
+		}
+		runsH := leftH * 30 / 100
+		if runsH < 5 {
+			runsH = 5
+		}
+		jobsH := leftH - portsH - runsH
+
+		jobsStart := infoH + descH
+		portsStart := jobsStart + jobsH
+		runsStart := portsStart + portsH
+
+		switch {
+		case y < jobsStart:
+			// info / description panels — no action
+
+		case y < portsStart:
+			// Jobs panel clicked
+			m.activePanel = panelJobs
+			m.updateLogViewportSizes()
+			contentY := y - jobsStart - 1 // subtract top border
+			if contentY >= 0 {
+				itemIndex := m.jobScroll.Offset + contentY
+				if itemIndex >= 0 && itemIndex < len(m.jobs) && itemIndex != m.jobScroll.Cursor {
+					m.jobScroll.SetCursorTo(itemIndex)
+					m.followLogs = true
+					m.runScroll.Reset()
+					m.runs = nil
+					m.stats = nil
+					m.stdoutContent = ""
+					m.stderrContent = ""
+					m.portScroll.Reset()
+					if len(m.jobs) > 0 {
+						m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
+					}
+					return m, m.fetchRunsForSelectedJob()
+				}
+			}
+
+		case y < runsStart:
+			// Ports panel clicked
+			m.activePanel = panelPorts
+			m.updateLogViewportSizes()
+			// Row 0 = top border, row 1 = header — items start at row 2
+			contentY := y - portsStart - 2
+			if contentY >= 0 {
+				portCount := 0
+				if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) && m.jobs[m.jobScroll.Cursor].Running {
+					portCount = len(m.jobs[m.jobScroll.Cursor].Ports)
+				}
+				itemIndex := m.portScroll.Offset + contentY
+				if itemIndex >= 0 && itemIndex < portCount {
+					m.portScroll.SetCursorTo(itemIndex)
+				}
+			}
+
+		default:
+			// Runs panel clicked
+			m.activePanel = panelRuns
+			m.updateLogViewportSizes()
+			// Header rows inside the panel content: stats(1) + progress(0-1) + empty(1)
+			headerRows := 2
+			if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) &&
+				m.jobs[m.jobScroll.Cursor].Running &&
+				m.stats != nil && m.stats.AvgDurationMs > 0 {
+				headerRows = 3
+			}
+			// +1 for top border
+			contentY := y - runsStart - 1 - headerRows
+			if contentY >= 0 {
+				itemIndex := m.runScroll.Offset + contentY
+				if itemIndex >= 0 && itemIndex < len(m.runs) && itemIndex != m.runScroll.Cursor {
+					m.runScroll.SetCursorTo(itemIndex)
+					m.followLogs = true
+					return m, m.readLogs()
+				}
+			}
+		}
+	} else {
+		// Right side: stdout or stderr
+		stdoutH, _ := m.logPanelHeights()
+		if y < stdoutH {
+			m.activePanel = panelStdout
+		} else {
+			m.activePanel = panelStderr
+		}
+		m.updateLogViewportSizes()
+	}
+
 	return m, nil
 }
 
