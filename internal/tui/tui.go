@@ -533,6 +533,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.quitReason = msg.reason
 		return m, tea.Quit
 
+	case tea.MouseMsg:
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			return m.handleMouseScroll(-1)
+		case tea.MouseButtonWheelDown:
+			return m.handleMouseScroll(1)
+		}
+
 	case tea.KeyMsg:
 		// Clear old messages
 		if time.Since(m.messageTime) > 3*time.Second {
@@ -707,6 +715,86 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			}
 		}
 	}
+}
+
+// handleMouseScroll handles trackpad/mouse wheel scroll events.
+// delta is -1 for scroll up, +1 for scroll down.
+func (m Model) handleMouseScroll(delta int) (tea.Model, tea.Cmd) {
+	switch m.activePanel {
+	case panelJobs:
+		if delta < 0 {
+			if m.jobScroll.Up() {
+				m.followLogs = true
+				m.runScroll.Reset()
+				m.runs = nil
+				m.stats = nil
+				m.stdoutContent = ""
+				m.stderrContent = ""
+				m.portScroll.Reset()
+				if len(m.jobs) > 0 {
+					m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
+				}
+				return m, m.fetchRunsForSelectedJob()
+			}
+		} else {
+			if m.jobScroll.Down(len(m.jobs)) {
+				m.followLogs = true
+				m.runScroll.Reset()
+				m.runs = nil
+				m.stats = nil
+				m.stdoutContent = ""
+				m.stderrContent = ""
+				m.portScroll.Reset()
+				if len(m.jobs) > 0 {
+					m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
+				}
+				return m, m.fetchRunsForSelectedJob()
+			}
+		}
+	case panelPorts:
+		portCount := 0
+		if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) && m.jobs[m.jobScroll.Cursor].Running {
+			portCount = len(m.jobs[m.jobScroll.Cursor].Ports)
+		}
+		if delta < 0 {
+			m.portScroll.Up()
+		} else {
+			m.portScroll.Down(portCount)
+		}
+	case panelRuns:
+		if delta < 0 {
+			if m.runScroll.Up() {
+				m.followLogs = true
+				return m, m.readLogs()
+			}
+		} else {
+			if m.runScroll.Down(len(m.runs)) {
+				m.followLogs = true
+				return m, m.readLogs()
+			}
+		}
+	case panelStdout:
+		if delta < 0 {
+			m.stdoutView.LineUp(3)
+			m.followLogs = false
+		} else {
+			m.stdoutView.LineDown(3)
+			if m.stdoutView.AtBottom() {
+				m.followLogs = true
+			}
+		}
+	case panelStderr:
+		if delta < 0 {
+			m.stderrView.LineUp(3)
+			m.followLogs = false
+		} else {
+			m.stderrView.LineDown(3)
+			if m.stderrView.AtBottom() {
+				m.followLogs = true
+			}
+		}
+	}
+	return m, nil
 }
 
 func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
