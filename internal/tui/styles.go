@@ -196,6 +196,11 @@ var (
 				Foreground(colorCyan).
 				Background(selectionBg)
 
+	// Text selection style for log panels
+	textSelectionStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("238")).
+				Foreground(colorBrightWhite)
+
 	// Progress bar styles
 	progressBarFillStyle = lipgloss.NewStyle().
 				Foreground(successColor)

@@ -120,6 +120,15 @@ type fatalErrorMsg struct {
 	reason string
 }
 
+// textSelection tracks mouse-driven text selection in log panels.
+type textSelection struct {
+	active    bool  // selection in progress
+	dragged   bool  // mouse moved since press (distinguishes click from drag)
+	panel     panel // panelStdout or panelStderr
+	startLine int   // content-absolute line index
+	endLine   int   // content-absolute line index
+}
+
 // Model is the main TUI model
 type Model struct {
 	// State
@@ -159,6 +168,9 @@ type Model struct {
 	jobScroll  ScrollState
 	portScroll ScrollState
 	runScroll  ScrollState
+
+	// Text selection state (log panels)
+	selection textSelection
 
 	// Subscription state
 	subscribed bool
@@ -417,27 +429,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Set correct viewport sizes based on active panel
 		m.updateLogViewportSizes()
 
-		// Calculate visible rows for scrollable panels (matches renderPanels layout)
-		totalH := m.height - 1 // height - status bar
-		if totalH < 8 {
-			totalH = 8
-		}
-		infoH := 3
-		leftH := totalH - infoH
-		portsH := leftH * 20 / 100
-		if portsH < 4 {
-			portsH = 4
-		}
-		runsH := leftH * 30 / 100
-		if runsH < 5 {
-			runsH = 5
-		}
-		jobsH := leftH - portsH - runsH
+		// Calculate visible rows for scrollable panels
+		l := m.leftPanelLayout()
 
 		// Set visible rows for each scroll state
-		m.jobScroll.VisibleRows = jobsH - 2   // panel height - border (2)
-		m.portScroll.VisibleRows = portsH - 3 // panel height - border (2) - header (1)
-		m.runScroll.VisibleRows = runsH - 4   // panel height - border (2) - stats (1) - empty line (1)
+		m.jobScroll.VisibleRows = l.jobsH - 2   // panel height - border (2)
+		m.portScroll.VisibleRows = l.portsH - 3 // panel height - border (2) - header (1)
+		m.runScroll.VisibleRows = l.runsH - 4   // panel height - border (2) - stats (1) - empty line (1)
 		if m.jobScroll.VisibleRows < 1 {
 			m.jobScroll.VisibleRows = 1
 		}
@@ -532,6 +530,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fatalErrorMsg:
 		m.quitReason = msg.reason
 		return m, tea.Quit
+
+	case tea.MouseMsg:
+		if model, cmd, handled := m.handleMouseEvent(msg); handled {
+			return model, cmd
+		}
 
 	case tea.KeyMsg:
 		// Clear old messages
@@ -856,60 +859,22 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
 		if m.jobScroll.Up() {
-			m.followLogs = true
-			m.runScroll.Reset()
-			m.runs = nil
-			m.stats = nil
-			m.stdoutContent = ""
-			m.stderrContent = ""
-			m.portScroll.Reset()
-			if len(m.jobs) > 0 {
-				m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
-			}
-			return m, m.fetchRunsForSelectedJob()
+			return m, m.onJobChanged()
 		}
 
 	case "down", "j":
 		if m.jobScroll.Down(len(m.jobs)) {
-			m.followLogs = true
-			m.runScroll.Reset()
-			m.runs = nil
-			m.stats = nil
-			m.stdoutContent = ""
-			m.stderrContent = ""
-			m.portScroll.Reset()
-			if len(m.jobs) > 0 {
-				m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
-			}
-			return m, m.fetchRunsForSelectedJob()
+			return m, m.onJobChanged()
 		}
 
 	case "g":
 		m.jobScroll.First()
-		m.followLogs = true
-		m.runScroll.Reset()
-		m.runs = nil
-		m.stats = nil
-		m.stdoutContent = ""
-		m.stderrContent = ""
-		m.portScroll.Reset()
-		if len(m.jobs) > 0 {
-			m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
-		}
-		return m, m.fetchRunsForSelectedJob()
+		return m, m.onJobChanged()
 
 	case "G":
 		if len(m.jobs) > 0 {
 			m.jobScroll.Last(len(m.jobs))
-			m.followLogs = true
-			m.runScroll.Reset()
-			m.runs = nil
-			m.stats = nil
-			m.stdoutContent = ""
-			m.stderrContent = ""
-			m.portScroll.Reset()
-			m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
-			return m, m.fetchRunsForSelectedJob()
+			return m, m.onJobChanged()
 		}
 
 	case "s":
@@ -989,6 +954,29 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// onJobChanged resets dependent state after the job cursor moves.
+// Call this after any operation that changes jobScroll.Cursor.
+func (m *Model) onJobChanged() tea.Cmd {
+	m.followLogs = true
+	m.runScroll.Reset()
+	m.runs = nil
+	m.stats = nil
+	m.stdoutContent = ""
+	m.stderrContent = ""
+	m.portScroll.Reset()
+	if len(m.jobs) > 0 {
+		m.runsForJobID = m.jobs[m.jobScroll.Cursor].ID
+	}
+	return m.fetchRunsForSelectedJob()
+}
+
+// onRunChanged resets dependent state after the run cursor moves.
+// Call this after any operation that changes runScroll.Cursor.
+func (m *Model) onRunChanged() tea.Cmd {
+	m.followLogs = true
+	return m.readLogs()
+}
+
 // fetchRunsForSelectedJob returns a command to fetch runs for the selected job
 // Note: caller must set m.runsForJobID before calling this
 // Ports are received via daemon events (EventTypePortsUpdated)
@@ -1001,11 +989,7 @@ func (m Model) fetchRunsForSelectedJob() tea.Cmd {
 }
 
 func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Get current job's port count for bounds checking
-	portCount := 0
-	if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) && m.jobs[m.jobScroll.Cursor].Running {
-		portCount = len(m.jobs[m.jobScroll.Cursor].Ports)
-	}
+	portCount := m.selectedJobPortCount()
 
 	switch msg.String() {
 	case "up", "k":
@@ -1052,26 +1036,22 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
 		if m.runScroll.Up() {
-			m.followLogs = true
-			return m, m.readLogs()
+			return m, m.onRunChanged()
 		}
 
 	case "down", "j":
 		if m.runScroll.Down(len(m.runs)) {
-			m.followLogs = true
-			return m, m.readLogs()
+			return m, m.onRunChanged()
 		}
 
 	case "g":
 		m.runScroll.First()
-		m.followLogs = true
-		return m, m.readLogs()
+		return m, m.onRunChanged()
 
 	case "G":
 		if len(m.runs) > 0 {
 			m.runScroll.Last(len(m.runs))
-			m.followLogs = true
-			return m, m.readLogs()
+			return m, m.onRunChanged()
 		}
 
 	case "f":
@@ -1439,64 +1419,30 @@ func (m Model) View() string {
 func (m Model) renderPanels() string {
 	leftPanelW := m.jobPanelWidth()
 	rightPanelW := m.width - leftPanelW
-	totalH := m.height - 1 // height - status bar
 
-	// Ensure minimum height
-	if totalH < 8 {
-		totalH = 8
-	}
-
-	// Info panel is fixed at 3 lines (border + 1 content + border)
-	infoH := 3
-
-	// Description panel is fixed at 3 lines when shown
-	hasDescription := m.selectedJobHasDescription()
-	descH := 0
-	if hasDescription {
-		descH = 3
-	}
-
-	leftH := totalH - infoH - descH
-
-	// Left side: Jobs (50%) + Ports (20%) + Runs (30%) of remaining height
-	portsH := leftH * 20 / 100
-	if portsH < 4 {
-		portsH = 4
-	}
-	runsH := leftH * 30 / 100
-	if runsH < 5 {
-		runsH = 5
-	}
-	jobsH := leftH - portsH - runsH
+	// Compute left-side layout from single source of truth
+	l := m.leftPanelLayout()
+	hasDescription := l.descH > 0
 
 	// Right side: Stdout/Stderr split - stderr expands when focused
-	var stderrH int
-	if m.activePanel == panelStderr {
-		stderrH = totalH * 80 / 100
-	} else {
-		stderrH = totalH * 20 / 100
-	}
-	if stderrH < 4 {
-		stderrH = 4
-	}
-	stdoutH := totalH - stderrH
+	stdoutH, stderrH := m.logPanelHeights()
 
 	// Info panel (logo + directory + version)
 	dir := m.shortenPath(m.cwd)
 	if m.showAll {
 		dir = "all directories"
 	}
-	infoPanel := m.renderInfoPanel("gob", dir, version.Version, leftPanelW, infoH)
+	infoPanel := m.renderInfoPanel("gob", dir, version.Version, leftPanelW, l.infoH)
 
 	// Jobs panel
 	jobContent := m.renderJobList(leftPanelW - 4)
-	jobPanel := m.renderPanel(1, "Jobs", jobContent, leftPanelW, jobsH, m.activePanel == panelJobs)
+	jobPanel := m.renderPanel(1, "Jobs", jobContent, leftPanelW, l.jobsH, m.activePanel == panelJobs)
 
 	// Description panel (only if selected job has a description)
 	var descPanel string
 	if hasDescription {
 		descContent := m.renderDescriptionContent(leftPanelW - 4)
-		descPanel = m.renderDescriptionPanel(descContent, leftPanelW, descH)
+		descPanel = m.renderDescriptionPanel(descContent, leftPanelW, l.descH)
 	}
 
 	// Ports panel
@@ -1505,7 +1451,7 @@ func (m Model) renderPanels() string {
 		portsTitle = fmt.Sprintf("Ports: %s", m.jobs[m.jobScroll.Cursor].ID)
 	}
 	portsContent := m.renderPortsList(leftPanelW - 4)
-	portsPanel := m.renderPanel(2, portsTitle, portsContent, leftPanelW, portsH, m.activePanel == panelPorts)
+	portsPanel := m.renderPanel(2, portsTitle, portsContent, leftPanelW, l.portsH, m.activePanel == panelPorts)
 
 	// Runs panel
 	runsTitle := "Runs"
@@ -1513,7 +1459,7 @@ func (m Model) renderPanels() string {
 		runsTitle = fmt.Sprintf("Runs: %s", m.jobs[m.jobScroll.Cursor].ID)
 	}
 	runsContent := m.renderRunsList(leftPanelW - 4)
-	runsPanel := m.renderPanel(3, runsTitle, runsContent, leftPanelW, runsH, m.activePanel == panelRuns)
+	runsPanel := m.renderPanel(3, runsTitle, runsContent, leftPanelW, l.runsH, m.activePanel == panelRuns)
 
 	// Build titles for log panels
 	var stdoutTitle, stderrTitle string
@@ -1597,13 +1543,13 @@ func (m Model) renderPanels() string {
 	// Stdout panel
 	m.stdoutView.Width = rightPanelW - 4
 	m.stdoutView.Height = stdoutH - 3
-	stdoutContent := m.stdoutView.View()
+	stdoutContent := m.highlightedLogView(panelStdout)
 	stdoutPanel := m.renderPanel(4, stdoutTitle, stdoutContent, rightPanelW, stdoutH, m.activePanel == panelStdout)
 
 	// Stderr panel
 	m.stderrView.Width = rightPanelW - 4
 	m.stderrView.Height = stderrH - 3
-	stderrContent := m.stderrView.View()
+	stderrContent := m.highlightedLogView(panelStderr)
 	stderrPanel := m.renderPanel(5, stderrTitle, stderrContent, rightPanelW, stderrH, m.activePanel == panelStderr)
 
 	// Stack panels
