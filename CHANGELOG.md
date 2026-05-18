@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-05-18
+
 ### Added
 
-- Mouse support
+- **TUI mouse support**: complete mouse interaction for all panels
+  - Scroll any panel with trackpad/mouse wheel (targets panel under cursor)
+  - Click to focus any panel
+  - Click to select items in Jobs, Ports, and Runs panels
+  - Click and drag on stdout/stderr panels to select and copy text to clipboard
+
+### Fixed
+
+- TUI panel height calculation now accounts for the description panel, fixing incorrect scroll bounds when a job has a description
 
 ### Removed
 
