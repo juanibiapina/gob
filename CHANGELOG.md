@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-07-07
+
 ### Changed
 
 - TUI: restart, stop, kill, and delete keys (`r`/`s`/`S`/`d`) now work from any panel, not just the Jobs panel. In the Runs panel, `d` still deletes the selected run.
