@@ -842,6 +842,11 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.refreshJobs(), m.startSubscription())
 	}
 
+	// Job lifecycle keys work from any panel
+	if cmd, ok := m.jobLifecycleCmd(msg.String()); ok {
+		return m, cmd
+	}
+
 	// Panel-specific keys
 	switch m.activePanel {
 	case panelJobs:
@@ -853,6 +858,50 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		return m.updateLogsPanel(msg)
 	}
+}
+
+// jobLifecycleCmd handles process-control keys that apply from any panel.
+// Returns (cmd, true) when key is a lifecycle key, else (nil, false).
+func (m Model) jobLifecycleCmd(key string) (tea.Cmd, bool) {
+	// `d` in the Runs panel deletes the selected run, not the job.
+	// Let it fall through to updateRunsPanel by not claiming it here.
+	if key == "d" && m.activePanel == panelRuns {
+		return nil, false
+	}
+	if len(m.jobs) == 0 {
+		// Still claim the key so it doesn't fall through to a panel handler.
+		switch key {
+		case "r", "s", "S", "d":
+			return nil, true
+		}
+		return nil, false
+	}
+	job := m.jobs[m.jobScroll.Cursor]
+	id := job.ID
+	switch key {
+	case "s":
+		if job.Running {
+			telemetry.TUIActionExecute("stop_job")
+			return m.stopJob(id, false), true
+		}
+		return nil, true
+	case "S":
+		if job.Running {
+			telemetry.TUIActionExecute("kill_job")
+			return m.stopJob(id, true), true
+		}
+		return nil, true
+	case "r":
+		telemetry.TUIActionExecute("restart_job")
+		return m.restartJob(id), true
+	case "d":
+		if !job.Running {
+			telemetry.TUIActionExecute("remove_job")
+			return m.removeJob(id), true
+		}
+		return nil, true
+	}
+	return nil, false
 }
 
 func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -875,30 +924,6 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.jobs) > 0 {
 			m.jobScroll.Last(len(m.jobs))
 			return m, m.onJobChanged()
-		}
-
-	case "s":
-		if len(m.jobs) > 0 && m.jobs[m.jobScroll.Cursor].Running {
-			telemetry.TUIActionExecute("stop_job")
-			return m, m.stopJob(m.jobs[m.jobScroll.Cursor].ID, false)
-		}
-
-	case "S":
-		if len(m.jobs) > 0 && m.jobs[m.jobScroll.Cursor].Running {
-			telemetry.TUIActionExecute("kill_job")
-			return m, m.stopJob(m.jobs[m.jobScroll.Cursor].ID, true)
-		}
-
-	case "r":
-		if len(m.jobs) > 0 {
-			telemetry.TUIActionExecute("restart_job")
-			return m, m.restartJob(m.jobs[m.jobScroll.Cursor].ID)
-		}
-
-	case "d":
-		if len(m.jobs) > 0 && !m.jobs[m.jobScroll.Cursor].Running {
-			telemetry.TUIActionExecute("remove_job")
-			return m, m.removeJob(m.jobs[m.jobScroll.Cursor].ID)
 		}
 
 	case "c":
@@ -2172,6 +2197,9 @@ func (m Model) renderStatusBar() string {
 			parts = append(parts,
 				m.renderKey("↑↓", "navigate"),
 				m.renderKey("g/G", "first/last"),
+				m.renderKey("s/S", "stop/kill"),
+				m.renderKey("r", "restart"),
+				m.renderKey("d", "delete"),
 				m.renderKey("H/L", "scroll log"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
@@ -2181,6 +2209,9 @@ func (m Model) renderStatusBar() string {
 			parts = append(parts,
 				m.renderKey("↑↓", "select run"),
 				m.renderKey("g/G", "first/last"),
+				m.renderKey("s/S", "stop/kill"),
+				m.renderKey("r", "restart"),
+				m.renderKey("d", "delete run"),
 				m.renderKey("H/L", "scroll log"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
@@ -2191,6 +2222,9 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("↑↓", "scroll"),
 				m.renderKey("h/l", "left/right"),
 				m.renderKey("g/G", "top/bottom"),
+				m.renderKey("s/S", "stop/kill"),
+				m.renderKey("r", "restart"),
+				m.renderKey("d", "delete"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
 				m.renderKey("1-5", "panels"),
@@ -2200,6 +2234,9 @@ func (m Model) renderStatusBar() string {
 				m.renderKey("↑↓", "scroll"),
 				m.renderKey("h/l", "left/right"),
 				m.renderKey("g/G", "top/bottom"),
+				m.renderKey("s/S", "stop/kill"),
+				m.renderKey("r", "restart"),
+				m.renderKey("d", "delete"),
 				m.renderKey("f", "follow"),
 				m.renderKey("w", "wrap"),
 				m.renderKey("1-5", "panels"),
@@ -2356,7 +2393,7 @@ func (m Model) renderHelpModal() string {
 		"  " + m.renderKey("tab", "switch panel"),
 		"  " + m.renderKey("1-5", "panels"),
 		"",
-		helpKeyStyle.Render("Job Actions"),
+		helpKeyStyle.Render("Job Actions (any panel)"),
 		"  " + m.renderKey("s", "stop (SIGTERM)"),
 		"  " + m.renderKey("S", "kill (SIGKILL)"),
 		"  " + m.renderKey("r", "restart"),

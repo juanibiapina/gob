@@ -222,6 +222,8 @@ The TUI has an info bar and five panels:
 | `?` | Show all shortcuts |
 | `q` | Quit |
 
+Process-control keys (`s`/`S`/`r`/`d`) act on the selected job from any panel. The only exception is `d` in the Runs panel, where it deletes the selected run.
+
 ### Auto-Start with Gobfile
 
 Create a `.config/gobfile.toml` in your project directory to automatically start jobs when the TUI launches:

@@ -175,3 +175,57 @@ func TestUpdateLogViewportSizes_StderrExpands(t *testing.T) {
 			bigStdoutHeight, smallStdoutHeight)
 	}
 }
+
+func TestJobLifecycleCmd_HandledFromAnyPanel(t *testing.T) {
+	panels := []panel{panelPorts, panelStdout, panelStderr}
+	keys := []string{"r", "s", "S", "d"}
+
+	for _, p := range panels {
+		m := Model{
+			activePanel: p,
+			jobs:        []Job{{ID: "job1", Running: true}},
+		}
+		for _, k := range keys {
+			if _, ok := m.jobLifecycleCmd(k); !ok {
+				t.Errorf("panel %d key %q: handled = false, want true", p, k)
+			}
+		}
+		if _, ok := m.jobLifecycleCmd("x"); ok {
+			t.Errorf("panel %d key %q: handled = true, want false", p, "x")
+		}
+	}
+}
+
+func TestJobLifecycleCmd_RunsPanelDeleteFallsThrough(t *testing.T) {
+	m := Model{
+		activePanel: panelRuns,
+		jobs:        []Job{{ID: "job1", Running: true}},
+	}
+
+	if _, ok := m.jobLifecycleCmd("d"); ok {
+		t.Errorf("runs panel key %q: handled = true, want false (falls through to run deletion)", "d")
+	}
+
+	for _, k := range []string{"r", "s", "S"} {
+		if _, ok := m.jobLifecycleCmd(k); !ok {
+			t.Errorf("runs panel key %q: handled = false, want true", k)
+		}
+	}
+}
+
+func TestJobLifecycleCmd_ClaimsKeysWithZeroJobs(t *testing.T) {
+	m := Model{
+		activePanel: panelStdout,
+		jobs:        nil,
+	}
+
+	for _, k := range []string{"r", "s", "S", "d"} {
+		cmd, ok := m.jobLifecycleCmd(k)
+		if !ok {
+			t.Errorf("zero jobs key %q: handled = false, want true", k)
+		}
+		if cmd != nil {
+			t.Errorf("zero jobs key %q: cmd non-nil, want nil", k)
+		}
+	}
+}
