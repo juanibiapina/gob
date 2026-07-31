@@ -16,7 +16,7 @@ require (
 	github.com/sevlyar/go-daemon v0.1.7
 	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/cobra v1.10.2
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 )
 
 require (
