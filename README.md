@@ -10,30 +10,30 @@
 
 > Process manager for AI agents (and humans).
 
-`gob` (pronounced job, of course) is a CLI for managing background processes with a shared interface for you and your AI coding agent.
-
-Start a dev server with Claude Code, check its logs yourself. Or vice-versa. The agent can monitor what you started. Everyone has the same view.
-
-No more "can you check if that's still running?" No more copy-pasting logs through chat. Just direct access to your processes, for everyone.
+**`gob` lets your AI coding agent start background processes and inspect them later.** The agent starts a dev server or a build, then reads its logs, status, and ports on a later turn. (Pronounced *job*, of course.) You can also start and inspect backgroud jobs yourself.
 
 ![TUI Screenshot](assets/tui.png)
 
-## Features
+## Why gob
 
-- **Interactive TUI** - Full-screen terminal interface with real-time job status
-- **Real-time log streaming** - Follow stdout/stderr from CLI, TUI, or AI agents without copying output
-- **AI agent friendly** - Shared view of all processes for you and your coding agent
-- **Real-time sync** - Changes from CLI instantly appear in TUI, and vice-versa
-- **Per-directory jobs** - Jobs are scoped to directories, keeping projects organized
-- **Process lifecycle control** - Start, stop, restart, send signals to any job
-- **Port monitoring** - Inspect listening ports across a job's entire process tree
-- **Reliable shutdowns** - Stop, restart, and shutdown verify every child process in the tree is gone
-- **Job persistence** - Jobs survive daemon restarts with SQLite-backed state
-- **Run history** - Track execution history, statistics, and progress estimates for repeated commands
-- **Stuck detection** - Automatically detects jobs that may be stuck and returns early, while the job continues running
-- **Blocked jobs** - Prevent AI coding agents from accidentally running dangerous commands
+`gob` replaces ad-hoc backgrounding (`&`, `nohup`, stray tmux panes, scrollback) with a managed job store that you and your agent both read and control. That single idea buys:
+
+- **Shared view** - You and your coding agent see the same processes, logs, and status.
+- **Real-time log streaming** - Follow stdout/stderr from CLI, TUI, or agent without copying output.
+- **Real-time sync** - Changes from the CLI appear instantly in the TUI, and vice-versa.
+- **Interactive TUI** - Full-screen terminal interface with live job status.
+- **Per-directory jobs** - Jobs are scoped to directories, keeping projects organized.
+- **Process lifecycle control** - Start, stop, restart, and signal any job.
+- **Port monitoring** - Inspect listening ports across a job's entire process tree.
+- **Reliable shutdowns** - Stop, restart, and shutdown verify every child in the tree is gone.
+- **Job persistence** - Jobs survive daemon restarts with SQLite-backed state.
+- **Run history** - Track execution history, statistics, and progress estimates for repeated commands.
+- **Stuck detection** - Detects jobs that may be stuck and returns early, while the job keeps running.
+- **Blocked jobs** - Prevent agents from accidentally running dangerous commands.
 
 ## Installation
+
+Install `gob` with Homebrew, `go install`, or a pre-built binary.
 
 <details>
 <summary>Homebrew</summary>
@@ -92,6 +92,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions.
 
 ## Quick Start
 
+The everyday flow is one of two shapes: **run and wait**, or **add and come back later**.
+
 ```bash
 # Usage overview
 gob
@@ -131,7 +133,7 @@ This makes the gob instructions available to your agent (Claude Code, Cursor, Co
 
 ## Interactive TUI
 
-Launch a full-screen terminal interface for managing jobs:
+When you want to watch and control jobs directly, launch the full-screen terminal interface:
 
 ```bash
 gob tui
@@ -171,7 +173,7 @@ Process-control keys (`s`/`S`/`r`/`d`) act on the selected job from any panel. T
 
 ### Auto-Start with Gobfile
 
-Create a `.config/gobfile.toml` in your project directory to automatically start jobs when the TUI launches:
+To start a project's usual jobs automatically when the TUI launches, create a `.config/gobfile.toml` in the project directory:
 
 ```toml
 [[job]]
@@ -235,7 +237,7 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 
 ## Shell Completion
 
-`gob` supports shell completion for Bash, Zsh, and Fish. Completions include dynamic job ID suggestions with command descriptions.
+For live job-ID suggestions with command descriptions as you type, enable shell completion for Bash, Zsh, or Fish.
 
 <details>
 <summary>Bash</summary>
