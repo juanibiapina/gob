@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Agent skill for AI coding agents, installable with `npx skills add juanibiapina/gob`.
+
 ## [3.6.0] - 2026-07-07
 
 ### Changed
