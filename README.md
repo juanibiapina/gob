@@ -274,14 +274,6 @@ gob completion fish | source
 
 </details>
 
-## Telemetry
-
-`gob` collects anonymous usage telemetry to help inform development priorities. Only usage metadata is collected; command arguments and output are never recorded.
-
-You can opt out by setting `GOB_TELEMETRY_DISABLED=1` or `DO_NOT_TRACK=1` in your environment.
-
-See [docs/telemetry.md](docs/telemetry.md) for details on what's collected.
-
 ## Contributing
 
 Interested in contributing? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, build instructions, testing instructions, and contribution guidelines.

@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Agent skill for AI coding agents, installable with `npx skills add juanibiapina/gob`.
 
+### Changed
+
+- Faster startup: every command now starts noticeably quicker, which also speeds up shell tab-completion.
+
+### Removed
+
+- Anonymous usage telemetry has been removed entirely. `gob` no longer collects or sends any data. The `GOB_TELEMETRY_DISABLED` and `DO_NOT_TRACK` environment variables no longer have any effect.
+
 ## [3.6.0] - 2026-07-07
 
 ### Changed

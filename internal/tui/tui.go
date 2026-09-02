@@ -18,7 +18,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/juanibiapina/gob/internal/daemon"
-	"github.com/juanibiapina/gob/internal/telemetry"
 	"github.com/juanibiapina/gob/internal/version"
 )
 
@@ -723,7 +722,6 @@ func (m Model) updateModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmd := m.textInput.Value()
 			if cmd != "" {
 				m.modal = modalNone
-				telemetry.TUIActionExecute("new_job")
 				return m, m.addJob(cmd)
 			}
 		case "ctrl+c":
@@ -762,27 +760,22 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "1":
 		m.activePanel = panelJobs
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "2":
 		m.activePanel = panelPorts
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "3":
 		m.activePanel = panelRuns
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "4":
 		m.activePanel = panelStdout
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "5":
 		m.activePanel = panelStderr
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "tab":
 		switch m.activePanel {
@@ -798,7 +791,6 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.activePanel = panelJobs
 		}
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "shift+tab":
 		switch m.activePanel {
@@ -814,7 +806,6 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.activePanel = panelStdout
 		}
 		m.updateLogViewportSizes()
-		telemetry.TUIActionExecute("switch_panel")
 
 	case "?":
 		m.modal = modalHelp
@@ -830,7 +821,6 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.jobScroll.Reset()
 		m.runScroll.Reset()
 		m.portScroll.Reset()
-		telemetry.TUIActionExecute("toggle_all_dirs")
 		// Restart subscription with new filter
 		if m.subClient != nil {
 			m.subClient.Close()
@@ -881,22 +871,18 @@ func (m Model) jobLifecycleCmd(key string) (tea.Cmd, bool) {
 	switch key {
 	case "s":
 		if job.Running {
-			telemetry.TUIActionExecute("stop_job")
 			return m.stopJob(id, false), true
 		}
 		return nil, true
 	case "S":
 		if job.Running {
-			telemetry.TUIActionExecute("kill_job")
 			return m.stopJob(id, true), true
 		}
 		return nil, true
 	case "r":
-		telemetry.TUIActionExecute("restart_job")
 		return m.restartJob(id), true
 	case "d":
 		if !job.Running {
-			telemetry.TUIActionExecute("remove_job")
 			return m.removeJob(id), true
 		}
 		return nil, true
@@ -928,7 +914,6 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "c":
 		if len(m.jobs) > 0 {
-			telemetry.TUIActionExecute("copy_command")
 			err := clipboard.WriteAll(m.jobs[m.jobScroll.Cursor].Command)
 			if err != nil {
 				m.message = fmt.Sprintf("Failed to copy: %v", err)
@@ -961,7 +946,6 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "f":
 		m.followLogs = !m.followLogs
-		telemetry.TUIActionExecute("toggle_follow")
 		if m.followLogs {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
@@ -969,7 +953,6 @@ func (m Model) updateJobsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "w":
 		m.wrapLines = !m.wrapLines
-		telemetry.TUIActionExecute("toggle_wrap")
 		m.stdoutView.SetContent(m.formatStdout())
 		m.stderrView.SetContent(m.formatStderr())
 		m.stdoutView.SetXOffset(0)
@@ -1031,7 +1014,6 @@ func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "f":
 		m.followLogs = !m.followLogs
-		telemetry.TUIActionExecute("toggle_follow")
 		if m.followLogs {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
@@ -1047,7 +1029,6 @@ func (m Model) updatePortsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "w":
 		m.wrapLines = !m.wrapLines
-		telemetry.TUIActionExecute("toggle_wrap")
 		m.stdoutView.SetContent(m.formatStdout())
 		m.stderrView.SetContent(m.formatStderr())
 		m.stdoutView.SetXOffset(0)
@@ -1081,7 +1062,6 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "f":
 		m.followLogs = !m.followLogs
-		telemetry.TUIActionExecute("toggle_follow")
 		if m.followLogs {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
@@ -1097,7 +1077,6 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "w":
 		m.wrapLines = !m.wrapLines
-		telemetry.TUIActionExecute("toggle_wrap")
 		m.stdoutView.SetContent(m.formatStdout())
 		m.stderrView.SetContent(m.formatStderr())
 		m.stdoutView.SetXOffset(0)
@@ -1105,7 +1084,6 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "d":
 		if len(m.runs) > 0 && m.runs[m.runScroll.Cursor].Status != "running" {
-			telemetry.TUIActionExecute("remove_run")
 			return m, m.removeRun(m.runs[m.runScroll.Cursor].ID)
 		}
 	}
@@ -1157,7 +1135,6 @@ func (m Model) updateLogsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "f":
 		m.followLogs = !m.followLogs
-		telemetry.TUIActionExecute("toggle_follow")
 		if m.followLogs {
 			m.stdoutView.GotoBottom()
 			m.stderrView.GotoBottom()
@@ -1165,7 +1142,6 @@ func (m Model) updateLogsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "w":
 		m.wrapLines = !m.wrapLines
-		telemetry.TUIActionExecute("toggle_wrap")
 		// Re-apply content with new wrap setting
 		m.stdoutView.SetContent(m.formatStdout())
 		m.stderrView.SetContent(m.formatStderr())
@@ -2478,9 +2454,6 @@ func formatDuration(d time.Duration) string {
 
 // Start starts the TUI
 func Start() error {
-	telemetry.TUISessionStart()
-	defer telemetry.TUISessionEnd()
-
 	cwd, _ := os.Getwd()
 	env := os.Environ()
 

@@ -53,9 +53,6 @@ setup() {
   # Override XDG state directory for persistent data (database, logs)
   export XDG_STATE_HOME="$BATS_TEST_TMPDIR/.xdg-state"
 
-  # Disable telemetry during tests
-  export GOB_TELEMETRY_DISABLED=1
-
   JOB_CLI="$BATS_TEST_DIRNAME/../dist/gob"
 }
 
