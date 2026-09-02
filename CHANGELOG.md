@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-09-02
+
 ### Added
 
 - Shell completions (Bash, Zsh, Fish) are now shipped in release archives and installed automatically when you install gob with Homebrew. No shell startup sourcing required.
