@@ -237,14 +237,17 @@ Run `gob <command> --help` for detailed usage, examples, and flags.
 
 ## Shell Completion
 
-For live job-ID suggestions with command descriptions as you type, enable shell completion for Bash, Zsh, or Fish.
+gob provides live job-ID suggestions with command descriptions as you type.
+
+**Homebrew installs completions automatically** for Bash, Zsh, and Fish — no setup needed. Just start a new shell.
+
+For manual installs, write the completion script once to a file on your shell's completion path. Don't `source <(gob completion ...)` from your shell rc: that spawns gob on every new shell and slows startup. Generate the file instead, and regenerate it only when you upgrade gob.
 
 <details>
 <summary>Bash</summary>
 
 ```bash
-# Add to ~/.bashrc
-source <(gob completion bash)
+gob completion bash > "$(brew --prefix 2>/dev/null || echo /usr/local)/etc/bash_completion.d/gob"
 ```
 
 </details>
@@ -253,13 +256,11 @@ source <(gob completion bash)
 <summary>Zsh</summary>
 
 ```bash
-# Add to ~/.zshrc
-source <(gob completion zsh)
-```
-
-If you get "command not found: compdef", add this before the source line:
-```bash
-autoload -Uz compinit && compinit
+# Write to a directory on your fpath (must be listed in fpath before compinit runs)
+mkdir -p ~/.zsh/completions
+gob completion zsh > ~/.zsh/completions/_gob
+# In ~/.zshrc, before `compinit`:
+#   fpath=(~/.zsh/completions $fpath)
 ```
 
 </details>
@@ -268,8 +269,7 @@ autoload -Uz compinit && compinit
 <summary>Fish</summary>
 
 ```bash
-# Add to ~/.config/fish/config.fish
-gob completion fish | source
+gob completion fish > ~/.config/fish/completions/gob.fish
 ```
 
 </details>

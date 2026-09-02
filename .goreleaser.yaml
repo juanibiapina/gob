@@ -7,6 +7,11 @@ before:
   hooks:
     # Ensure dependencies are up to date
     - go mod tidy
+    # Generate shell completions from the binary itself
+    - mkdir -p completions
+    - sh -c 'go run . completion bash > completions/gob.bash'
+    - sh -c 'go run . completion zsh  > completions/gob.zsh'
+    - sh -c 'go run . completion fish > completions/gob.fish'
 
 builds:
   - id: gob
@@ -35,6 +40,7 @@ archives:
     files:
       - README.md
       - LICENSE.md
+      - completions/*
 
 checksum:
   name_template: 'checksums.txt'
@@ -102,3 +108,6 @@ brews:
     license: "MIT"
     install: |
       bin.install "gob"
+      bash_completion.install "completions/gob.bash" => "gob"
+      zsh_completion.install  "completions/gob.zsh"  => "_gob"
+      fish_completion.install "completions/gob.fish"
