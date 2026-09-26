@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-09-26
+
 ### Fixed
 
 - Most commands respond faster when gob has a large job history.
