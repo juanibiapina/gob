@@ -28,8 +28,7 @@ func (e *ErrVersionMismatch) Error() string {
 
 // VersionInfo contains daemon version information
 type VersionInfo struct {
-	Version     string // Semantic version (e.g., "1.2.3")
-	RunningJobs int    // Number of currently running jobs
+	Version string // Semantic version (e.g., "1.2.3")
 }
 
 // Client represents a client connection to the daemon
@@ -624,10 +623,7 @@ func (c *Client) GetDaemonVersion() (*VersionInfo, error) {
 	}
 
 	// Parse version info from daemon
-	return &VersionInfo{
-		Version:     resp.Data["version"].(string),
-		RunningJobs: int(resp.Data["running_jobs"].(float64)),
-	}, nil
+	return &VersionInfo{Version: resp.Data["version"].(string)}, nil
 }
 
 // CheckDaemonVersion checks version compatibility and handles upgrades

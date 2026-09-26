@@ -340,40 +340,8 @@ func TestDaemon_handleVersion(t *testing.T) {
 		t.Error("expected version in response")
 	}
 
-	// Check running_jobs is present
-	runningJobs, ok := resp.Data["running_jobs"]
-	if !ok {
-		t.Error("expected running_jobs in response")
-	}
-	if runningJobs != 0 {
-		t.Errorf("expected 0 running jobs, got %v", runningJobs)
-	}
-}
-
-func TestDaemon_handleVersion_WithRunningJobs(t *testing.T) {
-	tmpDir := t.TempDir()
-	executor := NewFakeProcessExecutor()
-	jm := NewJobManagerWithExecutor(tmpDir, nil, executor, nil)
-
-	// Add running jobs
-	jm.AddJob([]string{"echo", "1"}, "/workdir", "", false, nil)
-	jm.AddJob([]string{"echo", "2"}, "/workdir", "", false, nil)
-
-	d := &Daemon{jobManager: jm}
-	req := &Request{
-		Type:    RequestTypeVersion,
-		Payload: map[string]interface{}{},
-	}
-
-	resp := d.handleRequest(req)
-
-	if !resp.Success {
-		t.Errorf("expected success, got error: %s", resp.Error)
-	}
-
-	runningJobs := resp.Data["running_jobs"]
-	if runningJobs != 2 {
-		t.Errorf("expected 2 running jobs, got %v", runningJobs)
+	if len(resp.Data) != 1 {
+		t.Errorf("expected only version in response, got %v", resp.Data)
 	}
 }
 

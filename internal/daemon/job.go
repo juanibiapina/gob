@@ -757,24 +757,31 @@ func (jm *JobManager) ListJobs(workdirFilter string) []*Job {
 		jobs = append(jobs, job)
 	}
 
-	// Sort by most recent activity (run start time, or creation time if no runs)
+	if len(jobs) < 2 {
+		return jobs
+	}
+
+	// Compute the latest run for each selected job in one pass over the runs.
+	activity := make(map[string]time.Time, len(jobs))
+	for _, job := range jobs {
+		activity[job.ID] = time.Time{}
+	}
+	for _, run := range jm.runs {
+		if last, ok := activity[run.JobID]; ok && run.StartedAt.After(last) {
+			activity[run.JobID] = run.StartedAt
+		}
+	}
+	for _, job := range jobs {
+		if activity[job.ID].IsZero() {
+			activity[job.ID] = job.CreatedAt
+		}
+	}
+
 	sort.Slice(jobs, func(i, j int) bool {
-		timeI := jm.getJobSortTime(jobs[i])
-		timeJ := jm.getJobSortTime(jobs[j])
-		return timeI.After(timeJ)
+		return activity[jobs[i].ID].After(activity[jobs[j].ID])
 	})
 
 	return jobs
-}
-
-// getJobSortTime returns the time to use for sorting a job
-// Uses the most recent run's start time, or falls back to job creation time
-func (jm *JobManager) getJobSortTime(job *Job) time.Time {
-	latestRun := jm.getLatestRunForJobLocked(job.ID)
-	if latestRun != nil {
-		return latestRun.StartedAt
-	}
-	return job.CreatedAt
 }
 
 // StopJob stops a running job and verifies all child processes terminate
@@ -1373,5 +1380,3 @@ func runToResponse(run *Run) RunResponse {
 	}
 	return resp
 }
-
-

@@ -9,7 +9,7 @@ and avoid version conflicts where old clients restart the daemon to an old versi
 
 1. On connect, client sends a `version` request to daemon
 2. Old daemons return `"unknown request type: version"` → treated as version mismatch
-3. New daemons return `{"version": "x.y.z", "running_jobs": N}`
+3. New daemons return `{"version": "x.y.z"}`
 4. If versions match → continue
 5. If versions differ → return `ErrVersionMismatch` error
 
@@ -33,7 +33,7 @@ run `gob shutdown` and then start fresh with the new version.
 ## Key Files
 
 - `internal/daemon/protocol.go` - `RequestTypeVersion` constant
-- `internal/daemon/daemon.go` - `handleVersion()` returns version and job count
+- `internal/daemon/daemon.go` - `handleVersion()` returns the daemon version
 - `internal/daemon/client.go` - `CheckDaemonVersion()`, `ErrVersionMismatch` type
 - `internal/tui/tui.go` - handles `ErrVersionMismatch` by quitting
 - `cmd/shutdown.go` - uses `ConnectSkipVersionCheck()` to bypass

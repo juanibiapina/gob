@@ -20,10 +20,7 @@ func parseVersionResponse(resp *Response) (*VersionInfo, error) {
 	}
 
 	// Parse version info from daemon
-	return &VersionInfo{
-		Version:     resp.Data["version"].(string),
-		RunningJobs: int(resp.Data["running_jobs"].(float64)),
-	}, nil
+	return &VersionInfo{Version: resp.Data["version"].(string)}, nil
 }
 
 func TestVersionNegotiation_OldDaemon(t *testing.T) {
@@ -45,8 +42,7 @@ func TestVersionNegotiation_NewDaemon(t *testing.T) {
 	resp := &Response{
 		Success: true,
 		Data: map[string]interface{}{
-			"version":      "1.2.3",
-			"running_jobs": float64(0),
+			"version": "1.2.3",
 		},
 	}
 
@@ -57,29 +53,6 @@ func TestVersionNegotiation_NewDaemon(t *testing.T) {
 
 	if info.Version != "1.2.3" {
 		t.Errorf("expected version 1.2.3, got %s", info.Version)
-	}
-	if info.RunningJobs != 0 {
-		t.Errorf("expected 0 running jobs, got %d", info.RunningJobs)
-	}
-}
-
-func TestVersionNegotiation_NewDaemonWithRunningJobs(t *testing.T) {
-	// Simulate new daemon response with running jobs
-	resp := &Response{
-		Success: true,
-		Data: map[string]interface{}{
-			"version":      "1.0.0",
-			"running_jobs": float64(3),
-		},
-	}
-
-	info, err := parseVersionResponse(resp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if info.RunningJobs != 3 {
-		t.Errorf("expected 3 running jobs, got %d", info.RunningJobs)
 	}
 }
 
@@ -110,16 +83,10 @@ func TestRequestTypeVersionConstant(t *testing.T) {
 }
 
 func TestVersionInfo_Struct(t *testing.T) {
-	info := VersionInfo{
-		Version:     version.Version,
-		RunningJobs: 5,
-	}
+	info := VersionInfo{Version: version.Version}
 
 	if info.Version == "" {
 		t.Error("expected non-empty version")
-	}
-	if info.RunningJobs != 5 {
-		t.Errorf("expected 5 running jobs, got %d", info.RunningJobs)
 	}
 }
 

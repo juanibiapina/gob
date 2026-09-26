@@ -700,20 +700,7 @@ func (d *Daemon) handleGetJob(req *Request) *Response {
 func (d *Daemon) handleVersion(req *Request) *Response {
 	resp := NewSuccessResponse()
 	resp.Data["version"] = version.Version
-	resp.Data["running_jobs"] = d.countRunningJobs()
 	return resp
-}
-
-// countRunningJobs returns the count of currently running jobs
-func (d *Daemon) countRunningJobs() int {
-	jobs := d.jobManager.ListJobs("")
-	count := 0
-	for _, job := range jobs {
-		if job.IsRunning() {
-			count++
-		}
-	}
-	return count
 }
 
 // handleRuns handles a runs request
