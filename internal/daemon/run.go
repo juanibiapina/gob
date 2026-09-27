@@ -17,8 +17,11 @@ type Run struct {
 	StoppedAt  *time.Time `json:"stopped_at,omitempty"` // nil if running
 
 	// Internal fields for process management
-	process ProcessHandle
-	Ports   []PortInfo // In-memory only, not persisted - listening ports for this run
+	process      ProcessHandle
+	stopVerified chan struct{} // closed after an accepted stop has been verified
+	finalized    chan struct{} // closed after the run has been marked stopped
+	knownPIDs    map[int]int64 // captured PID -> creation time, guarded by JobManager.mu
+	Ports        []PortInfo    // In-memory only, not persisted - listening ports for this run
 }
 
 // IsRunning checks if the run's process is still running

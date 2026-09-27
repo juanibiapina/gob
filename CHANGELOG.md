@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Improved performance of `gob list` while jobs are running and stopping.
+
 ## [3.8.0] - 2026-09-26
 
 ### Fixed

@@ -15,8 +15,9 @@ var stopCmd = &cobra.Command{
 	ValidArgsFunction: completeJobIDs,
 	Long: `Stop a background job by sending a signal to terminate it.
 
-By default, sends SIGTERM for graceful shutdown.
-Use --force to send SIGKILL for immediate termination.
+By default, sends SIGTERM for graceful shutdown and waits for verification.
+While waiting, gob list reports 'stopping'.
+Use --force to escalate to SIGKILL, including an ongoing graceful stop.
 
 Use 'job list' to find job IDs.
 
@@ -59,7 +60,7 @@ Exit codes:
 		// Stop via daemon
 		pid, err := client.Stop(jobID, forceStop)
 		if err != nil {
-			return fmt.Errorf("job not found: %s", jobID)
+			return err
 		}
 
 		// Print confirmation

@@ -60,6 +60,20 @@ Exit codes:
 
 		commandStr := strings.Join(job.Command, " ")
 
+		if job.Status == "stopping" {
+			fmt.Printf("Waiting for job %s to stop: %s\n", job.ID, commandStr)
+			for job.Status == "stopping" {
+				if job.StopError != "" {
+					return fmt.Errorf("stop failed: %s", job.StopError)
+				}
+				time.Sleep(100 * time.Millisecond)
+				job, err = client.GetJob(jobID)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
 		if job.Status == "running" {
 			// Fetch stats for stuck detection
 			var avgDurationMs int64
@@ -95,6 +109,16 @@ Exit codes:
 			job, err = client.GetJob(jobID)
 			if err != nil {
 				return err
+			}
+			for job.Status == "stopping" {
+				if job.StopError != "" {
+					return fmt.Errorf("stop failed: %s", job.StopError)
+				}
+				time.Sleep(100 * time.Millisecond)
+				job, err = client.GetJob(jobID)
+				if err != nil {
+					return err
+				}
 			}
 		} else {
 			// Job is stopped - show existing output

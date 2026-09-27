@@ -44,7 +44,7 @@ With --workdir:
 Where:
   job_id: Unique identifier - use this for other commands
   pid:    Process ID (or "-" if stopped)
-  status: Either 'running', 'running (N%)' (with progress), or 'stopped'
+  status: 'running', 'running (N%)', 'stopping', or 'stopped'
   workdir: Directory where job was started (only with --workdir or --all)
   command: Original command that was executed
 

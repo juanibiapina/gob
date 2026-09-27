@@ -21,6 +21,9 @@ type Subscriber struct {
 	conn    net.Conn
 	encoder *json.Encoder
 	workdir string
+	events  chan Event
+	done    chan struct{}
+	writeMu sync.Mutex
 }
 
 // Daemon represents the gob daemon server
@@ -37,6 +40,7 @@ type Daemon struct {
 	jobManager    *JobManager
 	subscribers   []*Subscriber
 	subscribersMu sync.RWMutex
+	events        chan Event
 }
 
 // New creates a new daemon instance
@@ -92,10 +96,12 @@ func New() (*Daemon, error) {
 		ctx:         ctx,
 		cancel:      cancel,
 		subscribers: make([]*Subscriber, 0),
+		events:      make(chan Event, 1024),
 	}
 
 	// Initialize job manager with event callback and store
 	d.jobManager = NewJobManager(logDir, d.handleEvent, store)
+	go d.dispatchEvents()
 
 	return d, nil
 }
@@ -190,6 +196,9 @@ func (d *Daemon) Shutdown() error {
 	d.subscribersMu.Lock()
 	for _, sub := range d.subscribers {
 		sub.conn.Close()
+		if sub.done != nil {
+			close(sub.done)
+		}
 	}
 	d.subscribers = nil
 	d.subscribersMu.Unlock()
@@ -200,8 +209,10 @@ func (d *Daemon) Shutdown() error {
 		Logger.Info("stopped running jobs", "count", stopped)
 	}
 
-	// Set shutdown_clean = true since we're shutting down gracefully
-	if err := d.store.SetShutdownClean(true); err != nil {
+	// Failed stop verification leaves runs for crash recovery on the next daemon start.
+	if d.jobManager.HasRunningJobs() {
+		Logger.Warn("shutdown left unverified running jobs; recovery remains enabled")
+	} else if err := d.store.SetShutdownClean(true); err != nil {
 		Logger.Warn("failed to set shutdown_clean flag", "error", err)
 	}
 
@@ -336,6 +347,8 @@ func (d *Daemon) handleRequest(req *Request) *Response {
 		return d.handleCreate(req)
 	case RequestTypeStop:
 		return d.handleStop(req)
+	case RequestTypeStopRequest:
+		return d.handleStopRequest(req)
 	case RequestTypeStart:
 		return d.handleStart(req)
 	case RequestTypeRestart:
@@ -385,12 +398,7 @@ func (d *Daemon) handleShutdown(req *Request) *Response {
 // handleList handles a list request
 func (d *Daemon) handleList(req *Request) *Response {
 	workdir, _ := req.Payload["workdir"].(string)
-	jobs := d.jobManager.ListJobs(workdir)
-
-	var jobResponses []JobResponse
-	for _, job := range jobs {
-		jobResponses = append(jobResponses, d.jobManager.jobToResponse(job))
-	}
+	jobResponses := d.jobManager.ListJobResponses(workdir)
 
 	resp := NewSuccessResponse()
 	resp.Data["jobs"] = jobResponses
@@ -452,7 +460,7 @@ func (d *Daemon) handleAdd(req *Request) *Response {
 	}
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["job"], _ = d.jobManager.GetJobResponse(job.ID)
 	resp.Data["action"] = action
 
 	return resp
@@ -500,7 +508,7 @@ func (d *Daemon) handleCreate(req *Request) *Response {
 	}
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["job"], _ = d.jobManager.GetJobResponse(job.ID)
 
 	return resp
 }
@@ -535,6 +543,25 @@ func (d *Daemon) handleStop(req *Request) *Response {
 	return resp
 }
 
+// handleStopRequest acknowledges a stop attempt while verification continues.
+func (d *Daemon) handleStopRequest(req *Request) *Response {
+	jobID, ok := req.Payload["job_id"].(string)
+	if !ok {
+		return NewErrorResponse(fmt.Errorf("missing job_id"))
+	}
+	force, _ := req.Payload["force"].(bool)
+	pid, _, err := d.jobManager.RequestStop(jobID, force)
+	if err != nil {
+		return NewErrorResponse(err)
+	}
+	resp := NewSuccessResponse()
+	resp.Data["job_id"] = jobID
+	resp.Data["pid"] = pid
+	job, _ := d.jobManager.GetJobResponse(jobID)
+	resp.Data["status"] = job.Status
+	return resp
+}
+
 // handleStart handles a start request
 func (d *Daemon) handleStart(req *Request) *Response {
 	jobID, ok := req.Payload["job_id"].(string)
@@ -559,10 +586,10 @@ func (d *Daemon) handleStart(req *Request) *Response {
 		return NewErrorResponse(err)
 	}
 
-	job, _ := d.jobManager.GetJob(jobID)
+	job, _ := d.jobManager.GetJobResponse(jobID)
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["job"] = job
 	return resp
 }
 
@@ -590,10 +617,10 @@ func (d *Daemon) handleRestart(req *Request) *Response {
 		return NewErrorResponse(err)
 	}
 
-	job, _ := d.jobManager.GetJob(jobID)
+	job, _ := d.jobManager.GetJobResponse(jobID)
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["job"] = job
 	return resp
 }
 
@@ -686,13 +713,13 @@ func (d *Daemon) handleGetJob(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing job_id"))
 	}
 
-	job, err := d.jobManager.GetJob(jobID)
+	job, err := d.jobManager.GetJobResponse(jobID)
 	if err != nil {
 		return NewErrorResponse(err)
 	}
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["job"] = job
 	return resp
 }
 
@@ -732,13 +759,13 @@ func (d *Daemon) handleStats(req *Request) *Response {
 		return NewErrorResponse(fmt.Errorf("missing job_id"))
 	}
 
-	job, err := d.jobManager.GetJob(jobID)
+	job, err := d.jobManager.GetJobResponse(jobID)
 	if err != nil {
 		return NewErrorResponse(err)
 	}
 
 	resp := NewSuccessResponse()
-	resp.Data["job"] = d.jobManager.jobToResponse(job)
+	resp.Data["job"] = job
 	return resp
 }
 
@@ -783,6 +810,8 @@ func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Enco
 		conn:    conn,
 		encoder: encoder,
 		workdir: workdir,
+		events:  make(chan Event, 64),
+		done:    make(chan struct{}),
 	}
 
 	// Add to subscribers list
@@ -795,12 +824,16 @@ func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Enco
 	// Send success response
 	resp := NewSuccessResponse()
 	resp.Data["message"] = "subscribed"
-	if err := encoder.Encode(resp); err != nil {
+	sub.writeMu.Lock()
+	err := encoder.Encode(resp)
+	sub.writeMu.Unlock()
+	if err != nil {
 		Logger.Error("error sending subscribe response", "error", err)
 		d.removeSubscriber(sub)
 		conn.Close()
 		return
 	}
+	go d.deliverSubscriberEvents(sub)
 
 	// Keep connection open and wait for it to close
 	// The connection will be closed when the client disconnects or daemon shuts down
@@ -820,53 +853,89 @@ func (d *Daemon) handleSubscribe(req *Request, conn net.Conn, encoder *json.Enco
 	Logger.Debug("subscriber removed", "total", len(d.subscribers))
 }
 
-// broadcastEvent sends an event to all subscribed clients
+// broadcastEvent queues ordered events independently for each subscriber.
 func (d *Daemon) broadcastEvent(event Event) {
 	d.subscribersMu.RLock()
-	subscribers := make([]*Subscriber, len(d.subscribers))
-	copy(subscribers, d.subscribers)
+	subscribers := append([]*Subscriber(nil), d.subscribers...)
 	d.subscribersMu.RUnlock()
-
-	var deadSubscribers []*Subscriber
-
 	for _, sub := range subscribers {
-		// Check workdir filter
 		if sub.workdir != "" && event.Job.Workdir != sub.workdir {
 			continue
 		}
-
-		// Set write deadline to avoid blocking
-		sub.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		if err := sub.encoder.Encode(event); err != nil {
-			Logger.Error("error sending event to subscriber", "error", err)
-			deadSubscribers = append(deadSubscribers, sub)
+		select {
+		case <-sub.done:
+		case sub.events <- event:
+		default:
+			// A subscriber that missed an event must reconnect and refresh its snapshot.
+			d.removeSubscriber(sub)
+			sub.conn.Close()
 		}
-	}
-
-	// Remove dead subscribers
-	for _, sub := range deadSubscribers {
-		d.removeSubscriber(sub)
-		sub.conn.Close()
 	}
 }
 
-// removeSubscriber removes a subscriber from the list
-func (d *Daemon) removeSubscriber(sub *Subscriber) {
-	d.subscribersMu.Lock()
-	defer d.subscribersMu.Unlock()
-
-	for i, s := range d.subscribers {
-		if s == sub {
-			d.subscribers = append(d.subscribers[:i], d.subscribers[i+1:]...)
+func (d *Daemon) deliverSubscriberEvents(sub *Subscriber) {
+	for {
+		select {
+		case event := <-sub.events:
+			sub.writeMu.Lock()
+			sub.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			err := sub.encoder.Encode(event)
+			sub.writeMu.Unlock()
+			if err != nil {
+				d.removeSubscriber(sub)
+				sub.conn.Close()
+				return
+			}
+		case <-sub.done:
+			return
+		case <-d.ctx.Done():
 			return
 		}
 	}
 }
 
-// handleEvent processes events from the job manager
+// removeSubscriber closes the subscriber's queue without affecting other clients.
+func (d *Daemon) removeSubscriber(sub *Subscriber) {
+	d.subscribersMu.Lock()
+	defer d.subscribersMu.Unlock()
+	for i, s := range d.subscribers {
+		if s == sub {
+			d.subscribers = append(d.subscribers[:i], d.subscribers[i+1:]...)
+			if sub.done != nil {
+				close(sub.done)
+			}
+			return
+		}
+	}
+}
+
+// handleEvent queues a state transition without waiting for subscriber sockets.
 func (d *Daemon) handleEvent(event Event) {
-	// Broadcast to subscribers
-	d.broadcastEvent(event)
+	select {
+	case d.events <- event:
+	default:
+		// Subscribers must reconnect and fetch a fresh snapshot after overflow.
+		d.subscribersMu.Lock()
+		for _, sub := range d.subscribers {
+			sub.conn.Close()
+			if sub.done != nil {
+				close(sub.done)
+			}
+		}
+		d.subscribers = nil
+		d.subscribersMu.Unlock()
+	}
+}
+
+func (d *Daemon) dispatchEvents() {
+	for {
+		select {
+		case event := <-d.events:
+			d.broadcastEvent(event)
+		case <-d.ctx.Done():
+			return
+		}
+	}
 }
 
 // recoverFromCrash handles cleanup after a daemon crash

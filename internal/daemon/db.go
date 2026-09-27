@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -475,8 +476,17 @@ func isOurProcess(pid int, expectedStartTime time.Time, expectedCmd []string) bo
 	if len(info.Command) == 0 || len(expectedCmd) == 0 {
 		return false
 	}
-	if info.Command[0] != expectedCmd[0] {
-		return false
+	if filepath.Base(info.Command[0]) != filepath.Base(expectedCmd[0]) {
+		// Some interpreters replace their launcher name (python3 becomes Python).
+		// Require every remaining argument to match in that case.
+		if len(expectedCmd) < 2 || len(info.Command) != len(expectedCmd) {
+			return false
+		}
+		for i := 1; i < len(expectedCmd); i++ {
+			if info.Command[i] != expectedCmd[i] {
+				return false
+			}
+		}
 	}
 
 	return true

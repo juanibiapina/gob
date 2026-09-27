@@ -68,19 +68,18 @@ The daemon handles multiple simultaneous clients:
 - **Multiple TUIs**: All stay in sync via event broadcasts
 - **Event-driven updates**: No polling required for job state changes
 
+List and get requests read a published copy of job state. Run history and process discovery do not run in the list request path. Port polling and explicit `ports` refresh scan outside the state lock, then apply results only if the same run is still current. Each subscriber has a bounded event queue; a subscriber that falls behind is disconnected. The TUI reconnects and reloads a fresh snapshot.
+
 ## Process Management
 
 Jobs run in their own process groups (`setpgid`), allowing signals to be sent to the entire tree. When stopping a job:
 
-1. **Snapshot**: Daemon captures all PIDs in the process tree before signaling
-2. **SIGTERM**: Sent to the process group for graceful shutdown
-3. **Wait**: Up to 10 seconds for all processes in the tree to terminate
-4. **SIGKILL**: If processes survive, SIGKILL is sent to both the process group and each surviving PID individually
-5. **Verification**: Final check ensures all child processes terminated
+1. The daemon accepts the request, marks the run `stopping`, and emits an event. The TUI receives a prompt acknowledgment and shows `stopping`.
+2. Gob snapshots the root and its current descendants, then sends SIGTERM to the process group. `--force` uses SIGKILL; a second `--force` request escalates an ongoing graceful stop.
+3. Gob waits up to 10 seconds for the captured PIDs to exit, then sends SIGKILL to survivors. The direct child is reaped before gob reports `stopped`.
+4. If verification fails, the job remains `stopping`, exposes `stop_error` in job responses, and emits a failure event. Another stop request can retry. The CLI `gob stop` waits for verified completion or an error.
 
-This handles edge cases where child processes escape the process group (e.g., via `setsid`) or ignore signals. If any processes survive SIGKILL, an error is returned with the surviving PIDs.
-
-The same process tree verification is used by `stop`, `restart`, and `shutdown` commands.
+Stop, restart, and shutdown share this termination path. List queries read a published state snapshot, so waiting for a process does not block them. A tree snapshot covers descendants known at the time of inspection. It cannot guarantee cleanup of a child that detaches or starts after the snapshot. Gob does not claim containment of arbitrary escaped processes.
 
 ## Job Output
 
@@ -136,9 +135,9 @@ Job history and log files are preserved.
 
 The daemon also shuts down gracefully when it receives SIGTERM or SIGINT:
 
-1. Stops all running jobs
-2. Updates all runs to "stopped" in database
-3. Sets `shutdown_clean = true`
+1. Requests and waits for stop verification for all running jobs
+2. Records completed runs as `stopped`
+3. Sets `shutdown_clean = true` only if no unverified runs remain; otherwise crash recovery remains enabled
 4. Closes database and removes socket/PID files
 
 ### Signal Handling

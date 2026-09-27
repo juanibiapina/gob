@@ -181,7 +181,7 @@ func StopGobfileJobs(cwd string, config *GobfileConfig) error {
 
 	// Stop running jobs that match gobfile commands
 	for _, job := range existingJobs {
-		if job.Status != "running" {
+		if job.Status != "running" && job.Status != "stopping" {
 			continue
 		}
 

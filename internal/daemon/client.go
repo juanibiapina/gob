@@ -290,6 +290,22 @@ func (c *Client) Stop(jobID string, force bool) (int, error) {
 	return int(pid), nil
 }
 
+// RequestStop acknowledges a stop attempt; events report its completion or failure.
+func (c *Client) RequestStop(jobID string, force bool) (int, error) {
+	req := NewRequest(RequestTypeStopRequest)
+	req.Payload["job_id"] = jobID
+	req.Payload["force"] = force
+	resp, err := c.SendRequest(req)
+	if err != nil {
+		return 0, err
+	}
+	if !resp.Success {
+		return 0, fmt.Errorf("%s", resp.Error)
+	}
+	pid, _ := resp.Data["pid"].(float64)
+	return int(pid), nil
+}
+
 // Start starts a stopped job with the given environment
 func (c *Client) Start(jobID string, env []string) (*JobResponse, error) {
 	req := NewRequest(RequestTypeStart)
@@ -657,68 +673,71 @@ func (c *Client) handleOldDaemon() error {
 	}
 }
 
-// Subscribe subscribes to daemon events and calls the callback for each event
-// This blocks until an error occurs or the connection is closed
-func (c *Client) Subscribe(workdir string, callback func(Event) error) error {
+// startSubscription finishes the subscribe handshake before exposing the event stream.
+func (c *Client) startSubscription(workdir string) (*json.Decoder, error) {
 	if c.conn == nil {
-		return fmt.Errorf("not connected to daemon")
+		return nil, fmt.Errorf("not connected to daemon")
 	}
-
-	encoder := json.NewEncoder(c.conn)
-	decoder := json.NewDecoder(c.conn)
-
-	// Send subscribe request
+	c.conn.SetDeadline(time.Now().Add(2 * time.Second))
+	defer c.conn.SetDeadline(time.Time{})
 	req := NewRequest(RequestTypeSubscribe)
 	if workdir != "" {
 		req.Payload["workdir"] = workdir
 	}
-
-	if err := encoder.Encode(req); err != nil {
-		return fmt.Errorf("failed to send subscribe request: %w", err)
+	if err := json.NewEncoder(c.conn).Encode(req); err != nil {
+		return nil, fmt.Errorf("failed to send subscribe request: %w", err)
 	}
-
-	// Read initial response
+	decoder := json.NewDecoder(c.conn)
 	var resp Response
 	if err := decoder.Decode(&resp); err != nil {
-		return fmt.Errorf("failed to decode subscribe response: %w", err)
+		return nil, fmt.Errorf("failed to decode subscribe response: %w", err)
 	}
-
 	if !resp.Success {
-		return fmt.Errorf("subscribe failed: %s", resp.Error)
+		return nil, fmt.Errorf("subscribe failed: %s", resp.Error)
 	}
+	return decoder, nil
+}
 
-	// Read events in a loop
+// Subscribe calls the callback for events until the subscription ends.
+func (c *Client) Subscribe(workdir string, callback func(Event) error) error {
+	decoder, err := c.startSubscription(workdir)
+	if err != nil {
+		return err
+	}
 	for {
 		var event Event
 		if err := decoder.Decode(&event); err != nil {
 			return fmt.Errorf("failed to decode event: %w", err)
 		}
-
 		if err := callback(event); err != nil {
 			return err
 		}
 	}
 }
 
-// SubscribeChan subscribes to daemon events and returns channels for events and errors
-// The caller should select on both channels and handle events/errors appropriately
-// To stop the subscription, close the client connection
+// SubscribeChan returns only after the daemon has acknowledged the subscription.
+// To stop it, close the client connection.
 func (c *Client) SubscribeChan(workdir string) (<-chan Event, <-chan error) {
 	eventCh := make(chan Event, 10)
 	errCh := make(chan error, 1)
-
+	decoder, err := c.startSubscription(workdir)
+	if err != nil {
+		errCh <- err
+		close(eventCh)
+		close(errCh)
+		return eventCh, errCh
+	}
 	go func() {
 		defer close(eventCh)
 		defer close(errCh)
-
-		err := c.Subscribe(workdir, func(event Event) error {
+		for {
+			var event Event
+			if err := decoder.Decode(&event); err != nil {
+				errCh <- fmt.Errorf("failed to decode event: %w", err)
+				return
+			}
 			eventCh <- event
-			return nil
-		})
-		if err != nil {
-			errCh <- err
 		}
 	}()
-
 	return eventCh, errCh
 }

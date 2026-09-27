@@ -86,9 +86,12 @@ Exit codes:
 			var duration string
 			var status string
 
-			if run.Status == "running" {
-				duration = "running"
+			if run.Status == "running" || run.Status == "stopping" {
+				duration = run.Status
 				status = "◉"
+				if run.Status == "stopping" {
+					status = "…"
+				}
 			} else {
 				duration = formatDuration(time.Duration(run.DurationMs) * time.Millisecond)
 				if run.ExitCode != nil {

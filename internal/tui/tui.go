@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"sort"
@@ -49,6 +50,7 @@ type Job struct {
 	Description string
 	Workdir     string
 	Running     bool
+	Stopping    bool
 	Blocked     bool
 	ExitCode    *int
 	StartedAt   time.Time
@@ -113,6 +115,8 @@ type daemonEventMsg struct {
 type subscriptionErrorMsg struct {
 	err error
 }
+
+type subscriptionRetryMsg struct{}
 
 // fatalErrorMsg causes the TUI to quit with a message
 type fatalErrorMsg struct {
@@ -325,7 +329,8 @@ func (m Model) refreshJobs() tea.Cmd {
 				Command:     strings.Join(jr.Command, " "),
 				Description: jr.Description,
 				Workdir:     jr.Workdir,
-				Running:     jr.Status == "running",
+				Running:     jr.Status != "stopped",
+				Stopping:    jr.Status == "stopping",
 				Blocked:     jr.Blocked,
 				ExitCode:    jr.ExitCode,
 				StartedAt:   parseTime(jr.StartedAt),
@@ -454,8 +459,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.subClient = msg.client
 		m.eventChan = msg.events
 		m.errChan = msg.errs
-		// Start waiting for events
-		cmds = append(cmds, waitForEvent(m.eventChan, m.errChan))
+		// Subscribe before refreshing so transitions cannot fall between the two.
+		cmds = append(cmds, waitForEvent(m.eventChan, m.errChan), m.refreshJobs())
 
 	case daemonEventMsg:
 		// Handle the event by updating the job list and runs
@@ -475,16 +480,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case subscriptionErrorMsg:
-		// Subscription failed - quit gracefully
-		// Check if this is a version mismatch for a more specific message
 		var versionErr *daemon.ErrVersionMismatch
 		if errors.As(msg.err, &versionErr) {
-			m.quitReason = fmt.Sprintf("Version mismatch: daemon=%s, TUI=%s\nRun 'gob shutdown' to stop the daemon, then restart the TUI.",
-				versionErr.DaemonVersion, versionErr.ClientVersion)
-		} else {
-			m.quitReason = "Daemon stopped. Please restart the TUI."
+			m.quitReason = fmt.Sprintf("Version mismatch: daemon=%s, TUI=%s\nRun 'gob shutdown' to stop the daemon, then restart the TUI.", versionErr.DaemonVersion, versionErr.ClientVersion)
+			return m, tea.Quit
 		}
+		// A full subscriber queue closes only this connection. Refresh state before resubscribing.
+		if socketPath, err := daemon.GetSocketPath(); err == nil {
+			if conn, err := net.DialTimeout("unix", socketPath, 100*time.Millisecond); err == nil {
+				conn.Close()
+				if m.subClient != nil {
+					m.subClient.Close()
+					m.subClient = nil
+				}
+				m.subscribed = false
+				m.eventChan, m.errChan = nil, nil
+				return m, tea.Tick(250*time.Millisecond, func(time.Time) tea.Msg { return subscriptionRetryMsg{} })
+			}
+		}
+		m.quitReason = "Daemon stopped. Please restart the TUI."
 		return m, tea.Quit
+
+	case subscriptionRetryMsg:
+		return m, m.startSubscription()
 
 	case jobsUpdatedMsg:
 		m.jobs = msg.jobs
@@ -524,7 +542,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = msg.message
 		m.isError = msg.isError
 		m.messageTime = time.Now()
-		// No need to refresh jobs - events will handle that
+		if msg.isError {
+			cmds = append(cmds, m.refreshJobs())
+		}
 
 	case fatalErrorMsg:
 		m.quitReason = msg.reason
@@ -563,7 +583,8 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			Command:     strings.Join(event.Job.Command, " "),
 			Description: event.Job.Description,
 			Workdir:     event.Job.Workdir,
-			Running:     event.Job.Status == "running",
+			Running:     event.Job.Status != "stopped",
+			Stopping:    event.Job.Status == "stopping",
 			ExitCode:    event.Job.ExitCode,
 			StartedAt:   parseTime(event.Job.StartedAt),
 			StoppedAt:   parseTime(event.Job.StoppedAt),
@@ -579,6 +600,7 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			if m.jobs[i].ID == event.JobID {
 				// Update job status
 				m.jobs[i].Running = true
+				m.jobs[i].Stopping = false
 				m.jobs[i].PID = event.Job.PID
 				m.jobs[i].StartedAt = parseTime(event.Job.StartedAt)
 				m.jobs[i].StoppedAt = time.Time{}
@@ -606,11 +628,33 @@ func (m *Model) handleDaemonEvent(event daemon.Event) {
 			}
 		}
 
+	case daemon.EventTypeJobStopping, daemon.EventTypeJobStopFailed:
+		for i := range m.jobs {
+			if m.jobs[i].ID == event.JobID {
+				m.jobs[i].Running = true
+				m.jobs[i].Stopping = true
+				break
+			}
+		}
+		if event.Run != nil && event.JobID == m.runsForJobID {
+			for i := range m.runs {
+				if m.runs[i].ID == event.Run.ID {
+					m.runs[i].Status = "stopping"
+				}
+			}
+		}
+		if event.Type == daemon.EventTypeJobStopFailed {
+			m.message = "Stop failed: " + event.Job.StopError
+			m.isError = true
+			m.messageTime = time.Now()
+		}
+
 	case daemon.EventTypeJobStopped:
 		// Update job status to stopped
 		for i := range m.jobs {
 			if m.jobs[i].ID == event.JobID {
 				m.jobs[i].Running = false
+				m.jobs[i].Stopping = false
 				m.jobs[i].ExitCode = event.Job.ExitCode
 				m.jobs[i].StoppedAt = parseTime(event.Job.StoppedAt)
 				m.jobs[i].Ports = nil // Clear ports when job stops
@@ -834,6 +878,9 @@ func (m Model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Job lifecycle keys work from any panel
 	if cmd, ok := m.jobLifecycleCmd(msg.String()); ok {
+		if cmd != nil && (msg.String() == "s" || msg.String() == "S") && len(m.jobs) > 0 {
+			m.jobs[m.jobScroll.Cursor].Stopping = true
+		}
 		return m, cmd
 	}
 
@@ -870,7 +917,7 @@ func (m Model) jobLifecycleCmd(key string) (tea.Cmd, bool) {
 	id := job.ID
 	switch key {
 	case "s":
-		if job.Running {
+		if job.Running && !job.Stopping {
 			return m.stopJob(id, false), true
 		}
 		return nil, true
@@ -1083,7 +1130,7 @@ func (m Model) updateRunsPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.stderrView.SetXOffset(0)
 
 	case "d":
-		if len(m.runs) > 0 && m.runs[m.runScroll.Cursor].Status != "running" {
+		if len(m.runs) > 0 && m.runs[m.runScroll.Cursor].Status == "stopped" {
 			return m, m.removeRun(m.runs[m.runScroll.Cursor].ID)
 		}
 	}
@@ -1168,7 +1215,7 @@ func (m Model) stopJob(jobID string, force bool) tea.Cmd {
 		}
 		defer client.Close()
 
-		pid, err := client.Stop(jobID, force)
+		pid, err := client.RequestStop(jobID, force)
 		if err != nil {
 			return actionResultMsg{
 				message: fmt.Sprintf("Failed to stop: %v", err),
@@ -1176,9 +1223,9 @@ func (m Model) stopJob(jobID string, force bool) tea.Cmd {
 			}
 		}
 
-		action := "Stopped"
+		action := "Stopping"
 		if force {
-			action = "Killed"
+			action = "Force stopping"
 		}
 		return actionResultMsg{
 			message: fmt.Sprintf("%s PID %d", action, pid),
@@ -1477,7 +1524,9 @@ func (m Model) renderPanels() string {
 			run := m.runs[m.runScroll.Cursor]
 			showingRunID = run.ID
 
-			if run.Status == "running" {
+			if run.Status == "stopping" {
+				runStatus = "… stopping"
+			} else if run.Status == "running" {
 				runStatus = "◉"
 				if !run.StartedAt.IsZero() {
 					durationStr = " " + formatDuration(time.Since(run.StartedAt))
@@ -1806,7 +1855,11 @@ func (m Model) formatRunListLine(run Run, isSelected bool, width, statusWidth, i
 	var statusText string
 	var statusStyle, statusSelectedStyle lipgloss.Style
 
-	if run.Status == "running" {
+	if run.Status == "stopping" {
+		statusText = "…"
+		statusStyle = jobRunningStyle
+		statusSelectedStyle = jobRunningSelectedStyle
+	} else if run.Status == "running" {
 		statusText = "◉"
 		statusStyle = jobRunningStyle
 		statusSelectedStyle = jobRunningSelectedStyle
@@ -1841,7 +1894,7 @@ func (m Model) formatRunListLine(run Run, isSelected bool, width, statusWidth, i
 
 	// Duration
 	var duration string
-	if run.Status == "running" {
+	if run.Status == "running" || run.Status == "stopping" {
 		duration = formatDuration(time.Since(run.StartedAt))
 	} else {
 		duration = formatDuration(time.Duration(run.DurationMs) * time.Millisecond)
@@ -1952,7 +2005,9 @@ func (m Model) renderJobList(width int) string {
 
 		// Status indicator with semantic symbols
 		var status string
-		if job.Running {
+		if job.Stopping {
+			status = jobRunningStyle.Render("…")
+		} else if job.Running {
 			if isSelected {
 				status = jobRunningSelectedStyle.Render("◉")
 			} else {
@@ -1996,7 +2051,11 @@ func (m Model) renderJobList(width int) string {
 		if maxCmdLen < 10 {
 			maxCmdLen = 10
 		}
-		cmd := m.truncate(job.Command, maxCmdLen)
+		command := job.Command
+		if job.Stopping {
+			command = "stopping: " + command
+		}
+		cmd := m.truncate(command, maxCmdLen)
 		var cmdStyled string
 		if isSelected {
 			cmdStyled = jobCommandSelectedStyle.Render(cmd)

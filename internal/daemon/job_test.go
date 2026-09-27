@@ -4,9 +4,27 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+type eventRecorder struct {
+	mu     sync.Mutex
+	events []Event
+}
+
+func (r *eventRecorder) append(event Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, event)
+}
+func (r *eventRecorder) clear() { r.mu.Lock(); defer r.mu.Unlock(); r.events = nil }
+func (r *eventRecorder) snapshot() []Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Event(nil), r.events...)
+}
 
 func TestGenerateJobID(t *testing.T) {
 	existing := make(map[string]bool)
@@ -464,8 +482,8 @@ func TestJobManager_RemoveJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
 
-	var events []Event
-	onEvent := func(e Event) { events = append(events, e) }
+	recorder := &eventRecorder{}
+	onEvent := recorder.append
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
@@ -477,7 +495,7 @@ func TestJobManager_RemoveJob(t *testing.T) {
 	// Give the waitForProcessExit goroutine time to run
 	time.Sleep(10 * time.Millisecond)
 
-	events = nil // Clear events
+	recorder.clear()
 
 	// Remove job
 	err := jm.RemoveJob(job.ID)
@@ -492,6 +510,7 @@ func TestJobManager_RemoveJob(t *testing.T) {
 	}
 
 	// Verify event
+	events := recorder.snapshot()
 	if len(events) != 1 || events[0].Type != EventTypeJobRemoved {
 		t.Error("expected job_removed event")
 	}
@@ -515,8 +534,8 @@ func TestJobManager_RemoveRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
 
-	var events []Event
-	onEvent := func(e Event) { events = append(events, e) }
+	recorder := &eventRecorder{}
+	onEvent := recorder.append
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
@@ -538,7 +557,7 @@ func TestJobManager_RemoveRun(t *testing.T) {
 	// Give the waitForProcessExit goroutine time to run
 	time.Sleep(10 * time.Millisecond)
 
-	events = nil // Clear events
+	recorder.clear()
 
 	// Remove run
 	err = jm.RemoveRun(runID)
@@ -556,6 +575,7 @@ func TestJobManager_RemoveRun(t *testing.T) {
 	}
 
 	// Verify event
+	events := recorder.snapshot()
 	if len(events) != 1 || events[0].Type != EventTypeRunRemoved {
 		t.Errorf("expected run_removed event, got %v", events)
 	}
@@ -600,8 +620,8 @@ func TestJobManager_RemoveRun_RunningFails(t *testing.T) {
 	if err == nil {
 		t.Error("expected error when removing running run")
 	}
-	if !strings.Contains(err.Error(), "cannot remove running run") {
-		t.Errorf("expected 'cannot remove running run' error, got: %v", err)
+	if !strings.Contains(err.Error(), "cannot remove active run") {
+		t.Errorf("expected 'cannot remove active run' error, got: %v", err)
 	}
 }
 
@@ -609,8 +629,8 @@ func TestJobManager_RemoveRun_UpdatesStats(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
 
-	var events []Event
-	onEvent := func(e Event) { events = append(events, e) }
+	recorder := &eventRecorder{}
+	onEvent := recorder.append
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
@@ -635,7 +655,7 @@ func TestJobManager_RemoveRun_UpdatesStats(t *testing.T) {
 		t.Errorf("expected RunCount=2, got %d", jobAfterRuns.RunCount)
 	}
 
-	events = nil // Clear events
+	recorder.clear()
 
 	// Remove one run
 	err := jm.RemoveRun(runs[0].ID)
@@ -650,6 +670,7 @@ func TestJobManager_RemoveRun_UpdatesStats(t *testing.T) {
 	}
 
 	// Verify event includes updated stats in job response
+	events := recorder.snapshot()
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
@@ -662,8 +683,8 @@ func TestJobManager_StartJob(t *testing.T) {
 	tmpDir := t.TempDir()
 	executor := NewFakeProcessExecutor()
 
-	var events []Event
-	onEvent := func(e Event) { events = append(events, e) }
+	recorder := &eventRecorder{}
+	onEvent := recorder.append
 
 	jm := NewJobManagerWithExecutor(tmpDir, onEvent, executor, nil)
 
@@ -673,7 +694,7 @@ func TestJobManager_StartJob(t *testing.T) {
 	executor.LastHandle().Stop()
 	time.Sleep(10 * time.Millisecond)
 
-	events = nil
+	recorder.clear()
 	startCount := executor.StartCount()
 
 	// Start it again with nil environment
@@ -688,6 +709,7 @@ func TestJobManager_StartJob(t *testing.T) {
 	}
 
 	// Verify events (job_started + run_started)
+	events := recorder.snapshot()
 	if len(events) != 2 {
 		t.Errorf("expected 2 events, got %d", len(events))
 	}
@@ -741,7 +763,17 @@ func TestJobManager_StopAll(t *testing.T) {
 		t.Error("expected job2 to have a current run")
 	}
 
-	// Stop all jobs
+	// Simulate both fake processes exiting after stop is requested.
+	go func() {
+		for {
+			jobs := jm.ListJobResponses("/workdir")
+			if len(jobs) == 2 && jobs[0].Status == "stopping" && jobs[1].Status == "stopping" {
+				executor.StopAll()
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
 	stopped := jm.StopAll()
 
 	// Jobs were running, so we expect 2 stopped

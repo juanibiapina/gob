@@ -42,149 +42,93 @@ func connectionTypeToString(connType uint32) string {
 // getProcessTreePorts returns all listening ports for a process and its children
 func getProcessTreePorts(rootPID int) ([]PortInfo, error) {
 	var ports []PortInfo
-
-	var walk func(pid int32)
-	walk = func(pid int32) {
-		proc, err := process.NewProcess(pid)
+	pids, err := getProcessTreePIDs(rootPID)
+	if err != nil {
+		return nil, err
+	}
+	for _, pid := range pids {
+		proc, err := process.NewProcess(int32(pid))
 		if err != nil {
-			return // Process gone, skip
+			continue // Process gone, skip
 		}
-
 		conns, err := proc.Connections()
 		if err != nil {
-			return // Permission issue or process gone, skip
+			continue // Permission issue or process gone, skip
 		}
-
 		for _, conn := range conns {
 			if conn.Status == "LISTEN" {
 				ports = append(ports, PortInfo{
 					Port:     uint16(conn.Laddr.Port),
 					Protocol: connectionTypeToString(conn.Type),
-					PID:      int(pid),
+					PID:      pid,
 					Address:  conn.Laddr.IP,
 				})
 			}
 		}
-
-		children, _ := proc.Children()
-		for _, child := range children {
-			walk(child.Pid)
-		}
 	}
-
-	walk(int32(rootPID))
 	return ports, nil
 }
 
-// GetJobPorts returns the listening ports for a job's process tree
+// GetJobPorts returns the most recent completed scan for a job.
 func (jm *JobManager) GetJobPorts(jobID string) (*JobPorts, error) {
-	job, err := jm.GetJob(jobID)
+	job, err := jm.GetJobResponse(jobID)
 	if err != nil {
 		return nil, err
 	}
-
-	// Check if job is running
-	if !job.IsRunning() {
-		return &JobPorts{
-			JobID:   jobID,
-			PID:     0,
-			Ports:   []PortInfo{},
-			Status:  "stopped",
-			Message: "job is not running",
-		}, nil
+	if job.Status == "stopped" {
+		return &JobPorts{JobID: jobID, Ports: []PortInfo{}, Status: "stopped", Message: "job is not running"}, nil
 	}
-
-	run := jm.GetCurrentRun(jobID)
-	if run == nil {
-		return &JobPorts{
-			JobID:   jobID,
-			PID:     0,
-			Ports:   []PortInfo{},
-			Status:  "stopped",
-			Message: "job is not running",
-		}, nil
-	}
-
-	ports, err := getProcessTreePorts(run.PID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &JobPorts{
-		JobID: jobID,
-		PID:   run.PID,
-		Ports: ports,
-	}, nil
+	return &JobPorts{JobID: jobID, PID: job.PID, Ports: job.Ports}, nil
 }
 
 // RefreshJobPorts queries live ports for a job, updates the cache, and emits an event if changed
 func (jm *JobManager) RefreshJobPorts(jobID string) (*JobPorts, error) {
-	jm.mu.Lock()
-	defer jm.mu.Unlock()
-
+	jm.mu.RLock()
 	job, ok := jm.jobs[jobID]
 	if !ok {
+		jm.mu.RUnlock()
 		return nil, fmt.Errorf("job not found: %s", jobID)
 	}
-
-	// Check if job is running
-	if !job.IsRunning() {
-		return &JobPorts{
-			JobID:   jobID,
-			PID:     0,
-			Ports:   []PortInfo{},
-			Status:  "stopped",
-			Message: "job is not running",
-		}, nil
+	if job.CurrentRunID == nil {
+		jm.mu.RUnlock()
+		return &JobPorts{JobID: jobID, Ports: []PortInfo{}, Status: "stopped", Message: "job is not running"}, nil
 	}
+	runID := *job.CurrentRunID
+	pid := jm.runs[runID].PID
+	jm.mu.RUnlock()
 
-	run := jm.runs[*job.CurrentRunID]
-	if run == nil {
-		return &JobPorts{
-			JobID:   jobID,
-			PID:     0,
-			Ports:   []PortInfo{},
-			Status:  "stopped",
-			Message: "job is not running",
-		}, nil
-	}
-
-	ports, err := getProcessTreePorts(run.PID)
+	ports, err := jm.scanPorts(pid)
 	if err != nil {
 		return nil, err
 	}
-
-	// Check if ports changed and emit event if so
-	if len(ports) > 0 && !portsEqual(run.Ports, ports) {
-		run.Ports = ports
-
-		jm.emitEvent(Event{
-			Type:            EventTypePortsUpdated,
-			JobID:           jobID,
-			Job:             jm.jobToResponse(job),
-			Ports:           ports,
-			JobCount:        len(jm.jobs),
-			RunningJobCount: jm.countRunningJobsLocked(),
-		})
-	} else if len(ports) > 0 {
-		// Ports unchanged but non-empty, just update cache (in case it was nil)
-		run.Ports = ports
+	jm.mu.Lock()
+	job, ok = jm.jobs[jobID]
+	if !ok || job.CurrentRunID == nil || *job.CurrentRunID != runID {
+		jm.mu.Unlock()
+		return &JobPorts{JobID: jobID, Ports: []PortInfo{}, Status: "stopped", Message: "job is not running"}, nil
 	}
-
-	return &JobPorts{
-		JobID: jobID,
-		PID:   run.PID,
-		Ports: ports,
-	}, nil
+	run := jm.runs[runID]
+	changed := !portsEqual(run.Ports, ports)
+	run.Ports = ports
+	jm.publishListLocked()
+	var event Event
+	if changed {
+		event = Event{Type: EventTypePortsUpdated, JobID: jobID, Job: jm.jobToResponse(job), Ports: append([]PortInfo(nil), ports...), JobCount: len(jm.jobs), RunningJobCount: jm.countRunningJobsLocked()}
+	}
+	jm.mu.Unlock()
+	if changed {
+		jm.emitEvent(event)
+	}
+	return &JobPorts{JobID: jobID, PID: pid, Ports: ports}, nil
 }
 
 // GetAllJobPorts returns listening ports for all running jobs
 func (jm *JobManager) GetAllJobPorts(workdir string) ([]JobPorts, error) {
-	jobs := jm.ListJobs(workdir)
+	jobs := jm.ListJobResponses(workdir)
 	var result []JobPorts
 
 	for _, job := range jobs {
-		if !job.IsRunning() {
+		if job.Status == "stopped" {
 			continue
 		}
 
@@ -204,11 +148,11 @@ func (jm *JobManager) GetAllJobPorts(workdir string) ([]JobPorts, error) {
 
 // RefreshAllJobPorts queries live ports for all running jobs, updates caches, and emits events
 func (jm *JobManager) RefreshAllJobPorts(workdir string) ([]JobPorts, error) {
-	jobs := jm.ListJobs(workdir)
+	jobs := jm.ListJobResponses(workdir)
 	var result []JobPorts
 
 	for _, job := range jobs {
-		if !job.IsRunning() {
+		if job.Status == "stopped" {
 			continue
 		}
 

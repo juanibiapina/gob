@@ -31,39 +31,42 @@ import (
 type RequestType string
 
 const (
-	RequestTypePing      RequestType = "ping"
-	RequestTypeShutdown  RequestType = "shutdown"
-	RequestTypeList      RequestType = "list"
-	RequestTypeAdd       RequestType = "add"
-	RequestTypeCreate    RequestType = "create" // Add job without starting
-	RequestTypeStop      RequestType = "stop"
-	RequestTypeStart     RequestType = "start"
-	RequestTypeRestart   RequestType = "restart"
-	RequestTypeRemove    RequestType = "remove"
-	RequestTypeStopAll   RequestType = "stop_all"
-	RequestTypeSignal    RequestType = "signal"
-	RequestTypeGetJob    RequestType = "get_job"
-	RequestTypeRuns      RequestType = "runs"
-	RequestTypeStats     RequestType = "stats"
-	RequestTypeSubscribe RequestType = "subscribe"
-	RequestTypeVersion   RequestType = "version"
-	RequestTypePorts     RequestType = "ports"
-	RequestTypeRemoveRun RequestType = "remove_run"
+	RequestTypePing        RequestType = "ping"
+	RequestTypeShutdown    RequestType = "shutdown"
+	RequestTypeList        RequestType = "list"
+	RequestTypeAdd         RequestType = "add"
+	RequestTypeCreate      RequestType = "create" // Add job without starting
+	RequestTypeStop        RequestType = "stop"
+	RequestTypeStopRequest RequestType = "stop_request"
+	RequestTypeStart       RequestType = "start"
+	RequestTypeRestart     RequestType = "restart"
+	RequestTypeRemove      RequestType = "remove"
+	RequestTypeStopAll     RequestType = "stop_all"
+	RequestTypeSignal      RequestType = "signal"
+	RequestTypeGetJob      RequestType = "get_job"
+	RequestTypeRuns        RequestType = "runs"
+	RequestTypeStats       RequestType = "stats"
+	RequestTypeSubscribe   RequestType = "subscribe"
+	RequestTypeVersion     RequestType = "version"
+	RequestTypePorts       RequestType = "ports"
+	RequestTypeRemoveRun   RequestType = "remove_run"
 )
 
 // EventType represents the type of event emitted by the daemon
 type EventType string
 
 const (
-	EventTypeJobAdded     EventType = "job_added"
-	EventTypeJobStarted   EventType = "job_started"
-	EventTypeJobStopped   EventType = "job_stopped"
-	EventTypeJobRemoved   EventType = "job_removed"
-	EventTypeJobUpdated   EventType = "job_updated"
-	EventTypeRunStarted   EventType = "run_started"
-	EventTypeRunStopped   EventType = "run_stopped"
-	EventTypeRunRemoved   EventType = "run_removed"
-	EventTypePortsUpdated EventType = "ports_updated"
+	EventTypeJobAdded      EventType = "job_added"
+	EventTypeJobStarted    EventType = "job_started"
+	EventTypeJobStopped    EventType = "job_stopped"
+	EventTypeJobStopping   EventType = "job_stopping"
+	EventTypeJobStopFailed EventType = "job_stop_failed"
+	EventTypeJobRemoved    EventType = "job_removed"
+	EventTypeJobUpdated    EventType = "job_updated"
+	EventTypeRunStarted    EventType = "run_started"
+	EventTypeRunStopped    EventType = "run_stopped"
+	EventTypeRunRemoved    EventType = "run_removed"
+	EventTypePortsUpdated  EventType = "ports_updated"
 )
 
 // Event represents a job/run state change event
@@ -95,6 +98,7 @@ type JobResponse struct {
 	ID          string     `json:"id"`
 	PID         int        `json:"pid"`
 	Status      string     `json:"status"`
+	StopError   string     `json:"stop_error,omitempty"`
 	Command     []string   `json:"command"`
 	Workdir     string     `json:"workdir"`
 	Description string     `json:"description,omitempty"`
