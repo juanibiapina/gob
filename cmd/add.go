@@ -144,9 +144,8 @@ Exit codes:
 			if result.Job.RunCount > 0 {
 				fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
 					result.Job.RunCount, result.Job.SuccessRate)
-				if result.Job.SuccessCount >= 3 {
-					fmt.Printf("  Expected duration if success: ~%s\n",
-						formatDuration(time.Duration(result.Job.AvgDurationMs)*time.Millisecond))
+				if expected := formatExpectedDuration(result.Job); expected != "" {
+					fmt.Printf("  Expected duration if success: %s\n", expected)
 				}
 				if result.Job.FailureCount >= 3 {
 					fmt.Printf("  Expected duration if failure: ~%s\n",

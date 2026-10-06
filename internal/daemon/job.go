@@ -37,6 +37,9 @@ type Job struct {
 	FailureTotalDurationMs int64 `json:"failure_total_duration_ms"`
 	MinDurationMs          int64 `json:"min_duration_ms"`
 	MaxDurationMs          int64 `json:"max_duration_ms"`
+
+	ExpectedDurationMs      int64 `json:"-"`
+	ExpectedUpperDurationMs int64 `json:"-"`
 }
 
 // IsRunning checks if the job has a currently running process
@@ -196,11 +199,19 @@ func (jm *JobManager) LoadFromStore() error {
 		return fmt.Errorf("failed to load runs: %w", err)
 	}
 
+	runsByJob := make(map[string][]*Run)
 	for _, run := range runs {
 		jm.runs[run.ID] = run
 		jm.recordLatestRunLocked(run)
+		runsByJob[run.JobID] = append(runsByJob[run.JobID], run)
 		// Note: We don't restore CurrentRunID here because all runs
 		// should be stopped after crash recovery
+	}
+
+	for jobID, jobRuns := range runsByJob {
+		if job, ok := jm.jobs[jobID]; ok {
+			job.setEstimateFromRuns(jobRuns)
+		}
 	}
 
 	return nil
@@ -239,6 +250,9 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 		FailureAvgDurationMs: job.FailureAverageDurationMs(),
 		MinDurationMs:        job.MinDurationMs,
 		MaxDurationMs:        job.MaxDurationMs,
+
+		ExpectedDurationMs:      job.ExpectedDurationMs,
+		ExpectedUpperDurationMs: job.ExpectedUpperDurationMs,
 	}
 
 	// If there's a current run, include its details
@@ -615,6 +629,8 @@ func (jm *JobManager) startRunLocked(job *Job, env []string) (*Run, error) {
 		process:    process,
 		finalized:  make(chan struct{}),
 	}
+	interrupted := false
+	run.Interrupted = &interrupted
 
 	jm.runs[runID] = run
 	jm.recordLatestRunLocked(run)
@@ -695,16 +711,8 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 
 	// Update job statistics
 	durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
-	job.RunCount++
-
-	if run.ExitCode != nil && *run.ExitCode == 0 {
-		job.SuccessCount++
-		job.SuccessTotalDurationMs += durationMs
-	} else if run.ExitCode != nil {
-		job.FailureCount++
-		job.FailureTotalDurationMs += durationMs
-	}
-	// Killed processes (ExitCode == nil) only increment RunCount
+	job.applyRunStats(run)
+	jm.refreshEstimateLocked(job)
 
 	if job.RunCount == 1 {
 		job.MinDurationMs = durationMs
@@ -1152,21 +1160,7 @@ func (jm *JobManager) RemoveRun(runID string) error {
 
 	// Update job statistics if job exists
 	if jobExists && run.StoppedAt != nil {
-		durationMs := run.StoppedAt.Sub(run.StartedAt).Milliseconds()
-
-		// Decrement counts
-		job.RunCount--
-		if run.ExitCode != nil && *run.ExitCode == 0 {
-			job.SuccessCount--
-			job.SuccessTotalDurationMs -= durationMs
-		} else if run.ExitCode != nil {
-			job.FailureCount--
-			job.FailureTotalDurationMs -= durationMs
-		}
-		// Killed processes (ExitCode == nil) only affect RunCount
-
-		// Recalculate min/max duration from remaining runs
-		jm.recalculateMinMaxDuration(job)
+		job.revertRunStats(run)
 	}
 
 	// Delete log files
@@ -1175,6 +1169,10 @@ func (jm *JobManager) RemoveRun(runID string) error {
 
 	// Remove from in-memory map
 	delete(jm.runs, runID)
+	if jobExists {
+		jm.recalculateMinMaxDuration(job)
+		jm.refreshEstimateLocked(job)
+	}
 	if jm.latestRun[run.JobID] == run {
 		jm.rebuildLatestRunLocked(run.JobID)
 	}
@@ -1287,6 +1285,8 @@ func (jm *JobManager) Signal(jobID string, signal syscall.Signal) error {
 	run := jm.runs[*job.CurrentRunID]
 	pid := run.PID
 	jm.mu.RUnlock()
+
+	jm.markInterrupted(run)
 
 	// Send signal to process group
 	err := syscall.Kill(-pid, signal)

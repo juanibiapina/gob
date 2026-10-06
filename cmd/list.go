@@ -30,9 +30,12 @@ If a job has a description, it is shown on a second indented line.
 Use --workdir to also display the working directory for each job.
 Jobs are sorted by start time (newest first).
 
-For running jobs with historical statistics (at least one previous successful run),
-the status shows an estimated progress percentage based on average duration:
+For running jobs that usually finish on their own, the status shows progress
+against the typical duration of past runs, then how much longer runs may take:
   running (73%)
+  running (past typical, up to 3m)
+  running (longer than usual)
+Jobs that usually end by being stopped (servers, watchers) show no progress.
 
 Output format:
   <job_id>: [<pid>] <status>: <command>
@@ -44,7 +47,8 @@ With --workdir:
 Where:
   job_id: Unique identifier - use this for other commands
   pid:    Process ID (or "-" if stopped)
-  status: 'running', 'running (N%)', 'stopping', or 'stopped'
+  status: 'running', 'running (N%)', 'running (past typical, up to <time>)',
+          'running (longer than usual)', 'stopping', or 'stopped'
   workdir: Directory where job was started (only with --workdir or --all)
   command: Original command that was executed
 
@@ -116,16 +120,10 @@ Exit codes:
 
 			// Format status with exit code or progress if available
 			status := job.Status
-			if job.Status == "running" && job.AvgDurationMs > 0 && job.StartedAt != "" {
+			if job.Status == "running" && job.ExpectedDurationMs > 0 && job.StartedAt != "" {
 				startedAt, err := time.Parse(time.RFC3339, job.StartedAt)
 				if err == nil {
-					elapsed := time.Since(startedAt)
-					avgDuration := time.Duration(job.AvgDurationMs) * time.Millisecond
-					progress := float64(elapsed) / float64(avgDuration) * 100
-					if progress > 100 {
-						progress = 100
-					}
-					status = fmt.Sprintf("running (%.0f%%)", progress)
+					status = runningStatus(job, time.Since(startedAt))
 				}
 			} else if job.ExitCode != nil {
 				status = fmt.Sprintf("%s (%d)", job.Status, *job.ExitCode)

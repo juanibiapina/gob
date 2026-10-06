@@ -6,15 +6,16 @@ import (
 
 // Run represents a single execution of a job
 type Run struct {
-	ID         string     `json:"id"`          // internal identifier (e.g., "abc-1", "abc-2")
-	JobID      string     `json:"job_id"`      // reference to Job
-	PID        int        `json:"pid"`         // process ID (0 if stopped)
-	Status     string     `json:"status"`      // "running" | "stopped"
-	ExitCode   *int       `json:"exit_code"`   // nil if running or killed
-	StdoutPath string     `json:"stdout_path"` // path to stdout log
-	StderrPath string     `json:"stderr_path"` // path to stderr log
-	StartedAt  time.Time  `json:"started_at"`
-	StoppedAt  *time.Time `json:"stopped_at,omitempty"` // nil if running
+	ID          string     `json:"id"`          // internal identifier (e.g., "abc-1", "abc-2")
+	JobID       string     `json:"job_id"`      // reference to Job
+	PID         int        `json:"pid"`         // process ID (0 if stopped)
+	Status      string     `json:"status"`      // "running" | "stopped"
+	ExitCode    *int       `json:"exit_code"`   // nil if running or killed
+	StdoutPath  string     `json:"stdout_path"` // path to stdout log
+	StderrPath  string     `json:"stderr_path"` // path to stderr log
+	StartedAt   time.Time  `json:"started_at"`
+	StoppedAt   *time.Time `json:"stopped_at,omitempty"`  // nil if running
+	Interrupted *bool      `json:"interrupted,omitempty"` // true: gob ended it; false: ended on its own; nil: recorded before tracking
 
 	// Internal fields for process management
 	process      ProcessHandle

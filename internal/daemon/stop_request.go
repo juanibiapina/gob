@@ -64,6 +64,8 @@ func (jm *JobManager) requestStop(jobID string, force bool) (*stopAttempt, int, 
 	job.Stopping = true
 	job.StopError = ""
 	run.Status = "stopping"
+	interrupted := true
+	run.Interrupted = &interrupted
 	if run.stopVerified == nil {
 		run.stopVerified = make(chan struct{})
 	}

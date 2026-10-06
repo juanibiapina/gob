@@ -208,6 +208,12 @@ var (
 	progressBarEmptyStyle = lipgloss.NewStyle().
 				Foreground(colorBrightBlack)
 
+	progressBarExtraFillStyle = lipgloss.NewStyle().
+					Foreground(warningColor)
+
+	progressBarExtraEmptyStyle = lipgloss.NewStyle().
+					Foreground(colorBrightBlack)
+
 	progressBarTextStyle = lipgloss.NewStyle().
 				Foreground(colorBrightBlack)
 )

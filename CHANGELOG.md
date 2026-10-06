@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Improved performance of `gob list` while jobs are running and stopping.
+- Progress estimates show a typical duration plus the extra time runs may take, drawn in a different color in the TUI. `gob list` shows `running (past typical, up to 3m)` and `running (longer than usual)` once a run passes the typical duration.
+- Progress estimates are learned again from runs after upgrading; runs recorded before the upgrade that exited 0 are no longer used for estimates.
+
+### Fixed
+
+- Servers and other jobs that usually end by being stopped no longer show a progress bar or progress percentage.
+- Runs stopped, restarted or signaled through gob no longer count as successes or failures.
 
 ## [3.8.0] - 2026-09-26
 

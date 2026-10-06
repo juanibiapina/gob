@@ -167,10 +167,10 @@ func (s *Store) DeleteJob(jobID string) error {
 // InsertRun persists a new run to the database
 func (s *Store) InsertRun(run *Run) error {
 	_, err := s.db.Exec(`
-		INSERT INTO runs (id, job_id, pid, status, exit_code, stdout_path, stderr_path, started_at, stopped_at, daemon_instance_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO runs (id, job_id, pid, status, exit_code, stdout_path, stderr_path, started_at, stopped_at, daemon_instance_id, interrupted)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, run.ID, run.JobID, run.PID, run.Status, run.ExitCode, run.StdoutPath, run.StderrPath,
-		run.StartedAt.Format(time.RFC3339), nil, s.instanceID)
+		run.StartedAt.Format(time.RFC3339), nil, s.instanceID, run.Interrupted)
 	return err
 }
 
@@ -183,9 +183,9 @@ func (s *Store) UpdateRun(run *Run) error {
 	}
 
 	_, err := s.db.Exec(`
-		UPDATE runs SET status = ?, exit_code = ?, stopped_at = ?
+		UPDATE runs SET status = ?, exit_code = ?, stopped_at = ?, interrupted = ?
 		WHERE id = ?
-	`, run.Status, run.ExitCode, stoppedAt, run.ID)
+	`, run.Status, run.ExitCode, stoppedAt, run.Interrupted, run.ID)
 	return err
 }
 
@@ -268,7 +268,7 @@ func (s *Store) LoadJobs() ([]*Job, error) {
 // LoadRuns loads all runs from the database
 func (s *Store) LoadRuns() ([]*Run, error) {
 	rows, err := s.db.Query(`
-		SELECT id, job_id, pid, status, exit_code, stdout_path, stderr_path, started_at, stopped_at
+		SELECT id, job_id, pid, status, exit_code, stdout_path, stderr_path, started_at, stopped_at, interrupted
 		FROM runs
 	`)
 	if err != nil {
@@ -288,9 +288,10 @@ func (s *Store) LoadRuns() ([]*Run, error) {
 			stderrPath   string
 			startedAtStr string
 			stoppedAtStr sql.NullString
+			interrupted  sql.NullBool
 		)
 
-		if err := rows.Scan(&id, &jobID, &pid, &status, &exitCode, &stdoutPath, &stderrPath, &startedAtStr, &stoppedAtStr); err != nil {
+		if err := rows.Scan(&id, &jobID, &pid, &status, &exitCode, &stdoutPath, &stderrPath, &startedAtStr, &stoppedAtStr, &interrupted); err != nil {
 			return nil, err
 		}
 
@@ -312,6 +313,11 @@ func (s *Store) LoadRuns() ([]*Run, error) {
 		if exitCode.Valid {
 			code := int(exitCode.Int64)
 			run.ExitCode = &code
+		}
+
+		if interrupted.Valid {
+			value := interrupted.Bool
+			run.Interrupted = &value
 		}
 
 		if stoppedAtStr.Valid {

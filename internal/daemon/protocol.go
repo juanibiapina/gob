@@ -120,6 +120,9 @@ type JobResponse struct {
 	FailureAvgDurationMs int64   `json:"failure_avg_duration_ms"` // Average of failed runs
 	MinDurationMs        int64   `json:"min_duration_ms"`
 	MaxDurationMs        int64   `json:"max_duration_ms"`
+
+	ExpectedDurationMs      int64 `json:"expected_duration_ms"`       // Typical duration; 0 means show no progress
+	ExpectedUpperDurationMs int64 `json:"expected_upper_duration_ms"` // Duration 90% of runs finish within; 0 when there is no estimate
 }
 
 // RunResponse represents a run in API responses

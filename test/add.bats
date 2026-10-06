@@ -184,13 +184,13 @@ load 'test_helper'
   run "$JOB_CLI" add sleep 0.01
   assert_success
 
-  # Should show stats but NOT expected duration (need 3+ runs for that)
+  # Should show stats and the expected duration learned from the previous run
   assert_output --partial "Previous runs: 1"
   assert_output --partial "100% success rate"
-  refute_output --partial "Expected duration"
+  assert_output --partial "Expected duration if success"
 }
 
-@test "add command shows expected duration after 3+ successful runs" {
+@test "add command shows expected duration after repeated successful runs" {
   # Run a quick job 3 times to build up stats
   run "$JOB_CLI" add sleep 0.01
   assert_success

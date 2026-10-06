@@ -672,8 +672,16 @@ func TestRunsHeaderRows_NoProgressBar(t *testing.T) {
 
 func TestRunsHeaderRows_WithProgressBar(t *testing.T) {
 	m := newTestModelWithJobs(Job{ID: "j1", Running: true})
-	m.stats = &daemon.JobResponse{AvgDurationMs: 5000}
+	m.stats = &daemon.JobResponse{ExpectedDurationMs: 5000, ExpectedUpperDurationMs: 9000}
 	if got := m.runsHeaderRows(); got != 3 {
 		t.Errorf("runsHeaderRows() = %d, want 3 (with progress bar)", got)
+	}
+}
+
+func TestRunsHeaderRows_ServerWithAverageHasNoProgressBar(t *testing.T) {
+	m := newTestModelWithJobs(Job{ID: "j1", Running: true})
+	m.stats = &daemon.JobResponse{AvgDurationMs: 5000, ExpectedDurationMs: 0}
+	if got := m.runsHeaderRows(); got != 2 {
+		t.Errorf("runsHeaderRows() = %d, want 2 (no estimate)", got)
 	}
 }

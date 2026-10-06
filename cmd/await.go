@@ -76,18 +76,18 @@ Exit codes:
 
 		if job.Status == "running" {
 			// Fetch stats for stuck detection
-			var avgDurationMs int64
+			var expectedUpperMs int64
 			statsJob, err := client.Stats(jobID)
-			if err == nil && statsJob != nil && statsJob.SuccessCount >= 3 {
-				avgDurationMs = statsJob.AvgDurationMs
+			if err == nil && statsJob != nil {
+				expectedUpperMs = statsJob.ExpectedUpperDurationMs
 			}
-			stuckTimeout := CalculateStuckTimeout(avgDurationMs)
+			stuckTimeout := CalculateStuckTimeout(expectedUpperMs)
 
 			fmt.Printf("Awaiting job %s: %s\n", job.ID, commandStr)
 			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 
 			// Follow the output until completion
-			followResult, err := followJob(job.ID, job.PID, job.StdoutPath, avgDurationMs)
+			followResult, err := followJob(job.ID, job.PID, job.StdoutPath, expectedUpperMs)
 			if err != nil {
 				return err
 			}

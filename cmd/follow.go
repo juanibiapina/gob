@@ -25,9 +25,9 @@ type FollowResult struct {
 }
 
 // followJob follows a job's output until it completes, is interrupted, or is detected as possibly stuck
-// avgDurationMs is the average duration of successful runs (0 if no history)
+// expectedUpperMs is the duration most successful runs finish within (0 if no estimate)
 // stdoutPath is the full path to the stdout log file
-func followJob(jobID string, pid int, stdoutPath string, avgDurationMs int64) (FollowResult, error) {
+func followJob(jobID string, pid int, stdoutPath string, expectedUpperMs int64) (FollowResult, error) {
 	// Derive stderr path from stdout path
 	stderrPath := strings.Replace(stdoutPath, ".stdout.log", ".stderr.log", 1)
 
@@ -51,13 +51,13 @@ func followJob(jobID string, pid int, stdoutPath string, avgDurationMs int64) (F
 
 	// Calculate stuck detection threshold
 	// No data: 5 minutes
-	// Has data: avg + 1 minute
+	// Has estimate: upper expected duration + 1 minute
 	// Trigger: elapsed > threshold AND no output for 1 minute
 	var stuckTimeoutMs int64
-	if avgDurationMs == 0 {
+	if expectedUpperMs == 0 {
 		stuckTimeoutMs = DefaultStuckTimeoutMs
 	} else {
-		stuckTimeoutMs = avgDurationMs + NoOutputWindowMs
+		stuckTimeoutMs = expectedUpperMs + NoOutputWindowMs
 	}
 
 	stuckTimeout := time.Duration(stuckTimeoutMs) * time.Millisecond
@@ -129,7 +129,7 @@ func followJob(jobID string, pid int, stdoutPath string, avgDurationMs int64) (F
 // waitForJob waits for a job to complete without streaming output.
 // It monitors for completion, stuck condition, or interruption using file mod times
 // for stuck detection instead of a Follower.
-func waitForJob(pid int, stdoutPath string, avgDurationMs int64) (FollowResult, error) {
+func waitForJob(pid int, stdoutPath string, expectedUpperMs int64) (FollowResult, error) {
 	// Derive stderr path from stdout path
 	stderrPath := strings.Replace(stdoutPath, ".stdout.log", ".stderr.log", 1)
 
@@ -153,10 +153,10 @@ func waitForJob(pid int, stdoutPath string, avgDurationMs int64) (FollowResult, 
 
 	// Calculate stuck detection threshold
 	var stuckTimeoutMs int64
-	if avgDurationMs == 0 {
+	if expectedUpperMs == 0 {
 		stuckTimeoutMs = DefaultStuckTimeoutMs
 	} else {
-		stuckTimeoutMs = avgDurationMs + NoOutputWindowMs
+		stuckTimeoutMs = expectedUpperMs + NoOutputWindowMs
 	}
 
 	stuckTimeout := time.Duration(stuckTimeoutMs) * time.Millisecond
@@ -210,12 +210,12 @@ func lastFileModTime(paths ...string) time.Time {
 	return latest
 }
 
-// CalculateStuckTimeout returns the stuck detection timeout based on average duration
+// CalculateStuckTimeout returns the stuck detection timeout based on the upper expected duration
 // No data: 5 minutes
-// Has data: avg + 1 minute
-func CalculateStuckTimeout(avgDurationMs int64) time.Duration {
-	if avgDurationMs == 0 {
+// Has estimate: upper expected duration + 1 minute
+func CalculateStuckTimeout(expectedUpperMs int64) time.Duration {
+	if expectedUpperMs == 0 {
 		return time.Duration(DefaultStuckTimeoutMs) * time.Millisecond
 	}
-	return time.Duration(avgDurationMs+NoOutputWindowMs) * time.Millisecond
+	return time.Duration(expectedUpperMs+NoOutputWindowMs) * time.Millisecond
 }

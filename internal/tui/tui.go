@@ -1746,7 +1746,7 @@ func (m Model) renderRunsList(width int) string {
 	statsLine := m.formatStatsLine()
 	lines = append(lines, mutedStyle.Render(statsLine))
 
-	// Progress bar (only shown when job is running with avg duration available)
+	// Progress bar (only shown when the running job has a duration estimate)
 	progressBar := m.renderProgressBar(width)
 	if progressBar != "" {
 		lines = append(lines, progressBar)
@@ -2111,60 +2111,65 @@ func (m Model) formatStatsLine() string {
 		avgDuration)
 }
 
+// showsProgressBar reports whether the selected job is running and has a duration estimate
+func (m Model) showsProgressBar() bool {
+	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
+		return false
+	}
+	return m.jobs[m.jobScroll.Cursor].Running && m.stats != nil && m.stats.ExpectedDurationMs > 0
+}
+
 // renderProgressBar renders a progress bar for a running job
 // Returns empty string if no progress bar should be shown
 func (m Model) renderProgressBar(width int) string {
-	// Only show progress bar when:
-	// 1. We have a selected job that is running
-	// 2. We have stats with an average duration
-	if len(m.jobs) == 0 || m.jobScroll.Cursor >= len(m.jobs) {
+	if !m.showsProgressBar() {
 		return ""
 	}
-
 	job := m.jobs[m.jobScroll.Cursor]
-	if !job.Running {
-		return ""
+	typical := time.Duration(m.stats.ExpectedDurationMs) * time.Millisecond
+	upper := time.Duration(m.stats.ExpectedUpperDurationMs) * time.Millisecond
+	return progressBar(time.Since(job.StartedAt), typical, upper, width)
+}
+
+// progressBar draws elapsed time against a typical duration and the extra time runs may take
+func progressBar(elapsed, typical, upper time.Duration, width int) string {
+	if upper < typical {
+		upper = typical
 	}
 
-	if m.stats == nil || m.stats.AvgDurationMs <= 0 {
-		return ""
+	var info string
+	switch {
+	case elapsed >= upper && upper > typical:
+		info = fmt.Sprintf("%s, longer than usual", formatDuration(elapsed))
+	case upper > typical:
+		info = fmt.Sprintf("%s / ~%s (up to %s)", formatDuration(elapsed), formatDuration(typical), formatDuration(upper))
+	default:
+		info = fmt.Sprintf("%s / ~%s", formatDuration(elapsed), formatDuration(typical))
 	}
 
-	// Calculate elapsed time
-	elapsed := time.Since(job.StartedAt)
-	avgDuration := time.Duration(m.stats.AvgDurationMs) * time.Millisecond
-
-	// Calculate progress percentage (capped at 100%)
-	progress := float64(elapsed) / float64(avgDuration)
-	if progress > 1.0 {
-		progress = 1.0
-	}
-
-	// Calculate bar dimensions
-	// Reserve space for: percentage (5) + space (1) + times display (~20)
-	barWidth := width - 26
+	barWidth := width - len([]rune(info)) - 1
 	if barWidth < 10 {
 		barWidth = 10
 	}
 
-	filledWidth := int(float64(barWidth) * progress)
-	emptyWidth := barWidth - filledWidth
+	typicalWidth := int(float64(barWidth) * float64(typical) / float64(upper))
+	extraWidth := barWidth - typicalWidth
+	filled := int(float64(barWidth) * float64(elapsed) / float64(upper))
+	if filled > barWidth {
+		filled = barWidth
+	}
 
-	// Build the bar using Unicode block characters
-	// ▓ (U+2593) for filled, ▒ (U+2592) for empty
-	filled := progressBarFillStyle.Render(strings.Repeat("▓", filledWidth))
-	empty := progressBarEmptyStyle.Render(strings.Repeat("▒", emptyWidth))
+	typicalFilled := min(filled, typicalWidth)
+	extraFilled := filled - typicalFilled
 
-	// Format elapsed / avg time
-	elapsedStr := formatDuration(elapsed)
-	avgStr := formatDuration(avgDuration)
-	timeInfo := progressBarTextStyle.Render(fmt.Sprintf("%s / %s", elapsedStr, avgStr))
-
-	// Format percentage
-	pct := int(progress * 100)
-	pctStr := progressBarTextStyle.Render(fmt.Sprintf("%3d%%", pct))
-
-	return fmt.Sprintf("%s%s %s %s", filled, empty, pctStr, timeInfo)
+	var b strings.Builder
+	b.WriteString(progressBarFillStyle.Render(strings.Repeat("▓", typicalFilled)))
+	b.WriteString(progressBarEmptyStyle.Render(strings.Repeat("▒", typicalWidth-typicalFilled)))
+	b.WriteString(progressBarExtraFillStyle.Render(strings.Repeat("█", extraFilled)))
+	b.WriteString(progressBarExtraEmptyStyle.Render(strings.Repeat("░", extraWidth-extraFilled)))
+	b.WriteString(" ")
+	b.WriteString(progressBarTextStyle.Render(info))
+	return b.String()
 }
 
 // formatRelativeTime formats a time as a relative duration from now

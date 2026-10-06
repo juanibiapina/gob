@@ -75,15 +75,15 @@ Exit codes:
 		// If follow flag is set, follow the output
 		if restartFollow {
 			// Fetch stats for stuck detection
-			var avgDurationMs int64
+			var expectedUpperMs int64
 			statsJob, statsErr := client.Stats(jobID)
-			if statsErr == nil && statsJob != nil && statsJob.SuccessCount >= 3 {
-				avgDurationMs = statsJob.AvgDurationMs
+			if statsErr == nil && statsJob != nil {
+				expectedUpperMs = statsJob.ExpectedUpperDurationMs
 			}
-			stuckTimeout := CalculateStuckTimeout(avgDurationMs)
+			stuckTimeout := CalculateStuckTimeout(expectedUpperMs)
 			fmt.Printf("  Stuck detection: timeout after %s\n", formatDuration(stuckTimeout))
 
-			followResult, err := followJob(jobID, job.PID, job.StdoutPath, avgDurationMs)
+			followResult, err := followJob(jobID, job.PID, job.StdoutPath, expectedUpperMs)
 			if err != nil {
 				return err
 			}

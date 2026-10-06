@@ -358,13 +358,10 @@ func (m Model) selectedJobPortCount() int {
 // runsHeaderRows returns the number of non-item header rows inside the runs panel content.
 // This accounts for the stats line, optional progress bar, and empty separator.
 func (m Model) runsHeaderRows() int {
-	headerRows := 2 // stats(1) + empty(1)
-	if len(m.jobs) > 0 && m.jobScroll.Cursor < len(m.jobs) &&
-		m.jobs[m.jobScroll.Cursor].Running &&
-		m.stats != nil && m.stats.AvgDurationMs > 0 {
-		headerRows = 3 // stats(1) + progress(1) + empty(1)
+	if m.showsProgressBar() {
+		return 3 // stats(1) + progress(1) + empty(1)
 	}
-	return headerRows
+	return 2 // stats(1) + empty(1)
 }
 
 

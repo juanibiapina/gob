@@ -228,3 +228,33 @@ load 'test_helper'
   # Should NOT have exit code in parentheses for killed process
   assert_output --regexp "stopped: sleep 300"
 }
+
+@test "list command shows no progress for a server stopped through gob" {
+  "$JOB_CLI" add -- sh -c 'trap "exit 0" TERM; sleep 300 & wait'
+  local job_id=$(get_job_field id)
+
+  "$JOB_CLI" stop "$job_id"
+  wait_for_job_state "$job_id" "stopped"
+  "$JOB_CLI" start "$job_id"
+
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --regexp "$job_id: \[[0-9]+\] running: sh -c"
+
+  run "$JOB_CLI" list --json
+  assert_success
+  assert_equal "$(echo "$output" | jq '.[0].expected_duration_ms')" "0"
+  assert_equal "$(echo "$output" | jq '.[0].success_count')" "0"
+}
+
+@test "list command shows progress for a job that finished on its own" {
+  "$JOB_CLI" add sleep 1
+  local job_id=$(get_job_field id)
+  wait_for_job_to_stop "$job_id"
+
+  "$JOB_CLI" start "$job_id"
+
+  run "$JOB_CLI" list
+  assert_success
+  assert_output --regexp "$job_id: \[[0-9]+\] running \([0-9]+%\): sleep 1"
+}

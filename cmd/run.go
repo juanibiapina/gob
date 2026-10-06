@@ -130,12 +130,8 @@ Exit codes:
 
 		commandStr := strings.Join(commandArgs, " ")
 
-		// Determine average duration for stuck detection
-		var avgDurationMs int64
-		if result.Job.SuccessCount >= 3 {
-			avgDurationMs = result.Job.AvgDurationMs
-		}
-		stuckTimeout := CalculateStuckTimeout(avgDurationMs)
+		expectedUpperMs := result.Job.ExpectedUpperDurationMs
+		stuckTimeout := CalculateStuckTimeout(expectedUpperMs)
 
 		// Print message based on action
 		if result.Action == "already_running" {
@@ -156,9 +152,8 @@ Exit codes:
 			if result.Job.RunCount > 0 {
 				fmt.Printf("  Previous runs: %d (%.0f%% success rate)\n",
 					result.Job.RunCount, result.Job.SuccessRate)
-				if result.Job.SuccessCount >= 3 {
-					fmt.Printf("  Expected duration if success: ~%s\n",
-						formatDuration(time.Duration(result.Job.AvgDurationMs)*time.Millisecond))
+				if expected := formatExpectedDuration(result.Job); expected != "" {
+					fmt.Printf("  Expected duration if success: %s\n", expected)
 				}
 				if result.Job.FailureCount >= 3 {
 					fmt.Printf("  Expected duration if failure: ~%s\n",
@@ -169,7 +164,7 @@ Exit codes:
 		}
 
 		// Wait for job to complete (without streaming output)
-		waitResult, err := waitForJob(result.Job.PID, result.Job.StdoutPath, avgDurationMs)
+		waitResult, err := waitForJob(result.Job.PID, result.Job.StdoutPath, expectedUpperMs)
 		if err != nil {
 			return err
 		}
