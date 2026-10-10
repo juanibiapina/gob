@@ -946,33 +946,25 @@ func (d *Daemon) recoverFromCrash() error {
 		return fmt.Errorf("failed to find orphan runs: %w", err)
 	}
 
+	var wg sync.WaitGroup
 	for _, orphan := range orphans {
 		run := orphan.Run
 		Logger.Info("found orphan run", "id", run.ID, "pid", run.PID)
-
-		// Verify this is actually our process (PIDs can be reused!)
-		if isOurProcess(run.PID, run.StartedAt, orphan.Command) {
-			Logger.Info("killing orphan process", "pid", run.PID)
-
-			// Signal the process group
-			syscall.Kill(-run.PID, syscall.SIGTERM)
-
-			// Wait briefly for graceful shutdown
-			time.Sleep(2 * time.Second)
-
-			// Force kill if still running
-			if processExists(run.PID) {
-				syscall.Kill(-run.PID, syscall.SIGKILL)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			escalate := make(chan struct{})
+			timer := time.AfterFunc(2*time.Second, func() { close(escalate) })
+			defer timer.Stop()
+			if err := adoptProcess(run.PID, run.StartedAt).terminate(false, escalate); err != nil {
+				Logger.Warn("failed to terminate orphan process tree", "pid", run.PID, "error", err)
 			}
-		} else {
-			Logger.Info("orphan process no longer exists or doesn't match", "pid", run.PID)
-		}
-
-		// Mark run as stopped
-		if err := d.store.MarkRunStopped(run.ID); err != nil {
-			Logger.Warn("failed to mark run as stopped", "id", run.ID, "error", err)
-		}
+			if err := d.store.MarkRunStopped(run.ID); err != nil {
+				Logger.Warn("failed to mark run as stopped", "id", run.ID, "error", err)
+			}
+		}()
 	}
+	wg.Wait()
 
 	return nil
 }

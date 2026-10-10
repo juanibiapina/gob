@@ -12,6 +12,7 @@ type ProcessHandle interface {
 	Pid() int
 	Wait() error
 	Signal(sig syscall.Signal) error
+	Terminate(force bool, escalate <-chan struct{}) error
 	IsRunning() bool
 }
 
@@ -25,7 +26,14 @@ type RealProcessExecutor struct{}
 
 // realProcessHandle wraps exec.Cmd to implement ProcessHandle
 type realProcessHandle struct {
-	cmd *exec.Cmd
+	cmd   *exec.Cmd
+	owner *reapOwner
+	tree  *processTree
+}
+
+func newRealProcessHandle(cmd *exec.Cmd) *realProcessHandle {
+	owner := &reapOwner{}
+	return &realProcessHandle{cmd: cmd, owner: owner, tree: newProcessTree(cmd.Process.Pid, owner)}
 }
 
 func (h *realProcessHandle) Pid() int {
@@ -33,17 +41,25 @@ func (h *realProcessHandle) Pid() int {
 }
 
 func (h *realProcessHandle) Wait() error {
-	return h.cmd.Wait()
+	err := h.cmd.Wait()
+	h.owner.markReaped()
+	return err
 }
 
 func (h *realProcessHandle) Signal(sig syscall.Signal) error {
-	// Send to process group (negative PID)
-	return syscall.Kill(-h.cmd.Process.Pid, sig)
+	return h.tree.signal(sig)
+}
+
+func (h *realProcessHandle) Terminate(force bool, escalate <-chan struct{}) error {
+	return h.tree.terminate(force, escalate)
 }
 
 func (h *realProcessHandle) IsRunning() bool {
-	err := syscall.Kill(h.cmd.Process.Pid, syscall.Signal(0))
-	return err == nil
+	running := false
+	h.owner.whileOwned(func() {
+		running = syscall.Kill(h.cmd.Process.Pid, 0) == nil
+	})
+	return running
 }
 
 // Start starts a process with the given command and environment
@@ -101,5 +117,5 @@ func (e *RealProcessExecutor) Start(command []string, workdir string, env []stri
 	stderrFile.Close()
 	devNull.Close()
 
-	return &realProcessHandle{cmd: cmd}, nil
+	return newRealProcessHandle(cmd), nil
 }

@@ -92,52 +92,49 @@ func ComputeCommandSignature(command []string) string {
 
 // JobManager manages all jobs and runs in the daemon
 type JobManager struct {
-	jobs         map[string]*Job   // keyed by job ID
-	runs         map[string]*Run   // keyed by run ID
-	jobIndex     map[string]string // signature+workdir -> job ID for quick lookup
-	latestRun    map[string]*Run   // latest run by job ID
-	stops        map[string]*stopAttempt
-	mu           sync.RWMutex
-	runtimeDir   string
-	onEvent      func(Event)
-	executor     ProcessExecutor
-	scanPorts    func(int) ([]PortInfo, error)
-	snapshotTree func(int) ([]int, error)
-	listView     atomic.Pointer[[]JobResponse]
-	store        *Store // database store for persistence
+	jobs       map[string]*Job   // keyed by job ID
+	runs       map[string]*Run   // keyed by run ID
+	jobIndex   map[string]string // signature+workdir -> job ID for quick lookup
+	latestRun  map[string]*Run   // latest run by job ID
+	stops      map[string]*stopAttempt
+	mu         sync.RWMutex
+	runtimeDir string
+	onEvent    func(Event)
+	executor   ProcessExecutor
+	scanPorts  func(int) ([]PortInfo, error)
+	listView   atomic.Pointer[[]JobResponse]
+	store      *Store // database store for persistence
 }
 
 // NewJobManager creates a new job manager
 func NewJobManager(runtimeDir string, onEvent func(Event), store *Store) *JobManager {
 	return &JobManager{
-		jobs:         make(map[string]*Job),
-		runs:         make(map[string]*Run),
-		jobIndex:     make(map[string]string),
-		latestRun:    make(map[string]*Run),
-		stops:        make(map[string]*stopAttempt),
-		runtimeDir:   runtimeDir,
-		onEvent:      onEvent,
-		executor:     &RealProcessExecutor{},
-		scanPorts:    getProcessTreePorts,
-		snapshotTree: getProcessTreePIDs,
-		store:        store,
+		jobs:       make(map[string]*Job),
+		runs:       make(map[string]*Run),
+		jobIndex:   make(map[string]string),
+		latestRun:  make(map[string]*Run),
+		stops:      make(map[string]*stopAttempt),
+		runtimeDir: runtimeDir,
+		onEvent:    onEvent,
+		executor:   &RealProcessExecutor{},
+		scanPorts:  getProcessTreePorts,
+		store:      store,
 	}
 }
 
 // NewJobManagerWithExecutor creates a new job manager with a custom executor (for testing)
 func NewJobManagerWithExecutor(runtimeDir string, onEvent func(Event), executor ProcessExecutor, store *Store) *JobManager {
 	return &JobManager{
-		jobs:         make(map[string]*Job),
-		runs:         make(map[string]*Run),
-		jobIndex:     make(map[string]string),
-		latestRun:    make(map[string]*Run),
-		stops:        make(map[string]*stopAttempt),
-		runtimeDir:   runtimeDir,
-		onEvent:      onEvent,
-		executor:     executor,
-		scanPorts:    getProcessTreePorts,
-		snapshotTree: getProcessTreePIDs,
-		store:        store,
+		jobs:       make(map[string]*Job),
+		runs:       make(map[string]*Run),
+		jobIndex:   make(map[string]string),
+		latestRun:  make(map[string]*Run),
+		stops:      make(map[string]*stopAttempt),
+		runtimeDir: runtimeDir,
+		onEvent:    onEvent,
+		executor:   executor,
+		scanPorts:  getProcessTreePorts,
+		store:      store,
 	}
 }
 
@@ -679,7 +676,6 @@ func (jm *JobManager) waitForProcessExit(job *Job, run *Run) {
 	run.StoppedAt = &now
 	run.Status = "stopped"
 	run.Ports = nil // Clear ports when run stops
-	run.knownPIDs = nil
 
 	// Extract exit code from the error
 	if err != nil {
@@ -911,103 +907,16 @@ func (jm *JobManager) stopJobProcess(jobID string, force bool, escalate <-chan s
 		jm.mu.RUnlock()
 		return fmt.Errorf("job not found: %s", jobID)
 	}
-
 	if job.CurrentRunID == nil {
 		jm.mu.RUnlock()
-		return nil // Already stopped
+		return nil
 	}
-
-	run := jm.runs[*job.CurrentRunID]
-	pid := run.PID
+	process := jm.runs[*job.CurrentRunID].process
 	jm.mu.RUnlock()
-
-	// Snapshot and retain identities before signaling. A retry still verifies descendants
-	// captured before the root disappeared.
-	treePIDs, err := jm.snapshotTree(pid)
-	if err != nil {
-		return fmt.Errorf("failed to inspect process tree: %w", err)
+	if process == nil {
+		return nil
 	}
-	observed, err := captureProcessIdentities(treePIDs)
-	if err != nil {
-		return fmt.Errorf("failed to identify process tree: %w", err)
-	}
-	jm.mu.Lock()
-	if run.knownPIDs == nil {
-		run.knownPIDs = make(map[int]int64)
-	}
-	for child, created := range observed {
-		run.knownPIDs[child] = created
-	}
-	identities := make(map[int]int64, len(run.knownPIDs))
-	for child, created := range run.knownPIDs {
-		identities[child] = created
-	}
-	jm.mu.Unlock()
-	live := func() ([]int, error) { return filterRunningPIDs(identities) }
-	signalGroup := true
-	if _, real := run.process.(*realProcessHandle); real && !isOurProcess(pid, run.StartedAt, job.Command) {
-		if processExists(pid) || syscall.Kill(-pid, 0) != syscall.ESRCH {
-			return fmt.Errorf("cannot verify process identity for job %s (PID %d)", jobID, pid)
-		}
-		signalGroup = false
-	}
-	send := func(sig syscall.Signal) error {
-		if signalGroup {
-			if err := syscall.Kill(-pid, sig); err != nil && err != syscall.ESRCH {
-				return err
-			}
-		}
-		return killPIDs(identities, sig)
-	}
-	if force {
-		if err := send(syscall.SIGKILL); err != nil {
-			return fmt.Errorf("failed to kill process tree: %w", err)
-		}
-	} else {
-		if err := send(syscall.SIGTERM); err != nil {
-			return fmt.Errorf("failed to stop process tree: %w", err)
-		}
-	}
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		survivors, err := live()
-		if err != nil {
-			return fmt.Errorf("failed to verify process tree: %w", err)
-		}
-		if len(survivors) == 0 {
-			return nil
-		}
-		select {
-		case <-escalate:
-			deadline = time.Now()
-		default:
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-	if !force {
-		if err := send(syscall.SIGKILL); err != nil {
-			return fmt.Errorf("failed to kill process tree: %w", err)
-		}
-		deadline = time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			survivors, err := live()
-			if err != nil {
-				return fmt.Errorf("failed to verify process tree: %w", err)
-			}
-			if len(survivors) == 0 {
-				return nil
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-	survivors, err := live()
-	if err != nil {
-		return fmt.Errorf("failed to verify process tree: %w", err)
-	}
-	if len(survivors) > 0 {
-		return fmt.Errorf("process tree has %d surviving processes after SIGKILL: %v", len(survivors), survivors)
-	}
-	return nil
+	return process.Terminate(force, escalate)
 }
 
 // StartJob starts a new run for a stopped job with the provided environment
@@ -1283,14 +1192,14 @@ func (jm *JobManager) Signal(jobID string, signal syscall.Signal) error {
 	}
 
 	run := jm.runs[*job.CurrentRunID]
-	pid := run.PID
 	jm.mu.RUnlock()
+	if run.process == nil {
+		return fmt.Errorf("job %s is not running", jobID)
+	}
 
 	jm.markInterrupted(run)
 
-	// Send signal to process group
-	err := syscall.Kill(-pid, signal)
-	if err != nil && err != syscall.ESRCH {
+	if err := run.process.Signal(signal); err != nil {
 		return fmt.Errorf("failed to send signal: %w", err)
 	}
 

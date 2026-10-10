@@ -18,7 +18,7 @@ func TestStopAcknowledgesBeforeProcessVerification(t *testing.T) {
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
-	jm.snapshotTree = func(int) ([]int, error) { close(entered); <-release; return nil, nil }
+	executor.LastHandle().SetTerminate(func(bool, <-chan struct{}) error { close(entered); <-release; return nil })
 	d := &Daemon{jobManager: jm}
 	result := d.handleStopRequest(&Request{Payload: map[string]any{"job_id": job.ID}})
 	if !result.Success {

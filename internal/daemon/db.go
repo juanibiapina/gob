@@ -6,12 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/pressly/goose/v3"
-	"github.com/shirou/gopsutil/v4/process"
 	_ "modernc.org/sqlite"
 )
 
@@ -419,83 +416,6 @@ func (s *Store) MarkRunStopped(runID string) error {
 // Close closes the database connection
 func (s *Store) Close() error {
 	return s.db.Close()
-}
-
-// ProcessInfo holds information about a running process
-type ProcessInfo struct {
-	StartTime time.Time
-	Command   []string
-}
-
-// getProcessInfo retrieves start time and command for a PID using gopsutil
-func getProcessInfo(pid int) (*ProcessInfo, error) {
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return nil, err // Process doesn't exist
-	}
-
-	// Get creation time (milliseconds since epoch)
-	createTimeMs, err := proc.CreateTime()
-	if err != nil {
-		return nil, err
-	}
-	startTime := time.UnixMilli(createTimeMs)
-
-	// Get command line arguments
-	cmdline, err := proc.CmdlineSlice()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ProcessInfo{StartTime: startTime, Command: cmdline}, nil
-}
-
-// processExists checks if a process with the given PID exists
-func processExists(pid int) bool {
-	// Signal 0 checks if process exists without sending signal
-	return syscall.Kill(pid, 0) == nil
-}
-
-// isOurProcess verifies that a PID belongs to a process we started.
-// This prevents killing unrelated processes if PIDs were reused.
-func isOurProcess(pid int, expectedStartTime time.Time, expectedCmd []string) bool {
-	if !processExists(pid) {
-		return false
-	}
-
-	info, err := getProcessInfo(pid)
-	if err != nil {
-		return false
-	}
-
-	// Check 1: Start time must match (within tolerance for clock differences)
-	// Process start times have ~1 second granularity on most systems
-	timeDiff := info.StartTime.Sub(expectedStartTime)
-	if timeDiff < 0 {
-		timeDiff = -timeDiff
-	}
-	if timeDiff > 2*time.Second {
-		return false
-	}
-
-	// Check 2: Command must match (at least the executable name)
-	if len(info.Command) == 0 || len(expectedCmd) == 0 {
-		return false
-	}
-	if filepath.Base(info.Command[0]) != filepath.Base(expectedCmd[0]) {
-		// Some interpreters replace their launcher name (python3 becomes Python).
-		// Require every remaining argument to match in that case.
-		if len(expectedCmd) < 2 || len(info.Command) != len(expectedCmd) {
-			return false
-		}
-		for i := 1; i < len(expectedCmd); i++ {
-			if info.Command[i] != expectedCmd[i] {
-				return false
-			}
-		}
-	}
-
-	return true
 }
 
 // nullableInt64 returns nil for zero values, otherwise the pointer

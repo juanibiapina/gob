@@ -10,7 +10,6 @@ func newEstimateTestManager(t *testing.T, store *Store) (*JobManager, *FakeProce
 	t.Helper()
 	executor := NewFakeProcessExecutor()
 	jm := NewJobManagerWithExecutor(t.TempDir(), nil, executor, store)
-	jm.snapshotTree = func(int) ([]int, error) { return nil, nil }
 	return jm, executor
 }
 

@@ -14,6 +14,7 @@ type FakeProcessHandle struct {
 	waitErr   error
 	mu        sync.Mutex
 	signalLog []syscall.Signal
+	terminate func(force bool, escalate <-chan struct{}) error
 }
 
 func (h *FakeProcessHandle) Pid() int {
@@ -30,6 +31,27 @@ func (h *FakeProcessHandle) Signal(sig syscall.Signal) error {
 	defer h.mu.Unlock()
 	h.signalLog = append(h.signalLog, sig)
 	return nil
+}
+
+func (h *FakeProcessHandle) Terminate(force bool, escalate <-chan struct{}) error {
+	h.mu.Lock()
+	sig := syscall.SIGTERM
+	if force {
+		sig = syscall.SIGKILL
+	}
+	h.signalLog = append(h.signalLog, sig)
+	terminate := h.terminate
+	h.mu.Unlock()
+	if terminate == nil {
+		return nil
+	}
+	return terminate(force, escalate)
+}
+
+func (h *FakeProcessHandle) SetTerminate(fn func(force bool, escalate <-chan struct{}) error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.terminate = fn
 }
 
 func (h *FakeProcessHandle) IsRunning() bool {

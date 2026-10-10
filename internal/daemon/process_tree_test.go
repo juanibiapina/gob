@@ -7,11 +7,11 @@ import (
 
 func TestReusedPIDIsNotATrackedSurvivor(t *testing.T) {
 	pid := os.Getpid()
-	info, err := getProcessInfo(pid)
+	created, err := processCreateTime(pid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	survivors, err := filterRunningPIDs(map[int]int64{pid: info.StartTime.UnixMilli() - 1000})
+	survivors, err := filterRunningPIDs(map[int]int64{pid: created - 1000})
 	if err != nil {
 		t.Fatal(err)
 	}

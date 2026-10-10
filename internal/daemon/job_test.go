@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -798,14 +799,11 @@ func TestJobManager_Signal(t *testing.T) {
 
 	job, _, _ := jm.AddJob([]string{"echo"}, "/workdir", "", false, nil)
 
-	// Signal is sent through syscall, not through process handle in current impl
-	// This test just verifies no error is returned for valid job
-	err := jm.Signal(job.ID, 15) // SIGTERM
-	// Note: This may fail because we use syscall.Kill directly, not the handle
-	// For now, just verify the job exists
-	if err != nil && err.Error() != "failed to send signal: no such process" {
-		// The fake process doesn't have a real PID, so syscall.Kill will fail
-		// This is expected behavior for the test
+	if err := jm.Signal(job.ID, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	if got := executor.LastHandle().SignalLog(); len(got) != 1 || got[0] != syscall.SIGTERM {
+		t.Fatalf("signals = %v, want [SIGTERM]", got)
 	}
 }
 

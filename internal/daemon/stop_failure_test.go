@@ -14,13 +14,13 @@ func TestStopScanFailureCanBeRetried(t *testing.T) {
 		t.Fatal(err)
 	}
 	attempts := 0
-	jm.snapshotTree = func(int) ([]int, error) {
+	executor.LastHandle().SetTerminate(func(bool, <-chan struct{}) error {
 		attempts++
 		if attempts == 1 {
-			return nil, errors.New("process table unavailable")
+			return errors.New("process table unavailable")
 		}
-		return nil, nil
-	}
+		return nil
+	})
 	if err := jm.StopJob(job.ID, false); err == nil {
 		t.Fatal("scan failure was reported as success")
 	}

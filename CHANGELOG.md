@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Servers and other jobs that usually end by being stopped no longer show a progress bar or progress percentage.
 - Runs stopped, restarted or signaled through gob no longer count as successes or failures.
+- Fix stopping jobs that run a script through an interpreter, such as `pnpm dev`, which failed with "cannot verify process identity".
+- Fix the daemon leaving such jobs running after it restarts from a crash.
 
 ## [3.8.0] - 2026-09-26
 

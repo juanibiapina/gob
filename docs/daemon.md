@@ -79,7 +79,7 @@ Jobs run in their own process groups (`setpgid`), allowing signals to be sent to
 3. Gob waits up to 10 seconds for the captured PIDs to exit, then sends SIGKILL to survivors. The direct child is reaped before gob reports `stopped`.
 4. If verification fails, the job remains `stopping`, exposes `stop_error` in job responses, and emits a failure event. Another stop request can retry. The CLI `gob stop` waits for verified completion or an error.
 
-Stop, restart, and shutdown share this termination path. List queries read a published state snapshot, so waiting for a process does not block them. A tree snapshot covers descendants known at the time of inspection. It cannot guarantee cleanup of a child that detaches or starts after the snapshot. Gob does not claim containment of arbitrary escaped processes.
+Stop, restart, shutdown, and crash recovery share this termination path. Once gob has reaped the direct child, it stops signaling the process group, because the operating system may reuse that ID; it keeps signaling the descendants it captured, after checking each one's start time. List queries read a published state snapshot, so waiting for a process does not block them. A tree snapshot covers descendants known at the time of inspection. It cannot guarantee cleanup of a child that detaches or starts after the snapshot. Gob does not claim containment of arbitrary escaped processes.
 
 ## Job Output
 
@@ -102,8 +102,8 @@ Log files are removed when the job is removed (`gob remove`).
 Jobs are children of the daemon process. If the daemon crashes, the database retains job metadata. On restart, the daemon:
 1. Detects the unclean shutdown
 2. Finds runs still marked as "running" in the database
-3. Verifies if the processes still exist (checking PID, start time, and command)
-4. Kills any orphaned processes that match
+3. Verifies if the processes still exist (checking PID and start time)
+4. Terminates the trees of orphaned processes that match: SIGTERM, up to 2 seconds of grace, then SIGKILL and verification
 5. Marks all runs as stopped
 
 ## Daemon Lifecycle
