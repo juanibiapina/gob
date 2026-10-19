@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix progress and elapsed times for running jobs being overstated by up to a second. Timestamps in JSON output now include milliseconds.
+
 ## [3.9.0] - 2026-10-10
 
 ### Changed

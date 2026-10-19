@@ -236,7 +236,7 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 		Workdir:     job.Workdir,
 		Description: job.Description,
 		Blocked:     job.Blocked,
-		CreatedAt:   job.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:   formatTimestamp(job.CreatedAt),
 
 		// Statistics
 		RunCount:             job.RunCount,
@@ -256,13 +256,13 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 	if job.CurrentRunID != nil {
 		if run, ok := jm.runs[*job.CurrentRunID]; ok {
 			resp.PID = run.PID
-			resp.StartedAt = run.StartedAt.Format("2006-01-02T15:04:05Z07:00")
+			resp.StartedAt = formatTimestamp(run.StartedAt)
 			resp.StdoutPath = run.StdoutPath
 			resp.StderrPath = run.StderrPath
 			resp.ExitCode = run.ExitCode
 			resp.Ports = run.Ports // Include ports for running jobs
 			if run.StoppedAt != nil {
-				resp.StoppedAt = run.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+				resp.StoppedAt = formatTimestamp(*run.StoppedAt)
 			}
 		}
 	} else {
@@ -270,12 +270,12 @@ func (jm *JobManager) jobToResponse(job *Job) JobResponse {
 		latestRun := jm.getLatestRunForJobLocked(job.ID)
 		if latestRun != nil {
 			resp.PID = latestRun.PID
-			resp.StartedAt = latestRun.StartedAt.Format("2006-01-02T15:04:05Z07:00")
+			resp.StartedAt = formatTimestamp(latestRun.StartedAt)
 			resp.StdoutPath = latestRun.StdoutPath
 			resp.StderrPath = latestRun.StderrPath
 			resp.ExitCode = latestRun.ExitCode
 			if latestRun.StoppedAt != nil {
-				resp.StoppedAt = latestRun.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+				resp.StoppedAt = formatTimestamp(*latestRun.StoppedAt)
 			}
 		}
 	}
@@ -1338,11 +1338,15 @@ func runToResponse(run *Run) RunResponse {
 		ExitCode:   run.ExitCode,
 		StdoutPath: run.StdoutPath,
 		StderrPath: run.StderrPath,
-		StartedAt:  run.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
+		StartedAt:  formatTimestamp(run.StartedAt),
 		DurationMs: run.Duration().Milliseconds(),
 	}
 	if run.StoppedAt != nil {
-		resp.StoppedAt = run.StoppedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.StoppedAt = formatTimestamp(*run.StoppedAt)
 	}
 	return resp
+}
+
+func formatTimestamp(t time.Time) string {
+	return t.Format("2006-01-02T15:04:05.000Z07:00")
 }
